@@ -11,9 +11,10 @@ $ddl = [
 ];
 foreach ($ddl as $sql) $pdo->exec($sql);
 $stmt = $pdo->prepare('INSERT INTO user (id, username, email, password, first_name, last_name, role) VALUES (?, ?, ?, ?, ?, ?, ?)');
-foreach ([[1,'usera','usera@example.invalid','user'],[2,'userb','userb@example.invalid','user'],[3,'admin','admin@example.invalid','admin']] as $u) {
+foreach ([[1,'usera','usera@example.invalid','user'],[2,'userb','userb@example.invalid','user'],[3,'admin','admin@example.invalid','admin'],[4,'inactive','inactive@example.invalid','user']] as $u) {
     $stmt->execute([$u[0],$u[1],$u[2],password_hash('synthetic-password', PASSWORD_DEFAULT),'Demo','User',$u[3]]);
 }
+$pdo->exec('UPDATE user SET is_active = 0 WHERE id = 4');
 $pdo->exec("INSERT INTO empresa (id,nombre,razon_social,ruc,ciudad,pais,powerbi_tenant,powerbi_client,powerbi_clientsecret,activo) VALUES (1,'Empresa A','Empresa A','00000000001','Ciudad A','Demo','tenant-a','client-a','fixture-private-value-a',1),(2,'Empresa B','Empresa B','00000000002','Ciudad B','Demo','tenant-b','client-b','fixture-private-value-b',1)");
 $pdo->exec("INSERT INTO reporte (id,nombre,enlace,grupo_id,reporte_id,created_by,activo) VALUES (1,'Reporte A','https://example.invalid/a','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000011',1,1),(2,'Reporte B','https://example.invalid/b','00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000022',2,1),(3,'Reporte C','https://example.invalid/c','00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000033',1,1)");
 $pdo->exec('INSERT INTO empresa_usuario (id,empresa_id,user_id,activo) VALUES (1,1,1,1),(2,2,2,1),(3,2,1,0)');
