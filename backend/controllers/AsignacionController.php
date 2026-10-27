@@ -15,9 +15,9 @@ class AsignacionController {
     /**
      * Obtener todas las asignaciones
      */
-    public function getAll() {
+    public function getAll($userId, $role) {
         try {
-            $asignaciones = $this->model->getAll();
+            $asignaciones = $this->model->getAll($userId, $role);
 
             return [
                 'success' => true,
@@ -35,7 +35,7 @@ class AsignacionController {
     /**
      * Obtener asignación por ID
      */
-    public function getById($id) {
+    public function getById($id, $userId, $role) {
         try {
             // Validar ID
             if (!is_numeric($id) || $id <= 0) {
@@ -45,7 +45,7 @@ class AsignacionController {
                 ];
             }
 
-            $asignacion = $this->model->getById($id);
+            $asignacion = $this->model->getById($id, $userId, $role);
 
             if (!$asignacion) {
                 return [
@@ -69,7 +69,7 @@ class AsignacionController {
     /**
      * Obtener asignaciones por empresa
      */
-    public function getByEmpresa($empresa_id) {
+    public function getByEmpresa($empresa_id, $userId, $role) {
         try {
             // Validar ID de empresa
             if (!is_numeric($empresa_id) || $empresa_id <= 0) {
@@ -87,7 +87,11 @@ class AsignacionController {
                 ];
             }
 
-            $asignaciones = $this->model->getByEmpresa($empresa_id);
+            $asignaciones = $this->model->getByEmpresa($empresa_id, $userId, $role);
+
+            if (empty($asignaciones) && strtolower((string)$role) !== 'admin') {
+                return ['success' => false, 'message' => 'Asignación no encontrada'];
+            }
 
             return [
                 'success' => true,
@@ -105,7 +109,7 @@ class AsignacionController {
     /**
      * Obtener asignaciones por reporte
      */
-    public function getByReporte($reporte_id) {
+    public function getByReporte($reporte_id, $userId, $role) {
         try {
             // Validar ID de reporte
             if (!is_numeric($reporte_id) || $reporte_id <= 0) {
@@ -123,7 +127,11 @@ class AsignacionController {
                 ];
             }
 
-            $asignaciones = $this->model->getByReporte($reporte_id);
+            $asignaciones = $this->model->getByReporte($reporte_id, $userId, $role);
+
+            if (empty($asignaciones) && strtolower((string)$role) !== 'admin') {
+                return ['success' => false, 'message' => 'Asignación no encontrada'];
+            }
 
             return [
                 'success' => true,

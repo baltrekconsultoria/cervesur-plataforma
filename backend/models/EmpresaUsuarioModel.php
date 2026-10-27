@@ -7,6 +7,14 @@ class EmpresaUsuarioModel {
         $this->pdo = $pdo;
     }
 
+    private function visibleScope($userId, $role, array &$params) {
+        if (strtolower((string)$role) === 'admin') {
+            return '';
+        }
+        $params['authorized_user_id'] = (int)$userId;
+        return ' AND eu.user_id = :authorized_user_id';
+    }
+
     /**
      * Crea una nueva relación empresa-usuario.
      *
@@ -102,13 +110,15 @@ class EmpresaUsuarioModel {
      * Obtiene todas las relaciones de la tabla empresa_usuario.
      * @return array Resultado con las filas encontradas o error.
      */
-    public function getAll() {
+    public function getAll($userId, $role) {
         $response = [
             'success' => false,
             'data' => [],
             'message' => ''
         ];
         try {
+            $params = [];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         eu.id,
                         e.nombre AS empresa_nombre,
@@ -127,11 +137,11 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE eu.activo = 1
+                    WHERE eu.activo = 1 $scope
                     ORDER BY eu.created_at DESC
                     LIMIT 20";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute();
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Procesar resultados: convertir activo a booleano y normalizar
@@ -156,7 +166,7 @@ class EmpresaUsuarioModel {
      * @param int $relacion_id ID de la relación empresa-usuario a buscar
      * @return array Respuesta con los datos de la relación o mensaje de error
      */
-    public function getById($relacion_id) {
+    public function getById($relacion_id, $userId, $role) {
         $response = [
             'success' => false,
             'data' => null,
@@ -172,6 +182,8 @@ class EmpresaUsuarioModel {
         }
 
         try {
+            $params = ['id' => $relacion_id];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         eu.id,
                         e.nombre AS empresa_nombre,
@@ -190,9 +202,9 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE eu.id = :id AND eu.activo = 1";
+                    WHERE eu.id = :id AND eu.activo = 1 $scope";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['id' => $relacion_id]);
+            $stmt->execute($params);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
@@ -210,7 +222,7 @@ class EmpresaUsuarioModel {
         return $response;
     }
 
-    public function getByEmpresaRuc($empresa_ruc) {
+    public function getByEmpresaRuc($empresa_ruc, $userId, $role) {
         $response = [
             'success' => false,
             'data' => [],
@@ -225,6 +237,8 @@ class EmpresaUsuarioModel {
         }
 
         try {
+            $params = ['ruc' => $empresa_ruc];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         eu.id,
                         e.nombre AS empresa_nombre,
@@ -244,9 +258,9 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE e.ruc = :ruc AND eu.activo = 1";
+                    WHERE e.ruc = :ruc AND eu.activo = 1 $scope";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['ruc' => $empresa_ruc]);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Procesar resultados: convertir activo a booleano para consistencia
@@ -274,7 +288,7 @@ class EmpresaUsuarioModel {
      * @param string $empresa_nombre Nombre (o parte del nombre) de la empresa a buscar
      * @return array Resultado de la consulta
      */
-    public function getByEmpresaNombre($empresa_nombre) {
+    public function getByEmpresaNombre($empresa_nombre, $userId, $role) {
         $response = [
             'success' => false,
             'data' => [],
@@ -289,6 +303,8 @@ class EmpresaUsuarioModel {
         }
 
         try {
+            $params = ['empresa_nombre' => '%' . $empresa_nombre . '%'];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         eu.id,
                         e.nombre AS empresa_nombre,
@@ -307,12 +323,11 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE e.nombre LIKE :empresa_nombre AND eu.activo = 1
+                    WHERE e.nombre LIKE :empresa_nombre AND eu.activo = 1 $scope
                     ORDER BY eu.created_at DESC
                     LIMIT 20";
             $stmt = $this->pdo->prepare($sql);
-            $likeParam = '%' . $empresa_nombre . '%';
-            $stmt->execute(['empresa_nombre' => $likeParam]);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Procesar resultados: convertir activo a booleano para consistencia

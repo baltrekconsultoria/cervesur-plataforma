@@ -12,11 +12,25 @@ class AsignacionModel {
         $this->pdo = $pdo;
     }
 
+    private function visibleScope($userId, $role, array &$params) {
+        if (strtolower((string)$role) === 'admin') {
+            return '';
+        }
+        $params['authorized_assignment_user_id'] = (int)$userId;
+        return ' AND EXISTS (SELECT 1 FROM user_empresa_reporte eru'
+            . ' INNER JOIN empresa_usuario eu ON eu.empresa_id = er.empresa_id'
+            . ' AND eu.user_id = eru.user_id AND eu.activo = 1'
+            . ' WHERE eru.empresa_reporte_id = er.id AND eru.user_id = :authorized_assignment_user_id'
+            . ' AND eru.activo = 1)';
+    }
+
     /**
      * Obtener todas las asignaciones activas
      */
-    public function getAll() {
+    public function getAll($userId, $role) {
         try {
+            $params = [];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         er.id,
                         er.empresa_id,
@@ -34,11 +48,11 @@ class AsignacionModel {
                     INNER JOIN reporte r ON r.id = er.reporte_id
                     LEFT JOIN user uc ON uc.id = er.created_by
                     LEFT JOIN user uu ON uu.id = er.updated_by
-                    WHERE er.activo = 1
+                    WHERE er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope
                     ORDER BY er.created_at DESC";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute();
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
@@ -61,16 +75,18 @@ class AsignacionModel {
     /**
      * Obtener asignación por ID
      */
-    public function getById($id) {
+    public function getById($id, $userId, $role) {
         try {
+            $params = ['id' => $id];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id
-                    WHERE er.id = :id AND er.activo = 1";
+                    WHERE er.id = :id AND er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['id' => $id]);
+            $stmt->execute($params);
 
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -81,17 +97,19 @@ class AsignacionModel {
     /**
      * Obtener asignaciones por empresa
      */
-    public function getByEmpresa($empresa_id) {
+    public function getByEmpresa($empresa_id, $userId, $role) {
         try {
+            $params = ['empresa_id' => $empresa_id];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id
-                    WHERE er.empresa_id = :empresa_id AND er.activo = 1
+                    WHERE er.empresa_id = :empresa_id AND er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope
                     ORDER BY er.created_at DESC";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['empresa_id' => $empresa_id]);
+            $stmt->execute($params);
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -102,17 +120,19 @@ class AsignacionModel {
     /**
      * Obtener asignaciones por reporte
      */
-    public function getByReporte($reporte_id) {
+    public function getByReporte($reporte_id, $userId, $role) {
         try {
+            $params = ['reporte_id' => $reporte_id];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id
-                    WHERE er.reporte_id = :reporte_id AND er.activo = 1
+                    WHERE er.reporte_id = :reporte_id AND er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope
                     ORDER BY er.created_at DESC";
 
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['reporte_id' => $reporte_id]);
+            $stmt->execute($params);
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {

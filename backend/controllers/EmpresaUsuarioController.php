@@ -88,9 +88,9 @@ class EmpresaUsuarioController {
      * Lista todas las asignaciones activas empresa-usuario
      * @return array Respuesta con el listado (máximo 20 registros)
      */
-    public function getAll() {
+    public function getAll($userId, $role) {
         try {
-            $result = $this->empresaUsuarioModel->getAll();
+            $result = $this->empresaUsuarioModel->getAll($userId, $role);
             return $result;
         } catch (Exception $e) {
             return [
@@ -106,7 +106,7 @@ class EmpresaUsuarioController {
      * @param int $relacionId ID de la relación a buscar
      * @return array Respuesta con los datos de la relación o mensaje de error
      */
-    public function getById($relacionId) {
+    public function getById($relacionId, $userId, $role) {
         try {
             // Validar que el ID sea un número entero positivo
             // Esto mantiene consistencia con otras funciones del controlador como assignUserToEmpresa
@@ -120,7 +120,7 @@ class EmpresaUsuarioController {
             }
 
             // Delegar al modelo, que realizará la consulta y validaciones adicionales
-            $result = $this->empresaUsuarioModel->getById($relacionId);
+            $result = $this->empresaUsuarioModel->getById($relacionId, $userId, $role);
             return $result;
         } catch (Exception $e) {
             return [
@@ -136,7 +136,7 @@ class EmpresaUsuarioController {
      * @param string $empresaRuc RUC de la empresa a buscar
      * @return array Respuesta con las relaciones encontradas o mensaje de error
      */
-    public function getByEmpresaRuc($empresaRuc) {
+    public function getByEmpresaRuc($empresaRuc, $userId, $role) {
         try {
             // Validar que el RUC sea un string válido y no esté vacío después de limpiar espacios
             // Esto mantiene consistencia con otras funciones del controlador como getById
@@ -150,7 +150,7 @@ class EmpresaUsuarioController {
             }
 
             // Delegar al modelo, que realizará la consulta y validaciones adicionales
-            $result = $this->empresaUsuarioModel->getByEmpresaRuc($empresaRuc);
+            $result = $this->empresaUsuarioModel->getByEmpresaRuc($empresaRuc, $userId, $role);
             return $result;
         } catch (Exception $e) {
             return [
@@ -166,7 +166,7 @@ class EmpresaUsuarioController {
      * @param string $empresaNombre Nombre o parte del nombre de la empresa a buscar
      * @return array Respuesta con las relaciones encontradas o mensaje de error
      */
-    public function getByEmpresaNombre($empresaNombre) {
+    public function getByEmpresaNombre($empresaNombre, $userId, $role) {
         try {
             // Validar que el nombre sea un string válido y no esté vacío después de limpiar espacios
             // Esto mantiene consistencia con otras funciones del controlador como getByEmpresaRuc
@@ -180,7 +180,7 @@ class EmpresaUsuarioController {
             }
 
             // Delegar al modelo, que realizará la consulta y validaciones adicionales
-            $result = $this->empresaUsuarioModel->getByEmpresaNombre($empresaNombre);
+            $result = $this->empresaUsuarioModel->getByEmpresaNombre($empresaNombre, $userId, $role);
             return $result;
         } catch (Exception $e) {
             return [

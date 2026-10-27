@@ -18,9 +18,9 @@ class EmpresaReporteUsuarioController {
      *
      * @return array Listado de relaciones encontradas o mensaje de error
      */
-    public function getAll($user_id = null) {
+    public function getAll($user_id, $role) {
         try {
-            return $this->model->getAll($user_id);
+            return $this->model->getAll($user_id, $role);
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
         }
@@ -32,9 +32,9 @@ class EmpresaReporteUsuarioController {
      * @param int $id ID único de la relación
      * @return array Detalle de la relación encontrada o mensaje de error
      */
-    public function getById($id) {
+    public function getById($id, $userId, $role) {
         try {
-            return $this->model->getById($id);
+            return $this->model->getById($id, $userId, $role);
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
         }
@@ -46,9 +46,9 @@ class EmpresaReporteUsuarioController {
      * @param string $ruc RUC exacto de la empresa
      * @return array Listado de relaciones encontradas o mensaje de error
      */
-    public function getByEmpresaRuc($ruc) {
+    public function getByEmpresaRuc($ruc, $userId, $role) {
         try {
-            return $this->model->getByEmpresaRuc($ruc);
+            return $this->model->getByEmpresaRuc($ruc, $userId, $role);
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
         }
@@ -62,9 +62,9 @@ class EmpresaReporteUsuarioController {
      * @param string $nombre Nombre parcial o completo de la empresa a buscar.
      * @return array Listado de relaciones encontradas o mensaje de error.
      */
-    public function getByEmpresaNombre($nombre) {
+    public function getByEmpresaNombre($nombre, $userId, $role) {
         try {
-            return $this->model->getByEmpresaNombre($nombre);
+            return $this->model->getByEmpresaNombre($nombre, $userId, $role);
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
         }
@@ -76,9 +76,9 @@ class EmpresaReporteUsuarioController {
      * @param int $userId ID del usuario para el que se desean listar las relaciones.
      * @return array Listado de relaciones encontradas o mensaje de error en caso de fallo.
      */
-    public function getByUserId($userId) {
+    public function getByUserId($userId, $requestUserId, $role) {
         try {
-            return $this->model->getByUserId($userId);
+            return $this->model->getByUserId($userId, $requestUserId, $role);
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
         }

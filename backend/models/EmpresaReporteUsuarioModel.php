@@ -11,6 +11,17 @@ class EmpresaReporteUsuarioModel {
         $this->pdo = $pdo;
     }
 
+    private function visibleScope($userId, $role, array &$params) {
+        $scope = ' AND er.activo = 1 AND e.activo = 1 AND r.activo = 1'
+            . ' AND EXISTS (SELECT 1 FROM empresa_usuario eu'
+            . ' WHERE eu.empresa_id = er.empresa_id AND eu.user_id = eru.user_id AND eu.activo = 1)';
+        if (strtolower((string)$role) !== 'admin') {
+            $params['authorized_user_id'] = (int)$userId;
+            $scope .= ' AND eru.user_id = :authorized_user_id';
+        }
+        return $scope;
+    }
+
     /**
      * Crea una nueva relación usuario ↔ empresa_reporte.
      *
@@ -96,23 +107,10 @@ class EmpresaReporteUsuarioModel {
      *   - message (string): Mensaje descriptivo del resultado.
      *   - InsertedId (int, opcional): ID autoincremental del nuevo registro si fue exitoso.
      */
-    public function getAll($user_id = null) {
+    public function getAll($user_id, $role) {
         try {
-
-            // Si se proporciona $user_id, filtra por dicho usuario; si no, trae todos
-            if ($user_id !== null) {
-                $user_id = filter_var($user_id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-                if ($user_id === false) {
-                    return [
-                        'success' => false,
-                        'data' => [],
-                        'message' => 'user_id inválido'
-                    ];
-                }
-                $whereUsuario = "AND eru.user_id = :user_id";
-            } else {
-                $whereUsuario = "";
-            }
+            $params = [];
+            $scope = $this->visibleScope($user_id, $role, $params);
 
             $sql = "SELECT
 					eru.id,
@@ -138,17 +136,12 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN user u ON u.id = eru.user_id
 				LEFT JOIN user uc ON uc.id = eru.created_by
 				LEFT JOIN user uu ON uu.id = eru.updated_by
-				WHERE eru.activo = 1
-                $whereUsuario
+                WHERE eru.activo = 1 $scope
 				ORDER BY eru.created_at DESC
 				LIMIT 20";
 
             $stmt = $this->pdo->prepare($sql);
-            if ($user_id !== null) {
-                $stmt->execute(['user_id' => $user_id]);
-            } else {
-                $stmt->execute();
-            }
+            $stmt->execute($params);
 
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$row) {
@@ -178,12 +171,14 @@ class EmpresaReporteUsuarioModel {
      *   - data (array|null): Datos de la relación encontrada, o null si no existe o está inactiva.
      *   - message (string): Mensaje descriptivo del resultado.
      */
-    public function getById($id) {
+    public function getById($id, $userId, $role) {
         $id = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($id === false) {
             return ['success' => false, 'data' => null, 'message' => 'ID inválido'];
         }
         try {
+            $params = ['id' => $id];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
 					eru.id,
 					u.username AS usuario,
@@ -207,9 +202,9 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN user u ON u.id = eru.user_id
 				LEFT JOIN user uc ON uc.id = eru.created_by
 				LEFT JOIN user uu ON uu.id = eru.updated_by
-				WHERE eru.id = :id AND eru.activo = 1";
+                WHERE eru.id = :id AND eru.activo = 1 $scope";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['id' => $id]);
+            $stmt->execute($params);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 $row['activo'] = (bool)$row['activo'];
@@ -242,12 +237,14 @@ class EmpresaReporteUsuarioModel {
      *   - updated_at (string|null): Fecha y hora de última actualización.
      *   - activo (bool): Estado de la relación (true = activo).
      */
-    public function getByEmpresaRuc($ruc) {
+    public function getByEmpresaRuc($ruc, $userId, $role) {
         $ruc = is_string($ruc) ? trim($ruc) : '';
         if ($ruc === '') {
             return ['success' => false, 'data' => [], 'message' => 'RUC inválido'];
         }
         try {
+            $params = ['ruc' => $ruc];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
 					eru.id,
 					u.username AS usuario,
@@ -263,9 +260,9 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN empresa e ON e.id = er.empresa_id
 				INNER JOIN reporte r ON r.id = er.reporte_id
 				INNER JOIN user u ON u.id = eru.user_id
-				WHERE e.ruc = :ruc AND eru.activo = 1";
+                WHERE e.ruc = :ruc AND eru.activo = 1 $scope";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['ruc' => $ruc]);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
@@ -299,12 +296,14 @@ class EmpresaReporteUsuarioModel {
      *
      * Si ocurre algún error, retorna success=false y un mensaje descriptivo.
      */
-    public function getByEmpresaNombre($nombre) {
+    public function getByEmpresaNombre($nombre, $userId, $role) {
         $nombre = is_string($nombre) ? trim($nombre) : '';
         if ($nombre === '') {
             return ['success' => false, 'data' => [], 'message' => 'Nombre de empresa inválido'];
         }
         try {
+            $params = ['nombre' => '%' . $nombre . '%'];
+            $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
 					eru.id,
 					u.id AS usuario_id,
@@ -321,11 +320,11 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN empresa e ON e.id = er.empresa_id
 				INNER JOIN reporte r ON r.id = er.reporte_id
 				INNER JOIN user u ON u.id = eru.user_id
-				WHERE e.nombre LIKE :nombre AND eru.activo = 1
+                WHERE e.nombre LIKE :nombre AND eru.activo = 1 $scope
 				ORDER BY eru.created_at DESC
 				LIMIT 20";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['nombre' => '%' . $nombre . '%']);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
@@ -357,12 +356,14 @@ class EmpresaReporteUsuarioModel {
      *   - updated_at (string|null): Fecha de última actualización.
      *   - activo (bool): Indica si la relación está activa.
      */
-    public function getByUserId($userId) {
+    public function getByUserId($userId, $requestUserId, $role) {
         $userId = filter_var($userId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($userId === false) {
             return ['success' => false, 'data' => [], 'message' => 'user_id inválido'];
         }
         try {
+            $params = ['user_id' => $userId];
+            $scope = $this->visibleScope($requestUserId, $role, $params);
             $sql = "SELECT
 					eru.id,
 					e.nombre AS empresa_nombre,
@@ -377,9 +378,9 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN empresa_reporte er ON er.id = eru.empresa_reporte_id
 				INNER JOIN empresa e ON e.id = er.empresa_id
 				INNER JOIN reporte r ON r.id = er.reporte_id
-				WHERE eru.user_id = :user_id AND eru.activo = 1";
+                WHERE eru.user_id = :user_id AND eru.activo = 1 $scope";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute(['user_id' => $userId]);
+            $stmt->execute($params);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];

@@ -11,7 +11,7 @@ require_once __DIR__ . '/../lib/auth_middleware.php';
 $empresaUsuarioController = new EmpresaUsuarioController($pdo);
 
 // Obtener JWT secret
-$jwt_secret = getenv('JWT_SECRET');
+$jwt_secret = get_jwt_secret_or_fail('EmpresaUsuarioRouter');
 
 // POST /api/empresa-usuario - Asignar usuario a empresa
 if (preg_match('#^/api/empresa-usuario$#', $uri)) {
@@ -30,7 +30,7 @@ if (preg_match('#^/api/empresa-usuario$#', $uri)) {
         exit;
     } elseif ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
-        $response = $empresaUsuarioController->getAll();
+        $response = $empresaUsuarioController->getAll($user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
@@ -41,7 +41,7 @@ if (preg_match('#^/api/empresa-usuario/empresa/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $nombre = urldecode($matches[1]);
-        $response = $empresaUsuarioController->getByEmpresaNombre($nombre);
+        $response = $empresaUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
@@ -52,7 +52,7 @@ if (preg_match('#^/api/empresa-usuario/ruc/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $ruc = urldecode($matches[1]);
-        $response = $empresaUsuarioController->getByEmpresaRuc($ruc);
+        $response = $empresaUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
@@ -92,7 +92,7 @@ if (preg_match('#^/api/empresa-usuario/(\d+)$#', $uri, $matches)) {
         // GET /api/empresa-usuario/{id} - Obtener relación por ID
         $user_data = require_auth($jwt_secret);
         $relacion_id = (int)$matches[1];
-        $response = $empresaUsuarioController->getById($relacion_id);
+        $response = $empresaUsuarioController->getById($relacion_id, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
