@@ -18,9 +18,7 @@ if (preg_match('#^/api/empresa-reporte-usuario$#', $uri)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
 
-        $response = ($user_data['role'] !== 'admin')
-            ? $empresaReporteUsuarioController->getAll($user_data['user_id'])
-            : $empresaReporteUsuarioController->getAll(null);
+        $response = $empresaReporteUsuarioController->getAll($user_data['user_id'], $user_data['role']);
 
         echo json_encode($response);
         exit;
@@ -46,7 +44,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/(\d+)$#', $uri, $matches)) {
     $relacion_id = (int)$matches[1];
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
-        $response = $empresaReporteUsuarioController->getById($relacion_id);
+        $response = $empresaReporteUsuarioController->getById($relacion_id, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     } elseif ($method === 'PUT') {
@@ -80,7 +78,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/ruc/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $ruc = urldecode($matches[1]);
-        $response = $empresaReporteUsuarioController->getByEmpresaRuc($ruc);
+        $response = $empresaReporteUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
@@ -91,7 +89,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/empresa/(.+)$#', $uri, $matches))
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $nombre = urldecode($matches[1]);
-        $response = $empresaReporteUsuarioController->getByEmpresaNombre($nombre);
+        $response = $empresaReporteUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }
@@ -102,7 +100,12 @@ if (preg_match('#^/api/empresa-reporte-usuario/user/(\d+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $userId = (int)$matches[1];
-        $response = $empresaReporteUsuarioController->getByUserId($userId);
+        if (strtolower((string)$user_data['role']) !== 'admin' && $userId !== (int)$user_data['user_id']) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+        $response = $empresaReporteUsuarioController->getByUserId($userId, $user_data['user_id'], $user_data['role']);
         echo json_encode($response);
         exit;
     }

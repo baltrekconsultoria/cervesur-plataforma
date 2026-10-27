@@ -48,6 +48,22 @@ class SecurityStaticChecks(unittest.TestCase):
         self.assertIn("SELECT session_version, is_active, role FROM user", text)
         self.assertIn("'role' => $row['role']", text)
 
+    def test_profiles_and_relationship_reads_are_scoped(self):
+        profile_router = source("backend/router/UserRouter.php")
+        self.assertIn("$target_user_id !== (int)$user['user_id']", profile_router)
+
+        company_relation = source("backend/models/EmpresaUsuarioModel.php")
+        self.assertIn("eu.user_id = :authorized_user_id", company_relation)
+        self.assertIn("visibleScope($userId, $role", company_relation)
+
+        report_relation = source("backend/models/EmpresaReporteUsuarioModel.php")
+        for condition in ("eru.user_id = :authorized_user_id", "er.activo = 1", "e.activo = 1", "r.activo = 1", "eu.activo = 1"):
+            self.assertIn(condition, report_relation)
+
+        assignment = source("backend/models/AsignacionModel.php")
+        for condition in ("user_empresa_reporte eru", "empresa_usuario eu", "eru.activo = 1", "eu.activo = 1", "authorized_assignment_user_id"):
+            self.assertIn(condition, assignment)
+
     def test_errors_do_not_return_upstream_or_database_details(self):
         for path in ("backend/controllers/PowerBIController.php", "backend/controllers/EmpresaController.php", "backend/lib/db.php"):
             self.assertNotIn(". $e->getMessage()", source(path))

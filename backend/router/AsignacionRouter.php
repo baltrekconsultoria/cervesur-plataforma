@@ -10,7 +10,7 @@ require_once __DIR__ . '/../controllers/AsignacionController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
 // Obtener el secreto JWT desde variables de entorno
-$jwt_secret = getenv('JWT_SECRET');
+$jwt_secret = get_jwt_secret_or_fail('AsignacionRouter');
 
 // Instanciar el controlador
 $controller = new AsignacionController($pdo);
@@ -22,7 +22,7 @@ $controller = new AsignacionController($pdo);
 // GET /api/asignacion - Obtener todas las asignaciones
 if ($method === 'GET' && $uri === '/api/asignacion') {
     $user = require_auth($jwt_secret);
-    $result = $controller->getAll();
+    $result = $controller->getAll($user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 400);
     echo json_encode($result);
@@ -33,7 +33,7 @@ if ($method === 'GET' && $uri === '/api/asignacion') {
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $id = (int)$matches[1];
-    $result = $controller->getById($id);
+    $result = $controller->getById($id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
     echo json_encode($result);
@@ -44,7 +44,7 @@ if ($method === 'GET' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $match
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/empresa\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $empresa_id = (int)$matches[1];
-    $result = $controller->getByEmpresa($empresa_id);
+    $result = $controller->getByEmpresa($empresa_id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
     echo json_encode($result);
@@ -55,7 +55,7 @@ if ($method === 'GET' && preg_match('/^\/api\/asignacion\/empresa\/(\d+)$/', $ur
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/reporte\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $reporte_id = (int)$matches[1];
-    $result = $controller->getByReporte($reporte_id);
+    $result = $controller->getByReporte($reporte_id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
     echo json_encode($result);

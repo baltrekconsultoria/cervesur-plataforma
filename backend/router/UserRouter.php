@@ -49,6 +49,12 @@ if (preg_match('#^/api/user/profile/(\d+)$#', $uri, $matches)) {
         exit;
     }
 
+    if (strtolower((string)$user['role']) !== 'admin' && $target_user_id !== (int)$user['user_id']) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+        exit;
+    }
+
     if ($method === 'GET') {
         // GET /api/user/profile/{id} - Obtener perfil de un usuario
         $userController = new UserController($pdo);
