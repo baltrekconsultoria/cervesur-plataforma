@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * Rutas de autenticación
+ * Maneja login, registro, logout y datos de usuario
+ */
+
+require_once __DIR__ . '/../lib/auth_middleware.php';
+
+// Endpoint de login
+if ($method === 'POST' && $uri === '/api/login') {
+    require_once __DIR__ . '/../controllers/AuthController.php';
+
+    // Leer el body JSON
+    $inputRaw = file_get_contents('php://input');
+    $input = json_decode($inputRaw, true);
+
+    // Validar que el JSON sea válido
+    if (!is_array($input)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Body JSON inválido']);
+        exit;
+    }
+
+    // Validar que se envíen los campos necesarios
+    if (!isset($input['login']) || !isset($input['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Faltan datos de login o password']);
+        exit;
+    }
+
+    // Normalizar valores
+    $login = trim((string)$input['login']);
+    $password = (string)$input['password'];
+
+    if ($login === '' || $password === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Login y password no pueden estar vacíos']);
+        exit;
+    }
+
+    // Clave secreta para firmar el JWT
+    $jwt_secret = get_jwt_secret_or_fail('/api/login');
+
+    try {
+        // Instanciar el controlador y procesar el login
+        $auth = new AuthController($pdo, $jwt_secret);
+        $result = $auth->login($login, $password);
+
+        // Responder en JSON
+        echo json_encode($result);
+    } catch (Exception $e) {
+        // Loguear el error y devolver mensaje genérico
+        error_log('Error en ruta /api/login: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Error interno del servidor']);
+    }
+    exit;
+}
+
+// Endpoint de registro
+if ($method === 'POST' && $uri === '/api/register') {
+    require_once __DIR__ . '/../controllers/RegisterController.php';
+
+    // Leer el body JSON
+    $inputRaw = file_get_contents('php://input');
+    $input = json_decode($inputRaw, true);
+
+    // Validar que el JSON sea válido
+    if (!is_array($input)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Body JSON inválido']);
+        exit;
+    }
+
+    // Validar que se envíen los campos necesarios
+    if (!isset($input['first_name']) || !isset($input['last_name']) || !isset($input['username']) || !isset($input['email']) || !isset($input['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Faltan campos obligatorios']);
+        exit;
+    }
+
+    // Normalizar valores básicos (el controlador/modelo hará más validaciones)
+    $input['first_name'] = trim((string)$input['first_name']);
+    $input['last_name'] = trim((string)$input['last_name']);
+    $input['username'] = trim((string)$input['username']);
+    $input['email'] = trim((string)$input['email']);
+
+    try {
+        // Instanciar el controlador y procesar el registro
+        $register = new RegisterController($pdo);
+        $result = $register->register($input);
+
+        // Responder en JSON
+        echo json_encode($result);
+    } catch (Exception $e) {
+        // Loguear el error y devolver mensaje genérico
+        error_log('Error en ruta /api/register: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Error interno del servidor']);
+    }
+    exit;
+}
+
+// Endpoint de logout (ahora invalida los tokens del usuario en backend)
+if ($method === 'POST' && $uri === '/api/logout') {
+    // Clave secreta para validar el JWT
+    $jwt_secret = get_jwt_secret_or_fail('/api/logout');
+
+    // Obtener usuario autenticado (requiere header Authorization: Bearer ...)
+    $user = require_auth($jwt_secret);
+
+    try {
+        // Invalidar todas las sesiones/token de este usuario incrementando session_version
+        $stmt = $pdo->prepare(
+            'UPDATE user SET session_version = session_version + 1 WHERE id = :id'
+        );
+        $stmt->execute(['id' => $user['user_id']]);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Logout exitoso. Todos los tokens anteriores han sido invalidados.'
+        ]);
+    } catch (PDOException $e) {
+        error_log('Error en ruta /api/logout al invalidar tokens: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error interno del servidor'
+        ]);
+    }
+    exit;
+}

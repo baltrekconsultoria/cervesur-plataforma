@@ -1,0 +1,136 @@
+<?php
+
+/**
+ * Router para asignaciones
+ * Define todas las rutas relacionadas con asignaciones de reportes a empresas
+ */
+
+// Incluir dependencias necesarias
+require_once __DIR__ . '/../controllers/AsignacionController.php';
+require_once __DIR__ . '/../lib/auth_middleware.php';
+
+// Obtener el secreto JWT desde variables de entorno
+$jwt_secret = getenv('JWT_SECRET');
+
+// Instanciar el controlador
+$controller = new AsignacionController($pdo);
+
+// ========================================
+// RUTAS PARA ASIGNACIONES
+// ========================================
+
+// GET /api/asignacion - Obtener todas las asignaciones
+if ($method === 'GET' && $uri === '/api/asignacion') {
+    $user = require_auth($jwt_secret);
+    $result = $controller->getAll();
+
+    http_response_code($result['success'] ? 200 : 400);
+    echo json_encode($result);
+    exit;
+}
+
+// GET /api/asignacion/{id} - Obtener asignación por ID
+if ($method === 'GET' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+    $id = (int)$matches[1];
+    $result = $controller->getById($id);
+
+    http_response_code($result['success'] ? 200 : 404);
+    echo json_encode($result);
+    exit;
+}
+
+// GET /api/asignacion/empresa/{empresa_id} - Obtener asignaciones por empresa
+if ($method === 'GET' && preg_match('/^\/api\/asignacion\/empresa\/(\d+)$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+    $empresa_id = (int)$matches[1];
+    $result = $controller->getByEmpresa($empresa_id);
+
+    http_response_code($result['success'] ? 200 : 404);
+    echo json_encode($result);
+    exit;
+}
+
+// GET /api/asignacion/reporte/{reporte_id} - Obtener asignaciones por reporte
+if ($method === 'GET' && preg_match('/^\/api\/asignacion\/reporte\/(\d+)$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+    $reporte_id = (int)$matches[1];
+    $result = $controller->getByReporte($reporte_id);
+
+    http_response_code($result['success'] ? 200 : 404);
+    echo json_encode($result);
+    exit;
+}
+
+// POST /api/asignacion - Crear nueva asignación
+if ($method === 'POST' && $uri === '/api/asignacion') {
+    $user = require_auth($jwt_secret);
+        if (strtolower((string)$user['role']) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+
+    // Obtener datos del body
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$input) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Datos JSON inválidos'
+        ]);
+        exit;
+    }
+
+    $result = $controller->create($input, $user['user_id']);
+
+    http_response_code($result['success'] ? 201 : 400);
+    echo json_encode($result);
+    exit;
+}
+
+// PUT /api/asignacion/{id} - Actualizar asignación
+if ($method === 'PUT' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+        if (strtolower((string)$user['role']) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+    $id = (int)$matches[1];
+
+    // Obtener datos del body
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$input) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Datos JSON inválidos'
+        ]);
+        exit;
+    }
+
+    $result = $controller->update($id, $input, $user['user_id']);
+
+    http_response_code($result['success'] ? 200 : 400);
+    echo json_encode($result);
+    exit;
+}
+
+// DELETE /api/asignacion/{id} - Eliminar asignación
+if ($method === 'DELETE' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+        if (strtolower((string)$user['role']) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+    $id = (int)$matches[1];
+    $result = $controller->delete($id, $user['user_id']);
+
+    http_response_code($result['success'] ? 200 : 400);
+    echo json_encode($result);
+    exit;
+}

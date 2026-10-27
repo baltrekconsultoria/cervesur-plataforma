@@ -1,0 +1,51 @@
+# Local secrets, exports, runtime output and external copies are never tracked.
+.env
+.env.*
+!.env.example
+.envrc
+
+# Local credentials and certificate material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Local database copies and production exports
+*.sql
+!database/schema/**/*.sql
+!database/migrations/**/*.sql
+!tests/fixtures/**/*.sql
+*.dump
+*.bak
+*.backup
+*.sqlite
+*.sqlite3
+*.zip
+*.tar
+*.gz
+*.7z
+backups/
+backup/
+respaldo/
+respaldo-*/
+private/
+
+# Runtime output, local uploads and test artefacts
+*.log
+*.pid
+uploads/
+backend/test.html
+coverage/
+.phpunit.result.cache
+.pytest_cache/
+
+__pycache__/
+*.pyc
+
+# Operating-system and editor artefacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
