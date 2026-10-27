@@ -2,6 +2,7 @@
 // Run locally with: php tests/security_unit.php. Never uses network or a database.
 require_once __DIR__ . '/../backend/models/EmpresaModel.php';
 require_once __DIR__ . '/../backend/controllers/PowerBIController.php';
+require_once __DIR__ . '/../backend/lib/jwt.php';
 
 function check($condition, $name) {
     if (!$condition) { fwrite(STDERR, "FAIL: $name\n"); exit(1); }
@@ -42,3 +43,32 @@ check($called === 1 && $result['success'] === true, 'provider simulation returns
 $controller = new PowerBIController($pdo, function () { return json_encode(['error_description' => 'internal synthetic detail']); });
 $result = $controller->getAccessToken('synthetic-tenant', 'synthetic-client', 'synthetic-secret');
 check($result['success'] === false && strpos(json_encode($result), 'internal synthetic detail') === false, 'provider error is sanitized');
+
+$jwtSecret = 'synthetic-unit-jwt-secret';
+$validPayload = [
+    'user_id' => 7,
+    'username' => 'synthetic-user',
+    'email' => 'synthetic@example.invalid',
+    'session_version' => 1,
+    'exp' => time() + 60,
+];
+$validToken = generate_jwt($validPayload, $jwtSecret);
+check(validate_jwt($validToken, $jwtSecret) === $validPayload, 'strict JWT accepts complete active-session claims');
+
+$expiredPayload = $validPayload;
+$expiredPayload['exp'] = time() - 1;
+check(validate_jwt(generate_jwt($expiredPayload, $jwtSecret), $jwtSecret) === false, 'strict JWT rejects expired token');
+
+$missingExpiration = $validPayload;
+unset($missingExpiration['exp']);
+check(validate_jwt(generate_jwt($missingExpiration, $jwtSecret), $jwtSecret) === false, 'strict JWT rejects missing expiration');
+
+$missingSessionVersion = $validPayload;
+unset($missingSessionVersion['session_version']);
+check(validate_jwt(generate_jwt($missingSessionVersion, $jwtSecret), $jwtSecret) === false, 'strict JWT rejects missing session version');
+
+$missingIdentity = $validPayload;
+unset($missingIdentity['email']);
+check(validate_jwt(generate_jwt($missingIdentity, $jwtSecret), $jwtSecret) === false, 'strict JWT rejects incomplete identity');
+
+check(validate_jwt($validToken, 'different-synthetic-secret') === false, 'strict JWT rejects invalid signature');

@@ -48,6 +48,14 @@ class SecurityStaticChecks(unittest.TestCase):
         self.assertIn("SELECT session_version, is_active, role FROM user", text)
         self.assertIn("'role' => $row['role']", text)
 
+    def test_jwt_requires_expiration_and_session_version(self):
+        text = source("backend/lib/jwt.php")
+        for condition in ("$payload['session_version']", "$payload['exp']", "($header['typ'] ?? null) !== 'JWT'", "($header['alg'] ?? null) !== 'HS256'"):
+            self.assertIn(condition, text)
+        middleware = source("backend/lib/auth_middleware.php")
+        self.assertNotIn("se permite por compatibilidad con tokens antiguos", middleware)
+        self.assertIn("(int)$row['session_version'] !== $payload['session_version']", middleware)
+
     def test_profiles_and_relationship_reads_are_scoped(self):
         profile_router = source("backend/router/UserRouter.php")
         self.assertIn("$target_user_id !== (int)$user['user_id']", profile_router)

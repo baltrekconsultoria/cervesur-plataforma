@@ -79,13 +79,9 @@ function authenticate_user($jwt_secret) {
         return false;
     }
 
-    // Validar versión de sesión y estado del usuario contra la base de datos
-    // Esto permite invalidar tokens desde backend incrementando session_version
-    if (!isset($payload['user_id'])) {
-        return false;
-    }
-    if (isset($payload['user_id'])) {
-        try {
+    // validate_jwt exige user_id y session_version; contrastarlos con la BD
+    // permite revocar todas las sesiones incrementando session_version.
+    try {
             // Usar el mismo PDO global que ya se creó en index.php
             global $pdo;
 
@@ -111,19 +107,16 @@ function authenticate_user($jwt_secret) {
                 return false;
             }
 
-            // Si el token trae session_version, compararla con la actual en BD
-            if (isset($payload['session_version'])) {
-                if ((int)$row['session_version'] !== (int)$payload['session_version']) {
-                    // La versión cambió -> el token fue invalidado desde backend
-                    return false;
-                }
+            if (!isset($row['session_version']) || !is_numeric($row['session_version']) || (int)$row['session_version'] < 1) {
+                return false;
             }
-            // Si el token no trae session_version, se permite por compatibilidad con tokens antiguos
-        } catch (PDOException $e) {
-            // En caso de error al consultar la BD, registrar y fallar de forma segura
-            error_log('Error en auth_middleware al validar session_version: ' . $e->getMessage());
-            return false;
-        }
+            if ((int)$row['session_version'] !== $payload['session_version']) {
+                return false;
+            }
+    } catch (PDOException $e) {
+        // En caso de error al consultar la BD, registrar y fallar de forma segura
+        error_log('Error en auth_middleware al validar session_version: ' . $e->getMessage());
+        return false;
     }
 
     // Devolver datos del usuario autenticado

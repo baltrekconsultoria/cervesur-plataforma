@@ -32,7 +32,11 @@ class AuthController {
 
         $user = $stmt->fetch();
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        $session_version = $user && isset($user['session_version'])
+            ? filter_var($user['session_version'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+            : false;
+
+        if (!$user || !password_verify($password, $user['password']) || (int)$user['is_active'] !== 1 || $session_version === false) {
             return [
                 'success' => false,
                 'message' => 'Credenciales inválidas'
@@ -55,7 +59,7 @@ class AuthController {
             'email' => $user['email'],
             'role' => $user['role'],
             // Versión de sesión para poder invalidar tokens desde backend
-            'session_version' => isset($user['session_version']) ? (int)$user['session_version'] : 1,
+            'session_version' => (int)$session_version,
             'exp' => time() + $expiration_seconds // Tiempo de expiración configurable
         ];
 
