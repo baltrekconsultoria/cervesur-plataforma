@@ -90,7 +90,7 @@ class EmpresaReporteUsuarioModel {
                     $response['message'] = 'Datos inválidos para el campo';
                     break;
                 default:
-                    $response['message'] = 'Error al crear relación usuario-empresa_reporte: ' . $e->getMessage();
+                    $response['message'] = public_error_message('Error al crear la asignación de reporte al usuario', $e);
             }
         }
         return $response;
@@ -154,7 +154,7 @@ class EmpresaReporteUsuarioModel {
             return [
                 'success' => false,
                 'data' => [],
-                'message' => 'Error al listar relaciones: ' . $e->getMessage()
+                'message' => public_error_message('Error al listar relaciones', $e)
             ];
         }
     }
@@ -209,7 +209,7 @@ class EmpresaReporteUsuarioModel {
             }
             return ['success' => false, 'data' => null, 'message' => 'Relación no encontrada o inactiva'];
         } catch (PDOException $e) {
-            return ['success' => false, 'data' => null, 'message' => 'Error al consultar: ' . $e->getMessage()];
+            return ['success' => false, 'data' => null, 'message' => public_error_message('Error al consultar', $e)];
         }
     }
 
@@ -264,7 +264,7 @@ class EmpresaReporteUsuarioModel {
             }
             return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
-            return ['success' => false, 'data' => [], 'message' => 'Error al consultar por RUC: ' . $e->getMessage()];
+            return ['success' => false, 'data' => [], 'message' => public_error_message('Error al consultar por RUC', $e)];
         }
     }
 
@@ -322,7 +322,7 @@ class EmpresaReporteUsuarioModel {
             }
             return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
-            return ['success' => false, 'data' => [], 'message' => 'Error al consultar por nombre: ' . $e->getMessage()];
+            return ['success' => false, 'data' => [], 'message' => public_error_message('Error al consultar por nombre', $e)];
         }
     }
 
@@ -376,7 +376,7 @@ class EmpresaReporteUsuarioModel {
             }
             return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => 'Consulta exitosa'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
-            return ['success' => false, 'data' => [], 'message' => 'Error al consultar por usuario: ' . $e->getMessage()];
+            return ['success' => false, 'data' => [], 'message' => public_error_message('Error al consultar por usuario', $e)];
         }
     }
 
@@ -459,7 +459,7 @@ class EmpresaReporteUsuarioModel {
                     $response['message'] = 'Usuario o asignación empresa_reporte no existe';
                     break;
                 default:
-                    $response['message'] = 'Error al actualizar: ' . $e->getMessage();
+                    $response['message'] = public_error_message('Error al actualizar', $e);
             }
         }
         return $response;
@@ -507,7 +507,7 @@ class EmpresaReporteUsuarioModel {
                 $response['message'] = 'Relación no encontrada o ya inactiva';
             }
         } catch (PDOException $e) {
-            $response['message'] = 'Error al eliminar: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al eliminar', $e);
         }
         return $response;
     }

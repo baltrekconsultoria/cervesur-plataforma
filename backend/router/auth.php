@@ -62,6 +62,15 @@ if ($method === 'POST' && $uri === '/api/login') {
 if ($method === 'POST' && $uri === '/api/register') {
     require_once __DIR__ . '/../controllers/RegisterController.php';
 
+    // Alta de usuarios: SOLO administradores autenticados (antes era público).
+    $jwt_secret = get_jwt_secret_or_fail('/api/register');
+    $actor = require_auth($jwt_secret);
+    if ($actor['role'] !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Acceso denegado. Solo administradores pueden crear usuarios']);
+        exit;
+    }
+
     // Leer el body JSON
     $inputRaw = file_get_contents('php://input');
     $input = json_decode($inputRaw, true);
@@ -71,6 +80,15 @@ if ($method === 'POST' && $uri === '/api/register') {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Body JSON inválido']);
         exit;
+    }
+
+    // El rol y el estado nunca los decide la petición: se rechazan en lugar de ignorarlos en silencio
+    foreach (['role', 'is_active', 'session_version', 'id'] as $forbidden) {
+        if (array_key_exists($forbidden, $input)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => "El campo '$forbidden' no está permitido"]);
+            exit;
+        }
     }
 
     // Validar que se envíen los campos necesarios

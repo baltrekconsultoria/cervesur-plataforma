@@ -36,7 +36,9 @@ class AuthController {
             ? filter_var($user['session_version'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
             : false;
 
-        if (!$user || !password_verify($password, $user['password']) || (int)$user['is_active'] !== 1 || $session_version === false) {
+        $role = $user ? normalize_role($user['role'] ?? null) : null;
+
+        if (!$user || !password_verify($password, $user['password']) || (int)$user['is_active'] !== 1 || $session_version === false || $role === null) {
             return [
                 'success' => false,
                 'message' => 'Credenciales inválidas'
@@ -48,6 +50,7 @@ class AuthController {
 
         // Generar JWT
         require_once __DIR__ . '/../lib/jwt.php';
+        require_once __DIR__ . '/../lib/roles.php';
         require_once __DIR__ . '/../lib/auth_middleware.php';
 
         // Obtener tiempo de expiración desde variable de entorno (por defecto 24 horas)
@@ -57,7 +60,7 @@ class AuthController {
             'user_id' => $user['id'],
             'username' => $user['username'],
             'email' => $user['email'],
-            'role' => $user['role'],
+            'role' => $role,
             // Versión de sesión para poder invalidar tokens desde backend
             'session_version' => (int)$session_version,
             'exp' => time() + $expiration_seconds // Tiempo de expiración configurable
@@ -75,7 +78,7 @@ class AuthController {
                 'email' => $user['email'],
                 'first_name' => $user['first_name'],
                 'last_name' => $user['last_name'],
-                'role' => $user['role']
+                'role' => $role
             ]
         ];
     }
