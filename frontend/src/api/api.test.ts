@@ -35,12 +35,20 @@ describe('adaptadores del backend PHP (contrato real verificado en UX-06A)', () 
     expect(toActive(undefined)).toBe(true);
   });
 
-  it('el reporte usa reporte_id y descarta enlace, creador y grupo en UUID', () => {
-    const dto = { id: 6, nombre: 'Flujo', descripcion: null, enlace: 'https://example.invalid/secreto', grupo_id: '00000000-0000-0000-0000-000000000003', reporte_id: '00000000-0000-0000-0000-000000000066', created_by: 1, created_by_username: 'usera', activo: 1 };
+  it('el reporte usa reporte.id como identidad, conserva reporte_id como referencia y descarta enlace, creador y grupo', () => {
+    const ref = 'SYN-LARGA-0006-ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123'; // 46 caracteres, no UUID: la forma real de producción
+    const dto = { id: 6, nombre: 'Flujo', descripcion: null, enlace: 'https://example.invalid/secreto', grupo_id: '00000000-0000-0000-0000-000000000003', reporte_id: ref, created_by: 1, created_by_username: 'usera', activo: 1 };
     const report = toReport(dto);
-    expect(report).toEqual({ id: '00000000-0000-0000-0000-000000000066', name: 'Flujo', description: '', companyId: '', companyIds: [], group: '', active: true });
+    expect(report).toEqual({ id: '6', ref, name: 'Flujo', description: '', companyId: '', companyIds: [], group: '', active: true });
     expect(JSON.stringify(report)).not.toMatch(/example\.invalid|usera|00000000-0000-0000-0000-000000000003/);
-    expect(toReport({ id: 5, nombre: 'Sin UUID' })).toBeNull();
+    expect(toReport({ id: 5, nombre: 'Sin referencia histórica' })).toEqual({ id: '5', name: 'Sin referencia histórica', description: '', companyId: '', companyIds: [], group: '', active: true });
+  });
+
+  it('un id de informe ausente o no numérico canónico se rechaza como respuesta no válida', () => {
+    for (const id of [undefined, null, 0, '0', '007', 'abc', -1, 1.5, ' 1', '4294967296', '00000000-0000-0000-0000-000000000066']) {
+      expect(() => toReport({ id: id as number, nombre: 'X', reporte_id: 'r' }), String(id)).toThrowError(expect.objectContaining({ kind: 'invalid_response' }) as Error);
+    }
+    expect(toReport({ id: '4294967295', nombre: 'Máximo INT UNSIGNED' }).id).toBe('4294967295');
   });
 
   it('la empresa descarta todos los campos powerbi_*', () => {

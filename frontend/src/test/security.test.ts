@@ -55,7 +55,7 @@ describe('alcance de integración UX-06A', () => {
   it('el proveedor HTTP solo referencia los endpoints autorizados para esta etapa', () => {
     const http = read(join(root, 'src', 'api', 'http', 'httpApi.ts'));
     const routes = [...http.matchAll(/['"`](\/api\/[^'"`$]*)/g)].map(m => m[1] ?? '');
-    const allowed = ['/api/login', '/api/logout', '/api/user/profile', '/api/reportes', '/api/reportes/reporteid/', '/api/asignacion', '/api/empresas',
+    const allowed = ['/api/login', '/api/logout', '/api/user/profile', '/api/reportes', '/api/reportes/id/', '/api/asignacion', '/api/empresas',
       // UX-07A: administración de usuarios y accesos
       '/api/users', '/api/users?status=all', '/api/register', '/api/empresa-usuario', '/api/empresa-reporte-usuario', '/api/empresa-reporte-usuario/',
       // UX-07B: empresas, informes y asociaciones

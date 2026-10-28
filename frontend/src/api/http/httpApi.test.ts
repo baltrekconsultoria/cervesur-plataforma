@@ -161,11 +161,16 @@ describe('proveedor HTTP · catálogo compuesto y paginación', () => {
   it('getReport: view=minimal; 404 (ajeno o inexistente) se trata como acceso denegado neutral', async () => {
     const calls: string[] = [];
     const ok = make(url => { calls.push(url.pathname + url.search); return json(200, { success: true, data: { id: 4, reporte_id: 'uuid-4', nombre: 'Ventas regionales', descripcion: 'x', activo: 1 } }); });
-    expect((await ok.client.getReport('uuid-4')).name).toBe('Ventas regionales');
-    expect(calls[0]).toBe('/api/reportes/reporteid/uuid-4?view=minimal');
-    const error = await make(() => json(404, { success: false, message: 'Reporte no encontrado' })).client.getReport('x').catch(e => e as ApiError);
+    const report = await ok.client.getReport('4');
+    expect(report).toMatchObject({ id: '4', ref: 'uuid-4', name: 'Ventas regionales' }); // identidad = reporte.id; reporte_id queda como referencia histórica
+    expect(calls[0]).toBe('/api/reportes/4?view=minimal');
+    const error = await make(() => json(404, { success: false, message: 'Reporte no encontrado' })).client.getReport('9').catch(e => e as ApiError);
     expect(error).toMatchObject({ kind: 'not_found', status: 404 });
     expect(isDenied(error)).toBe(true);
+    const localCalls: string[] = [];
+    const malformed = await make(url => { localCalls.push(url.pathname); return json(200, { success: true, data: {} }); }).client.getReport('uuid-4').catch(e => e as ApiError);
+    expect(malformed).toMatchObject({ kind: 'not_found', status: 404 }); // un id que no es numérico canónico ni se consulta
+    expect(localCalls).toEqual([]);
   });
 
   it('nunca llama a Power BI, a escrituras ni a rutas administrativas', async () => {
@@ -183,12 +188,25 @@ describe('proveedor HTTP · catálogo compuesto y paginación', () => {
 
 describe('composeReportCatalog (adaptador puro)', () => {
   const companies = [{ id: '1', name: 'Zeta', city: '', taxId: '', active: true }, { id: '2', name: 'Alfa', city: '', taxId: '', active: true }];
-  it('ordena las empresas por nombre y no duplica informes', () => {
+  it('ordena las empresas por nombre y no duplica informes (la identidad es el id numérico)', () => {
     const out = composeReportCatalog(
-      [{ id: 1, reporte_id: 'u1', nombre: 'R' }, { id: 1, reporte_id: 'u1', nombre: 'R (duplicado)' }, { id: 2, nombre: 'Sin UUID' }],
+      [{ id: 1, reporte_id: 'u1', nombre: 'R' }, { id: 1, reporte_id: 'u1', nombre: 'R (duplicado)' }, { id: 2, nombre: 'Sin referencia histórica' }],
       [{ empresa_id: 1, reporte_id: 1 }, { empresa_id: 2, reporte_id: 1 }], companies);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ name: 'R', companyIds: ['2', '1'], companyId: '2' });
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ id: '1', ref: 'u1', name: 'R', companyIds: ['2', '1'], companyId: '2' });
+    expect(out[1]).toMatchObject({ id: '2', name: 'Sin referencia histórica', companyIds: [] });
+    expect(out[1] && 'ref' in out[1]).toBe(false); // jamás se inventa una referencia
+  });
+  it('dos informes con la MISMA referencia histórica siguen siendo informes distintos (no se unen por reporte_id)', () => {
+    const out = composeReportCatalog(
+      [{ id: 10, reporte_id: 'REF-REPETIDA', nombre: 'Uno' }, { id: 11, reporte_id: 'REF-REPETIDA', nombre: 'Dos' }],
+      [{ empresa_id: 1, reporte_id: 10 }, { empresa_id: 2, reporte_id: 11 }], companies);
+    expect(out.map(r => [r.id, r.name, r.companyIds])).toEqual([['10', 'Uno', ['1']], ['11', 'Dos', ['2']]]);
+  });
+  it('un informe sin id numérico válido es una violación del contrato: se falla, no se descarta en silencio', () => {
+    for (const id of [undefined, null, 0, '0', '007', 'abc', -1, 1.5, '4294967296']) {
+      expect(() => composeReportCatalog([{ id: id as number, reporte_id: 'x', nombre: 'R' }], [], companies)).toThrow(/identificador no válido/);
+    }
   });
   it('ignora relaciones con informes no autorizados', () => {
     expect(composeReportCatalog([{ id: 1, reporte_id: 'u1', nombre: 'R' }], [{ empresa_id: 1, reporte_id: 77 }], companies)[0]?.companyIds).toEqual([]);

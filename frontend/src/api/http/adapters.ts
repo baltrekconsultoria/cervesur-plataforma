@@ -16,6 +16,7 @@ import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDe
  * `powerbi_*` ni datos de contacto. Aun así los adaptadores copian SOLO los campos que necesitan.
  */
 export interface UserDto { id: number | string; username: string; email: string; first_name?: string | null; last_name?: string | null; phone?: string | null; role: unknown; is_active?: boolean | number | string | null }
+/** Fila de GET /api/reportes?view=minimal. `id` es la identidad (entero de MySQL); `reporte_id` es la referencia histórica y NO es única ni UUID. */
 export interface ReportDto { id?: number | string; reporte_id?: string | null; nombre: string; descripcion?: string | null; activo?: boolean | number | string | null }
 export interface CompanyDto { id: number | string; nombre: string; ciudad?: string | null; ruc?: string | null; activo?: boolean | number | string | null }
 /** Fila de GET /api/asignacion?view=minimal: relación empresa–informe (`reporte_id` es el id NUMÉRICO del informe). */
@@ -23,13 +24,20 @@ export interface AssignmentDto { id?: number | string; empresa_id: number | stri
 
 /** GET /api/empresas/{id}?view=form (solo administradores): datos editables, sin Power BI. */
 export interface CompanyFormDto { id: number | string; nombre: string; razon_social?: string | null; ruc?: string | null; email?: string | null; telefono?: string | null; direccion?: string | null; ciudad?: string | null; pais?: string | null }
-/** GET /api/reportes/{id}?view=form (solo administradores). */
+/** GET /api/reportes/{id}?view=form (solo administradores). `reporte_id` es la referencia histórica (hasta 50 caracteres, no necesariamente UUID). */
 export interface ReportFormDto { id: number | string; nombre: string; descripcion?: string | null; enlace?: string | null; grupo_id?: string | null; reporte_id?: string | null }
 
 /** Fila de GET /api/empresa-usuario?view=minimal. */
 export interface CompanyLinkDto { id: number | string; user_id: number | string; empresa_id: number | string }
-/** Fila de GET /api/empresa-reporte-usuario?view=minimal: `reporte_id` es el UUID de Power BI; `empresa_reporte_id` el id de la relación empresa–informe. */
+/** Fila de GET /api/empresa-reporte-usuario?view=minimal: `reporte_id` es la referencia HISTÓRICA del informe (no sirve para unir); `empresa_reporte_id` es el id de la relación empresa–informe. */
 export interface AccessDto { id: number | string; user_id: number | string; empresa_id: number | string; empresa_reporte_id?: number | string; reporte_id?: string | null }
+
+/** Identificador numérico canónico de MySQL (INT UNSIGNED): entero positivo, sin signo, decimales ni ceros a la izquierda. Devuelve la cadena o null. */
+const MAX_NUMERIC_ID = 4294967295;
+export function numericId(value: unknown): string | null {
+  const text = typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : value;
+  return typeof text === 'string' && /^[1-9]\d{0,9}$/.test(text) && Number(text) <= MAX_NUMERIC_ID ? text : null;
+}
 
 const invalid = (message: string) => new ApiError(502, message, 'invalid_response');
 
@@ -87,10 +95,16 @@ export function toDirectoryUser(dto: UserDto): User {
   return { id: String(dto.id), username, displayName: fullName || username, email: typeof dto.email === 'string' ? dto.email : '', role, active: toActive(dto.is_active), phone: dto.phone ?? '', companyIds: [], ...(blocked ? { loginBlocked: true } : {}) };
 }
 
-/** Acceso efectivo. Sin UUID del informe no se puede relacionar con el catálogo: se descarta. */
-export function toAssignment(dto: AccessDto): Assignment | null {
-  if (!dto || typeof dto.reporte_id !== 'string' || !dto.reporte_id) return null;
-  return { id: String(dto.id), userId: String(dto.user_id), reportId: dto.reporte_id, companyId: String(dto.empresa_id) };
+/**
+ * Acceso (asignación individual). El servidor solo envía el `reporte_id` HISTÓRICO del informe, que no sirve para unir datos (no es único ni UUID);
+ * el informe se resuelve por la relación empresa–informe (`empresa_reporte_id`) y su `reporte.id` numérico. Si la relación no está entre las
+ * vigentes, el acceso no se puede relacionar con el catálogo y se descarta: no se adivina por coincidencia de textos.
+ */
+export function toAssignment(dto: AccessDto, reportIdByRelation: Map<string, string>): Assignment | null {
+  if (!dto || dto.empresa_reporte_id === undefined || dto.empresa_reporte_id === null) return null;
+  const reportId = reportIdByRelation.get(String(dto.empresa_reporte_id));
+  if (!reportId) return null;
+  return { id: String(dto.id), userId: String(dto.user_id), reportId, companyId: String(dto.empresa_id) };
 }
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
@@ -100,21 +114,28 @@ export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
 
 export function toReportDetail(dto: ReportFormDto): ReportDetail {
   if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de informe incompleta.');
-  return { internalId: String(dto.id), name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', ref: dto.reporte_id ?? '' };
+  const internalId = numericId(dto.id);
+  if (!internalId) throw invalid('Respuesta de informe con identificador no válido.');
+  return { internalId, name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', ref: dto.reporte_id ?? '' };
 }
 
-/** Asociación empresa ↔ informe: `reportNumericId` es `reporte.id`; se traduce al UUID con el catálogo. */
-export function toReportLink(dto: AssignmentDto, uuidByNumericId: Map<string, string>): ReportLink | null {
-  const reportId = uuidByNumericId.get(String(dto.reporte_id));
+/** Asociación empresa ↔ informe vigente. `reporte_id` de /api/asignacion ya es el `reporte.id` NUMÉRICO: no hace falta ninguna tabla de conversión. */
+export function toReportLink(dto: AssignmentDto): ReportLink | null {
+  const reportId = numericId(dto.reporte_id);
   if (dto.id === undefined || !reportId || !toActive(dto.activo)) return null;
   return { id: String(dto.id), companyId: String(dto.empresa_id), reportId };
 }
 
-/** Informe sin empresa (la relación se compone aparte). Devuelve null si falta `reporte_id` (no se podría abrir). */
-export function toReport(dto: ReportDto): Report | null {
-  if (!dto || typeof dto.reporte_id !== 'string' || !dto.reporte_id) return null;
+/**
+ * Informe sin empresa (la relación se compone aparte). La identidad es `reporte.id`; `reporte_id` se conserva solo como referencia histórica
+ * (`ref`), sin importar su formato ni su longitud. Un `id` ausente o no válido es una violación del contrato: se falla, no se descarta en silencio.
+ */
+export function toReport(dto: ReportDto): Report {
+  const id = numericId(dto?.id);
+  if (!id) throw invalid('Respuesta de informe con identificador no válido.');
   return {
-    id: dto.reporte_id,
+    id,
+    ...(typeof dto.reporte_id === 'string' && dto.reporte_id ? { ref: dto.reporte_id } : {}),
     name: dto.nombre,
     description: dto.descripcion ?? '',
     companyId: '',
@@ -150,9 +171,9 @@ export function composeReportCatalog(reports: ReportDto[], assignments: Assignme
   const catalog: Report[] = [];
   for (const dto of reports) {
     const report = toReport(dto);
-    if (!report || seen.has(report.id)) continue;
+    if (seen.has(report.id)) continue;
     seen.add(report.id);
-    const linked = [...(pairs.get(String(dto.id)) ?? [])]
+    const linked = [...(pairs.get(report.id) ?? [])]
       .sort((a, b) => (companyById.get(a)?.name ?? '').localeCompare(companyById.get(b)?.name ?? '', 'es') || a.localeCompare(b));
     catalog.push({ ...report, companyIds: linked, companyId: linked[0] ?? '' });
   }
@@ -169,7 +190,7 @@ export function companyBody(input: CompanyInput, editing: boolean): Record<strin
 
 export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim() });
 
-/** GET /api/reportes/reporteid/{uuid}/visor: configuración autorizada del visor. */
+/** GET /api/reportes/id/{id}/visor: configuración autorizada del visor (por el id numérico del informe). */
 export interface ViewerDto { modo?: unknown; url?: unknown }
 export function toViewerConfig(dto: ViewerDto | null | undefined): ViewerConfig {
   if (!dto || typeof dto !== 'object') throw invalid('Respuesta del visor incompleta.');

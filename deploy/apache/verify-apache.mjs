@@ -16,7 +16,8 @@ const DIST = join(REPO, 'frontend', 'dist-production');
 const QA = join(REPO, 'frontend', 'qa');
 const PHP_IMAGE = 'cervesur-ci-php:local';
 const APACHE_IMAGE = 'cervesur-apache-verify:local';
-const PORT = Number(process.env.APACHE_VERIFY_PORT ?? 18090);
+// 18097: fuera de los puertos de túnel documentados (18089 → 8088, 18090 → 8089) y de los del ensayo Docker (18095, 18096).
+const PORT = Number(process.env.APACHE_VERIFY_PORT ?? 18097);
 const BASE = `http://127.0.0.1:${PORT}`;
 const N = { db: 'cervesur-apache-verify-db', web: 'cervesur-apache-verify-web', net: 'cervesur-apache-verify-net' };
 const PASSWORD = 'synthetic-password';
@@ -71,7 +72,7 @@ try {
   section = 'Rutas de React';
   const index = await fetchRaw('/');
   ok('/ devuelve index.html (200, HTML)', index.status === 200 && /text\/html/.test(index.headers.get('content-type') ?? '') && /<div id="root">/.test(index.raw));
-  for (const route of ['/login', '/admin', '/admin/usuarios', '/reportes/00000000-0000-0000-0000-000000000011', '/perfil']) {
+  for (const route of ['/login', '/admin', '/admin/usuarios', '/reportes/1', '/perfil']) {
     const r = await fetchRaw(route);
     ok(`recargar ${route} no da 404 de Apache: entrega index.html`, r.status === 200 && r.raw === index.raw);
   }
@@ -96,7 +97,7 @@ try {
   ok('403 de la API llega como JSON', users403.status === 403 && users403.json?.success === false);
   const missing = await fetchRaw('/api/no-existe', { token });
   ok('404 de la API llega como JSON de PHP', missing.status === 404 && typeof missing.json?.error === 'string', `${missing.status} ${missing.raw.slice(0, 80)}`);
-  const viewer = await fetchRaw('/api/reportes/reporteid/00000000-0000-0000-0000-000000000011/visor', { token });
+  const viewer = await fetchRaw('/api/reportes/id/1/visor', { token });
   ok('el visor autorizado responde con no-store', viewer.status === 200 && /no-store/.test(viewer.headers.get('cache-control') ?? ''));
   ok('el endpoint heredado de tokens OAuth está bloqueado en este sitio', (await fetchRaw('/api/powerbi/tokens/1', { token })).status === 403);
   ok('ninguna respuesta de la API revela rutas del servidor, SQL ni trazas', ![ping, bad, good, profile401, users403, missing, viewer].some(r => /\/opt\/|\/var\/www|PDOException|SQLSTATE|Stack trace|\.php/.test(r.raw)));
@@ -129,7 +130,7 @@ try {
     await b.send('Page.reload'); await b.wait(1500);
     ok('recargar una URL interna (/admin/usuarios) no da 404: vuelve al login (sesión solo en memoria)', (await b.eval('location.pathname')) === '/login');
     await b.type('#login-name', 'usera'); await b.type('#login-password', PASSWORD); await b.click('form button[type=submit]'); await b.wait(1200);
-    await b.eval(`history.pushState({}, '', '/reportes/00000000-0000-0000-0000-000000000055'); dispatchEvent(new PopStateEvent('popstate'))`); await b.wait(1500);
+    await b.eval(`history.pushState({}, '', '/reportes/5'); dispatchEvent(new PopStateEvent('popstate'))`); await b.wait(1500);
     ok('abre /reportes/{uuid} (inserción autenticada): aviso de configuración, sin iframe ni tokens', (await b.eval('document.body.innerText')).includes('requiere configuración de acceso a Power BI') && (await b.eval(`document.querySelectorAll('iframe').length`)) === 0);
     ok('no hay peticiones a dominios externos ni al endpoint heredado de tokens', b.requests.every(u => u.startsWith(BASE) || /^(data:|about:)/.test(u)) && !b.requestLog.some(r => r.url.includes('/api/powerbi')));
     ok('sin errores de consola ni violaciones de CSP', b.consoleErrors.length === 0, b.consoleErrors.slice(0, 3).join(' | '));

@@ -127,5 +127,75 @@ class SecurityStaticChecks(unittest.TestCase):
         router = source("backend/router/PowerBIRouter.php")
         self.assertLess(router.index("grupo_id"), router.index("getAccessToken("))
 
+
+class CompatInstallerIsolationChecks(unittest.TestCase):
+    """UX-07D.3A: el instalador de compatibilidad (127.0.0.1:8089) no puede afectar a Flutter, al React de 8088 ni a la configuración global."""
+
+    SCRIPTS = ("lib.sh", "instalar.sh", "pasos-instalacion.sh", "verificar.sh", "revertir.sh")
+
+    def scripts(self):
+        return {name: source("deploy/tunel-ssh-compat/scripts/" + name) for name in self.SCRIPTS}
+
+    @staticmethod
+    def code(text):
+        return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+    def test_never_enables_disables_or_restarts_anything_global(self):
+        for name, text in self.scripts().items():
+            body = self.code(text)
+            for forbidden in ("a2enmod", "a2dismod", "a2enconf", "a2disconf", "phpenmod", "phpdismod", "restart", "ufw ", "iptables", "firewall-cmd", "SET GLOBAL", "--force", "chmod -R 777"):
+                self.assertNotIn(forbidden, body, f"{name} usa «{forbidden}»")
+
+    def test_only_reloads_apache_gracefully_after_configtest(self):
+        lib = self.code(source("deploy/tunel-ssh-compat/scripts/lib.sh"))
+        self.assertLess(lib.index("apache2ctl configtest"), lib.index("reload apache2"))
+        self.assertIn("apache2ctl graceful", lib)
+
+    def test_recursive_deletes_only_go_through_the_exact_path_guard(self):
+        for name, text in self.scripts().items():
+            lines = [line for line in self.code(text).splitlines() if "rm -rf" in line or "rm -r " in line]
+            if name == "revertir.sh":
+                self.assertEqual(len(lines), 1, "revertir.sh debe tener un único rm -rf, dentro de borrar_exacto()")
+                self.assertIn('rm -rf -- "$ruta"', lines[0])
+                body = text[text.index("borrar_exacto() {"):text.index("\n}\n", text.index("borrar_exacto() {"))]
+                for protected in ("$FLUTTER_DIR", "$DIR_FRONT_PRUEBA", "$DIR_BACK_PRUEBA", "$DIR_CONF_PRUEBA", "$DIR_RESPALDO_PRUEBA", "$DIR_RESPALDO"):
+                    self.assertIn(protected, body)
+            else:
+                self.assertEqual(lines, [], f"{name} no debe borrar recursivamente")
+
+    def test_database_changes_use_only_its_own_exact_names(self):
+        for name, text in self.scripts().items():
+            body = self.code(text)
+            for statement in ("DROP DATABASE", "DROP USER", "CREATE DATABASE", "CREATE USER"):
+                for line in (l for l in body.splitlines() if statement in l):
+                    self.assertTrue("$DB_NOMBRE" in line or "$DB_USUARIO" in line, f"{name}: {line.strip()}")
+            self.assertNotIn("DB_PRUEBA", body.replace("DB_PRUEBA=", "").replace("$DB_PRUEBA", "") if name != "lib.sh" else "")
+
+    def test_resource_names_do_not_collide_with_the_other_portals(self):
+        def values(path):
+            import re
+            return dict(re.findall(r"^([A-Z_]+)=([^\n(\$]+)$", source(path), re.M))
+        old = values("deploy/tunel-ssh/scripts/lib.sh")
+        new = values("deploy/tunel-ssh-compat/scripts/lib.sh")
+        for key in ("SITIO", "PUERTO", "DIR_FRONT", "DIR_BACK", "DIR_CONF", "SITE_CONF", "DB_NOMBRE", "DB_USUARIO"):
+            self.assertNotEqual(old[key], new[key], key)
+        self.assertEqual(new["PUERTO"], "8089")
+        self.assertIn("verificar_no_colision", source("deploy/tunel-ssh-compat/scripts/instalar.sh"))
+        self.assertIn("verificar_no_colision", source("deploy/tunel-ssh-compat/scripts/revertir.sh"))
+
+    def test_listens_only_on_loopback_with_its_own_session_cookie(self):
+        site = source("deploy/tunel-ssh-compat/apache/cervesur-react-compat.conf")
+        self.assertIn("Listen 127.0.0.1:8089", site)
+        self.assertIn("<VirtualHost 127.0.0.1:8089>", site)
+        self.assertNotIn("Listen 8089", site)
+        common = source("deploy/tunel-ssh-compat/apache/react-compat-common.conf")
+        for setting in ("session.name CERVESUR_REACT_COMPAT", "session.save_path", "open_basedir", "session.cookie_httponly on", "session.cookie_samesite Strict", "session.cookie_secure off"):
+            self.assertIn(setting, common)
+        self.assertEqual(common.count("php_admin_value session.name CERVESUR_REACT_COMPAT"), 2)
+
+    def test_installer_requires_mod_headers_but_never_touches_modules(self):
+        self.assertIn('modulo_apache headers', source("deploy/tunel-ssh-compat/scripts/instalar.sh"))
+        self.assertNotIn("headers-habilitado-por-instalador", "".join(self.scripts().values()))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

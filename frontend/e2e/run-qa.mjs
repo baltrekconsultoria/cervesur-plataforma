@@ -121,7 +121,7 @@ async function desktop() {
   ok('aislamiento del iframe local: sandbox solo «allow-scripts» (sin allow-same-origin) y el padre no puede leer su documento', await b.eval(`(() => { const f = document.querySelector('.powerbi-frame iframe'); return f.getAttribute('sandbox') === 'allow-scripts' && f.contentDocument === null; })()`));
   ok('el aviso de modo indica «QA · visor simulado»', (await text(b, '[data-testid=viewer-mode]')).includes('QA · visor simulado') && await b.eval(`document.querySelector('[data-testid=viewer-mode]').dataset.mode === 'qa-simulated'`));
   ok('la ayuda y la alternativa «Abrir en una pestaña nueva» siguen visibles aunque el marco haya cargado', (await text(b, '.viewer-help')).includes('¿No ve el informe?') && await count(b, '.viewer-help a[target=_blank][rel~=noopener]') === 1);
-  ok('la configuración del visor se pidió al servidor (endpoint autorizado) con el token del usuario', b.requestLog.some(r => r.method === 'GET' && /\/api\/reportes\/reporteid\/[0-9a-f-]{36}\/visor$/.test(r.url) && r.hasAuth));
+  ok('la configuración del visor se pidió al servidor (endpoint autorizado) con el token del usuario', b.requestLog.some(r => r.method === 'GET' && /\/api\/reportes\/id\/[1-9]\d*\/visor$/.test(r.url) && r.hasAuth));
   ok('el navegador no contactó ningún dominio externo durante el visor', b.requests.every(u => u.startsWith(FRONT) || /^(data:|about:)/.test(u)));
   ok('la página no expone el enlace de publicación ni el dominio de los datos de prueba', !(await b.eval('document.documentElement.outerHTML')).match(/example\.invalid|app\.powerbi\.com\/view\?r=/));
   await b.shot(join(shots, '04-visor-publico-local.png'));
@@ -138,19 +138,19 @@ async function desktop() {
   await b.shot(join(shots, '06-perfil-real.png'));
 
   current = 'Visor · modos privado y no compatible';
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000055'); await b.wait(900);
+  await go(b, '/reportes/5'); await b.wait(900);
   ok('inserción autenticada sin configurar: «requiere configuración de acceso a Power BI», sin iframe ni tokens generales', (await text(b, '[data-testid=viewer-state]')).includes('Este informe requiere configuración de acceso a Power BI') && await count(b, 'iframe') === 0 && !b.requestLog.some(r => r.url.includes('/api/powerbi/tokens')));
   await b.shot(join(shots, '63-visor-privado.png'));
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000044'); await b.wait(900);
+  await go(b, '/reportes/4'); await b.wait(900);
   ok('enlace no compatible (dato antiguo): aviso claro y ningún iframe', (await text(b, '[data-testid=viewer-state]')).includes('no es compatible con el visor') && await count(b, 'iframe') === 0);
   await b.shot(join(shots, '64-visor-no-compatible.png'));
 
   current = 'Aislamiento (UI)';
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000022');
+  await go(b, '/reportes/2');
   const foreignDenied = await text(b, '.denied');
   ok('informe de otra empresa → 403 neutral sin su nombre', (await text(b, '#page-title')) === 'Acceso denegado' && !(await body(b)).includes('Reporte B') && await count(b, '.denied') === 1);
   await b.shot(join(shots, '07-informe-ajeno-denegado.png'));
-  await go(b, '/reportes/00000000-0000-0000-0000-0000000000ff');
+  await go(b, '/reportes/99999');
   ok('informe inexistente → exactamente el mismo estado que uno ajeno', (await text(b, '.denied')) === foreignDenied);
   await go(b, '/reportes/id-con-formato-invalido');
   ok('identificador inválido → mismo estado neutral', (await text(b, '#page-title')) === 'Acceso denegado');
@@ -227,12 +227,12 @@ async function desktop() {
   await logout(b);
 
   current = 'Aislamiento de red del navegador';
-  const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/[0-9a-f-]{36}|id-con[\w-]+/g, ':id')))].sort();
+  const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/\/(\d+|id-con[\w-]+)(?=\/|$)/g, '/:id')))].sort();
   ok('todas las solicitudes van al origen local de la aplicación', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
-  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|reportes\/reporteid\/:id\/visor|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
-  const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url) && !r.url.includes('/reporteid/'));
+  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/:id|reportes\/id\/:id\/visor|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
+  const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url));
   ok('todos los listados piden view=minimal y páginas de 100 como máximo', lists.length > 0 && lists.every(r => new URL(r.url).searchParams.get('view') === 'minimal' && Number(new URL(r.url).searchParams.get('per_page')) <= 100 && new URL(r.url).searchParams.has('page')), `${lists.length} solicitudes de listado`);
-  ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => r.url.includes('/reporteid/') && !r.url.includes('/visor')).every(r => r.url.includes('view=minimal')));
+  ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => /\/api\/reportes\/\d+(\?|$)/.test(r.url)).every(r => r.url.includes('view=minimal')));
   ok('el visor pide su configuración solo con GET autenticado (nunca el endpoint antiguo de tokens)', b.requestLog.filter(r => r.url.includes('/visor')).every(r => r.method === 'GET' && r.hasAuth) && !b.requestLog.some(r => r.url.includes('/api/powerbi/tokens')));
   ok('no se consume /api/powerbi y, solo navegando y consultando, no se escribe nada', !b.requestLog.some(r => /powerbi/i.test(r.url.replace('/qa/powerbi-view.html', ''))) && b.requestLog.every(r => r.method === 'GET' || /\/api\/(login|logout)$/.test(r.url)));
   const adminLists = b.requestLog.filter(r => /\/api\/(users|empresa-usuario|empresa-reporte-usuario)(\?|$)/.test(r.url));
@@ -307,7 +307,7 @@ async function adminFlow() {
   await logout(b);
   await login(b, 'operador.prueba');
   ok('entra como usuario y ve únicamente Reporte A', await path(b) === '/reportes' && JSON.stringify(await cards(b)) === '["Reporte A"]', (await cards(b)).join(', '));
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000022');
+  await go(b, '/reportes/2');
   ok('un informe de Empresa B → acceso denegado neutral', (await text(b, '#page-title')) === 'Acceso denegado' && !(await body(b)).includes('Reporte B'));
   await go(b, '/admin/usuarios');
   ok('no alcanza las pantallas administrativas', (await text(b, '.denied')).includes('solo para administradores'));
@@ -338,7 +338,7 @@ async function adminFlow() {
   await logout(b);
   await login(b, 'operador.prueba');
   ok('el usuario ya no ve informes', await path(b) === '/reportes' && await count(b, '.report-card') === 0);
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000011');
+  await go(b, '/reportes/1');
   ok('el informe retirado ya no se puede abrir (acceso denegado neutral)', (await text(b, '#page-title')) === 'Acceso denegado');
   const afterApi = await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', (await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD })).token);
   ok('MySQL: el servidor tampoco le entrega ningún informe', (afterApi.data ?? []).length === 0);
@@ -488,19 +488,19 @@ async function catalogFlow() {
   ok('el usuario entra y ve únicamente el informe asignado', await path(b) === '/reportes' && JSON.stringify(await cards(b)) === JSON.stringify([reportName]), (await cards(b)).join(', '));
   ok('el catálogo del usuario no trae el enlace de publicación', !(await b.eval('document.documentElement.outerHTML')).includes('app.powerbi.com') && !(await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token).then(r => JSON.stringify(r)).catch(() => '')).includes('powerbi.com'));
   await b.shot(join(shots, '58-usuario-ve-informe.png'));
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000022'); await settle();
+  await go(b, '/reportes/2'); await settle();
   ok('un informe ajeno → acceso denegado neutral', (await text(b, '#page-title')) === 'Acceso denegado');
-  await go(b, `/reportes/${report.reporte_id}`); await settle(); await b.wait(900);
+  await go(b, `/reportes/${report.id}`); await settle(); await b.wait(900);
   ok('el informe asignado abre en el visor: iframe hacia la página local con el token del enlace vigente (el nuevo, no el anterior)', (await text(b, '#page-title')) === reportName && await b.eval(`document.querySelector('.powerbi-frame iframe')?.src === location.origin + '/qa/powerbi-view.html?r=${token2}&pageName=ReportSection1'`));
   const frameMsg2 = await stubMessage(b);
   ok('el marco de pruebas informa el token y la página del enlace vigente', frameMsg2?.token === token2 && frameMsg2?.page === 'ReportSection1');
   await b.shot(join(shots, '62-visor-informe-nuevo.png'));
   const userToken = (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token;
-  const viewerOf = async tok => nodeApi('GET', `/api/reportes/reporteid/${report.reporte_id}/visor`, tok);
+  const viewerOf = async tok => nodeApi('GET', `/api/reportes/id/${report.id}/visor`, tok);
   const authorized = await viewerOf(userToken);
   ok('el servidor entrega la configuración solo al usuario autorizado (modo público y enlace vigente, sin credenciales)', authorized?.data?.modo === 'publico' && authorized.data.url === link2 && !JSON.stringify(authorized).match(/secret|tenant|client|password|token/i));
   const other = await viewerOf((await nodeApi('POST', '/api/login', null, { login: 'userb', password: PASSWORD })).token);
-  ok('otro usuario (sin acceso) no obtiene la URL: respuesta idéntica a un informe inexistente', other?.success === false && JSON.stringify(other) === JSON.stringify(await nodeApi('GET', '/api/reportes/reporteid/00000000-0000-4000-8000-00000000dead/visor', userToken)) && !JSON.stringify(other).includes('powerbi'));
+  ok('otro usuario (sin acceso) no obtiene la URL: respuesta idéntica a un informe inexistente', other?.success === false && JSON.stringify(other) === JSON.stringify(await nodeApi('GET', '/api/reportes/id/4000000000/visor', userToken)) && !JSON.stringify(other).includes('powerbi'));
   await nodeApi('DELETE', `/api/asignacion/${links[0].id}`, await A());
   ok('desactivar la asociación empresa ↔ informe bloquea nuevas solicitudes del visor', (await viewerOf(userToken))?.success === false);
   await nodeApi('POST', '/api/asignacion', await A(), { empresa_id: company.id, reporte_id: Number(report.id) });
@@ -516,8 +516,8 @@ async function catalogFlow() {
   await logout(b);
   await login(b, username);
   ok('el usuario ya no ve el informe', await path(b) === '/reportes' && await count(b, '.report-card') === 0);
-  ok('retirar el acceso bloquea nuevas solicitudes al visor (el servidor, no la interfaz)', (await nodeApi('GET', `/api/reportes/reporteid/${report.reporte_id}/visor`, (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token))?.success === false);
-  await go(b, `/reportes/${report.reporte_id}`); await settle();
+  ok('retirar el acceso bloquea nuevas solicitudes al visor (el servidor, no la interfaz)', (await nodeApi('GET', `/api/reportes/id/${report.id}/visor`, (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token))?.success === false);
+  await go(b, `/reportes/${report.id}`); await settle();
   ok('y no puede abrirlo', (await text(b, '#page-title')) === 'Acceso denegado' && await count(b, 'iframe') === 0);
   await logout(b);
   await login(b, 'admin');
@@ -566,7 +566,7 @@ async function mobile() {
   await login(b, 'usera');
   ok('biblioteca real sin desbordamiento horizontal', await b.eval(`document.documentElement.scrollWidth <= innerWidth`) && await count(b, '.report-card') === 4);
   await b.shot(join(shots, '21-movil-biblioteca.png'));
-  await go(b, '/reportes/00000000-0000-0000-0000-000000000022');
+  await go(b, '/reportes/2');
   ok('403 neutral en móvil, sin desbordamiento', await count(b, '.denied') === 1 && !(await body(b)).includes('Reporte B') && await b.eval(`document.documentElement.scrollWidth <= innerWidth`));
   await b.shot(join(shots, '22-movil-denegado.png'));
   await go(b, '/reportes');

@@ -8,3 +8,5 @@ frontend/**/*.ico binary
 deploy/tunel-ssh/** text eol=lf
 deploy/apache/*.conf text eol=lf
 deploy/apache/*.example text eol=lf
+
+deploy/tunel-ssh-compat/** text eol=lf
