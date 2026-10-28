@@ -1,9 +1,10 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, LoginRequest, Report, TokenStore, User } from '../types';
-import { composeReportCatalog, toCompany, toReport, toUser, type AssignmentDto, type CompanyDto, type ReportDto } from './adapters';
+import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, GrantRequest, GrantResult, LoginRequest, NewUser, Report, TokenStore, User } from '../types';
+import { composeReportCatalog, toActive, toAssignment, toCompany, toDirectoryUser, toReport, toUser, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyLinkDto, type ReportDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
-interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock }
+interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock }
+interface ListOptions { /** Pide la vista mínima (solo endpoints que la admiten). */ minimal?: boolean; /** Parámetros adicionales, p. ej. `status=all`. */ query?: string; /** Propiedad con las filas (por defecto `data`). */ key?: 'data' | 'users' }
 
 export interface HttpApiOptions {
   baseUrl: string;
@@ -29,11 +30,15 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  *  - Catálogo de informes: `/api/reportes` + `/api/asignacion` + `/api/empresas` (provisional, ver `composeReportCatalog`).
  *  - GET /api/reportes/reporteid/{uuid}: un informe ajeno o inexistente responde 404 (se trata como acceso denegado).
  *  - POST /api/logout incrementa `session_version`: el token usado deja de ser válido.
- * Fuera de alcance en esta etapa: tokens de inserción de Power BI, listados administrativos de usuarios y escrituras.
+ * UX-07A (administración): listados y escrituras administrativas contra el backend real:
+ *  - `/api/users?status=all` (usuarios), `/api/empresa-usuario` (usuario ↔ empresa) y `/api/empresa-reporte-usuario` (acceso efectivo), con `view=minimal` donde existe.
+ *  - POST /api/register (alta; el backend fija rol, estado y versión de sesión), POST /api/empresa-usuario, POST/DELETE /api/empresa-reporte-usuario.
+ *  - Las escrituras solo se dan por buenas si el servidor responde `success:true`; un rechazo (HTTP 200 con `success:false`) se informa tal cual.
+ * Fuera de alcance en esta etapa: tokens de inserción de Power BI reales.
  */
 export class HttpApiClient implements ApiClient {
   // El nombre del grupo no existe en ninguna fuente real: el filtro de grupo permanece oculto.
-  readonly capabilities: ApiCapabilities = { adminDirectory: false, reportCompany: true, reportGroups: false, profileEdit: false };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: true };
   private readonly baseUrl: string;
   private readonly tokens: TokenStore;
   private readonly fetchImpl: typeof fetch;
@@ -85,20 +90,84 @@ export class HttpApiClient implements ApiClient {
   }
 
   async listCompanies(): Promise<Company[]> { return (await this.listAll<CompanyDto>('/api/empresas')).map(toCompany); }
-  listUsers(): Promise<User[]> { return Promise.reject(NOT_INTEGRATED('El listado de usuarios')); }
-  listAssignments(): Promise<Assignment[]> { return Promise.reject(NOT_INTEGRATED('El listado de asignaciones')); }
+  async listUsers(): Promise<User[]> {
+    const [users, links] = await Promise.all([
+      this.listAll<UserDto>('/api/users', { minimal: false, key: 'users', query: 'status=all' }),
+      this.listAll<CompanyLinkDto>('/api/empresa-usuario')
+    ]);
+    const companiesByUser = new Map<string, string[]>();
+    for (const link of links) {
+      const key = String(link.user_id);
+      const list = companiesByUser.get(key) ?? companiesByUser.set(key, []).get(key)!;
+      if (!list.includes(String(link.empresa_id))) list.push(String(link.empresa_id));
+    }
+    return users.map(dto => { const user = toDirectoryUser(dto); return { ...user, companyIds: companiesByUser.get(user.id) ?? [] }; });
+  }
+
+  async listAssignments(): Promise<Assignment[]> {
+    const rows = await this.listAll<AccessDto>('/api/empresa-reporte-usuario');
+    return rows.map(toAssignment).filter((a): a is Assignment => a !== null);
+  }
+
   updateProfile(): Promise<User> { return Promise.reject(NOT_INTEGRATED('La edición del perfil')); }
+
+  async createUser(input: NewUser): Promise<void> {
+    // Solo datos de la persona: el rol, el estado y la versión de sesión los decide el backend (SEC-05A).
+    const body: Record<string, string> = { first_name: input.firstName.trim(), last_name: input.lastName.trim(), username: input.username.trim(), email: input.email.trim(), password: input.password };
+    if (input.phone.trim()) body.phone = input.phone.trim();
+    await this.mutate('POST', '/api/register', body);
+  }
+
+  async grantAccess({ userId, companyId, reportIds }: GrantRequest): Promise<GrantResult[]> {
+    const user = positiveInt(userId); const company = positiveInt(companyId);
+    if (!user || !company) throw new ApiError(400, 'Usuario o empresa no válidos.');
+    // Lecturas frescas: el catálogo y las relaciones pueden haber cambiado desde que se abrió el asistente.
+    const [reports, links, relations] = await Promise.all([
+      this.listAll<ReportDto>('/api/reportes'),
+      this.listAll<CompanyLinkDto>('/api/empresa-usuario'),
+      this.listAll<AssignmentDto>('/api/asignacion')
+    ]);
+    const numericByUuid = new Map<string, string>();
+    for (const r of reports) if (typeof r.reporte_id === 'string' && r.id !== undefined) numericByUuid.set(r.reporte_id, String(r.id));
+    // 1) relación usuario ↔ empresa (necesaria para el acceso efectivo). Si falla, no se concede nada.
+    if (!links.some(l => String(l.user_id) === userId && String(l.empresa_id) === companyId)) {
+      await this.mutate('POST', '/api/empresa-usuario', { user_id: user, empresa_id: company });
+    }
+    // 2) un acceso por informe, a través de la relación empresa ↔ informe (id `empresa_reporte`, distinto del id del informe y de su UUID).
+    const results: GrantResult[] = [];
+    for (const reportId of reportIds) {
+      const numeric = numericByUuid.get(reportId);
+      const relation = numeric === undefined ? undefined : relations.find(a => String(a.empresa_id) === companyId && String(a.reporte_id) === numeric && a.id !== undefined && toActive(a.activo));
+      const relationId = relation ? positiveInt(String(relation.id)) : null;
+      if (!relationId) { results.push({ reportId, status: 'failed', message: 'El informe no está asignado a esa empresa.' }); continue; }
+      try {
+        await this.mutate('POST', '/api/empresa-reporte-usuario', { user_id: user, empresa_reporte_id: relationId });
+        results.push({ reportId, status: 'granted', message: 'Acceso concedido.' });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.kind !== 'validation') throw error;
+        results.push(/ya existe/i.test(error.message) ? { reportId, status: 'already', message: 'El usuario ya tenía este acceso.' } : { reportId, status: 'failed', message: error.message });
+      }
+    }
+    return results;
+  }
+
+  async revokeAssignment(assignmentId: string): Promise<void> {
+    const id = positiveInt(assignmentId);
+    if (!id) throw new ApiError(400, 'Acceso no válido.');
+    await this.mutate('DELETE', `/api/empresa-reporte-usuario/${id}`);
+  }
 
   /**
    * Lee todas las páginas de un listado con `view=minimal` y valida la coherencia:
    * bloque `pagination` obligatorio, total estable entre páginas y filas recibidas = total declarado.
    */
-  private async listAll<T>(path: string): Promise<T[]> {
+  private async listAll<T>(path: string, { minimal = true, query, key = 'data' }: ListOptions = {}): Promise<T[]> {
     const rows: T[] = [];
     let declaredTotal: number | null = null;
+    const extra = `${minimal ? 'view=minimal&' : ''}${query ? `${query}&` : ''}`;
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const env = await this.request('GET', `${path}?view=minimal&per_page=${PAGE_SIZE}&page=${page}`);
-      const chunk = rowsOf<T>(env);
+      const env = await this.request('GET', `${path}?${extra}per_page=${PAGE_SIZE}&page=${page}`);
+      const chunk = key === 'users' ? (Array.isArray(env.users) ? (env.users as T[]) : null) : rowsOf<T>(env);
       const meta = env.pagination;
       if (!chunk || !meta || typeof meta.total !== 'number' || typeof meta.has_more !== 'boolean') throw invalid('Respuesta de listado sin paginación válida.');
       if (declaredTotal !== null && meta.total !== declaredTotal) throw invalid('Los datos cambiaron durante la lectura; reintente.');
@@ -110,6 +179,13 @@ export class HttpApiClient implements ApiClient {
       }
     }
     throw invalid('El listado excede el máximo de páginas permitido.');
+  }
+
+  /** Escritura administrativa: solo se da por hecha si el servidor responde `success:true`. */
+  private async mutate(method: 'POST' | 'DELETE', path: string, body?: unknown): Promise<Envelope> {
+    const env = await this.request(method, path, body);
+    if (env.success !== true) throw new ApiError(422, env.message || 'El servicio rechazó la operación.');
+    return env;
   }
 
   private async request(method: string, path: string, body?: unknown, auth = true): Promise<Envelope> {
@@ -131,6 +207,8 @@ export class HttpApiClient implements ApiClient {
     return envelope;
   }
 }
+
+const positiveInt = (value: string): number | null => (/^[1-9]\d*$/.test(value) ? Number(value) : null);
 
 /** Filas de un listado: `data[]` o, en /api/asignacion, la doble envoltura `data.data[]`. */
 function rowsOf<T>(env: Envelope): T[] | null {

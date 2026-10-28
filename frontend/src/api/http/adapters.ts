@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { Company, Report, Role, User } from '../types';
+import type { Assignment, Company, Report, Role, User } from '../types';
 
 /**
  * Adaptadores entre el JSON REAL del backend PHP (verificado contra el código en UX-06A/06B.0, no solo contra
@@ -21,12 +21,29 @@ export interface CompanyDto { id: number | string; nombre: string; ciudad?: stri
 /** Fila de GET /api/asignacion?view=minimal: relación empresa–informe (`reporte_id` es el id NUMÉRICO del informe). */
 export interface AssignmentDto { id?: number | string; empresa_id: number | string; reporte_id: number | string; activo?: boolean | number | string | null }
 
+/** Fila de GET /api/empresa-usuario?view=minimal. */
+export interface CompanyLinkDto { id: number | string; user_id: number | string; empresa_id: number | string }
+/** Fila de GET /api/empresa-reporte-usuario?view=minimal: `reporte_id` es el UUID de Power BI; `empresa_reporte_id` el id de la relación empresa–informe. */
+export interface AccessDto { id: number | string; user_id: number | string; empresa_id: number | string; empresa_reporte_id?: number | string; reporte_id?: string | null }
+
 const invalid = (message: string) => new ApiError(502, message, 'invalid_response');
 
 export function parseRole(value: unknown): Role {
   if (value === 'admin') return 'admin';
   if (value === 'user' || value === 'usuario') return 'user';
   throw invalid('El servicio devolvió un rol no reconocido. Se rechazó la sesión por seguridad.');
+}
+
+/**
+ * Rol de un usuario del directorio administrativo. Refleja la política del backend (SEC-05A: recorte de espacios y minúsculas;
+ * `usuario` es alias de `user`). Un valor no reconocido NO se rechaza aquí (el administrador debe verlo para corregirlo):
+ * se marca `loginBlocked` porque el servidor no le permitirá iniciar sesión.
+ */
+export function directoryRole(value: unknown): { role: Role; blocked: boolean } {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'admin') return { role: 'admin', blocked: false };
+  if (normalized === 'user' || normalized === 'usuario') return { role: 'user', blocked: false };
+  return { role: 'user', blocked: true };
 }
 
 /** El API puede enviar 1/0, "1"/"0", true/false; ausente = activo. */
@@ -54,6 +71,21 @@ export function toUser(dto: UserDto): User {
     phone: dto.phone ?? '',
     companyIds: []
   };
+}
+
+/** Usuario del listado administrativo (`GET /api/users`): tolera roles no reconocidos y no requiere correo. */
+export function toDirectoryUser(dto: UserDto): User {
+  if (dto === null || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de usuario incompleta.');
+  const username = requireText(dto.username, 'username');
+  const fullName = `${dto.first_name ?? ''} ${dto.last_name ?? ''}`.trim();
+  const { role, blocked } = directoryRole(dto.role);
+  return { id: String(dto.id), username, displayName: fullName || username, email: typeof dto.email === 'string' ? dto.email : '', role, active: toActive(dto.is_active), phone: dto.phone ?? '', companyIds: [], ...(blocked ? { loginBlocked: true } : {}) };
+}
+
+/** Acceso efectivo. Sin UUID del informe no se puede relacionar con el catálogo: se descarta. */
+export function toAssignment(dto: AccessDto): Assignment | null {
+  if (!dto || typeof dto.reporte_id !== 'string' || !dto.reporte_id) return null;
+  return { id: String(dto.id), userId: String(dto.user_id), reportId: dto.reporte_id, companyId: String(dto.empresa_id) };
 }
 
 /** Informe sin empresa (la relación se compone aparte). Devuelve null si falta `reporte_id` (no se podría abrir). */

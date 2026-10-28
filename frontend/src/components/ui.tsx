@@ -64,6 +64,23 @@ export function NoMatches({ noun, onClear }: { noun: string; onClear: () => void
   return <EmptyState title="Sin resultados" action={<Button variant="secondary" onClick={onClear}>Limpiar filtros</Button>}>Ningún {noun} coincide con la búsqueda o los filtros aplicados.</EmptyState>;
 }
 
+export const PAGE_SIZE = 25;
+
+/** Paginación de presentación (los datos ya se cargaron completos desde el servidor). */
+export function Pager({ page, total, onPage }: { page: number; total: number; onPage: (page: number) => void }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pages <= 1) return null;
+  return (
+    <nav className="resultbar" aria-label="Paginación">
+      <span aria-live="polite">Página <strong>{page}</strong> de {pages}</span>
+      <span style={{ display: 'flex', gap: '.4rem' }}>
+        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
+        <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Siguiente</Button>
+      </span>
+    </nav>
+  );
+}
+
 export interface Column<T> { header: string; cls?: string; cell: (row: T) => ReactNode }
 
 export function DataTable<T>({ columns, rows, rowKey, rowClass }: { columns: Array<Column<T>>; rows: T[]; rowKey: (row: T) => string; rowClass?: (row: T) => string }) {

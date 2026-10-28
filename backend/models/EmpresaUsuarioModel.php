@@ -52,6 +52,30 @@ class EmpresaUsuarioModel {
         }
 
         try {
+            // UX-07A: solo empresas y usuarios activos; una relación ya vigente no se duplica y una retirada se reactiva.
+            $valid = $this->pdo->prepare('SELECT (SELECT COUNT(*) FROM empresa WHERE id = :e AND activo = 1) AS empresa_ok, (SELECT COUNT(*) FROM user WHERE id = :u AND is_active = 1) AS user_ok');
+            $valid->execute([':e' => $empresa_id, ':u' => $user_id]);
+            $check = $valid->fetch(PDO::FETCH_ASSOC);
+            if (!$check || (int)$check['empresa_ok'] !== 1 || (int)$check['user_ok'] !== 1) {
+                $response['message'] = 'La empresa o el usuario especificado no existe o está inactivo';
+                return $response;
+            }
+            $existing = $this->pdo->prepare('SELECT id, activo FROM empresa_usuario WHERE empresa_id = :e AND user_id = :u ORDER BY activo DESC, id DESC LIMIT 1');
+            $existing->execute([':e' => $empresa_id, ':u' => $user_id]);
+            $found = $existing->fetch(PDO::FETCH_ASSOC);
+            if ($found) {
+                if ((int)$found['activo'] === 1) {
+                    $response['message'] = 'Esta relación ya existe';
+                    return $response;
+                }
+                $reactivate = $this->pdo->prepare('UPDATE empresa_usuario SET activo = 1, updated_by = :by WHERE id = :id');
+                $reactivate->execute([':by' => $data['created_by'] ?? null, ':id' => (int)$found['id']]);
+                $response['success'] = true;
+                $response['InsertedId'] = (int)$found['id'];
+                $response['message'] = 'Usuario asignado a la empresa exitosamente';
+                return $response;
+            }
+
             $sql = "INSERT INTO empresa_usuario (empresa_id, user_id, notas, created_by)
                     VALUES (:empresa_id, :user_id, :notas, :created_by)";
 
@@ -117,6 +141,8 @@ class EmpresaUsuarioModel {
             $scope = $this->visibleScope($userId, $role, $params);
             $sql = "SELECT
                         eu.id,
+                        eu.user_id,
+                        eu.empresa_id,
                         e.nombre AS empresa_nombre,
                         e.ruc AS empresa_ruc,
                         u.first_name AS usuario_nombre,

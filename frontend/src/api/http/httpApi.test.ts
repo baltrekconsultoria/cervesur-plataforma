@@ -90,8 +90,6 @@ describe('proveedor HTTP · sesión y perfil (sin red real)', () => {
   it('lo no integrado falla de forma explícita y sin tocar la red', async () => {
     const fetchImpl = vi.fn();
     const { client } = make(fetchImpl as never);
-    await expect(client.listUsers()).rejects.toMatchObject({ kind: 'not_integrated' });
-    await expect(client.listAssignments()).rejects.toMatchObject({ kind: 'not_integrated' });
     await expect((client as ApiClient).updateProfile({ displayName: 'x', phone: '' })).rejects.toMatchObject({ kind: 'not_integrated' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

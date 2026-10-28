@@ -70,7 +70,7 @@ describe('fábrica de proveedores', () => {
   it('permite el proveedor HTTP solo con bandera y localhost', () => {
     const services = createApiServices({ VITE_API_PROVIDER: 'http', VITE_ENABLE_HTTP_PROVIDER: 'true', VITE_API_BASE_URL: 'http://localhost:8080' }, tokens);
     expect(services.provider).toBe('http');
-    expect(services.client.capabilities).toEqual({ adminDirectory: false, reportCompany: true, reportGroups: false, profileEdit: false });
+    expect(services.client.capabilities).toEqual({ adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: true });
   });
   it('"same-origin" usa el origen de la página (aquí localhost) y exige loopback', () => {
     expect(createApiServices({ VITE_API_PROVIDER: 'http', VITE_ENABLE_HTTP_PROVIDER: 'true', VITE_API_BASE_URL: 'same-origin' }, tokens).provider).toBe('http');

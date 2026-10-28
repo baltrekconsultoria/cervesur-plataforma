@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import type { ApiCapabilities, Assignment, Company, Report, User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
-import { Button, DataTable, EmptyState, ErrorState, Highlight, LoadingState, NoMatches, ResultBar, SearchField, SelectField, StatusTag, Tag, type Column } from '../../components/ui';
+import { Button, ButtonLink, DataTable, EmptyState, ErrorState, Highlight, LoadingState, NoMatches, PAGE_SIZE, Pager, ResultBar, SearchField, SelectField, StatusTag, Tag, type Column } from '../../components/ui';
 import { norm } from '../../lib/text';
 import { useAsync, type AsyncState } from '../../lib/useAsync';
 import { useUrlFilters } from '../../lib/useUrlFilters';
+import { NewUserDialog } from './NewUserDialog';
+import { RevokeDialog } from './RevokeDialog';
 
 const crumbs = (label: string) => [{ label: 'Administración', to: '/admin' }, { label }];
 const NOTE = 'Estructura inicial de solo lectura: las altas, ediciones y asignaciones simuladas del prototipo UX-04B se portarán en la siguiente etapa.';
@@ -34,11 +37,12 @@ function NotIntegrated({ title, what }: { title: string; what: string }) {
 }
 
 /** Envoltorio común: carga, error y cabecera. */
-function AdminScreen({ title, data, children }: { title: string; data: AsyncState<AdminData>; children: (d: AdminData) => React.ReactNode }) {
-  const { bump } = useApp();
+function AdminScreen({ title, data, children, notice }: { title: string; data: AsyncState<AdminData>; children: (d: AdminData) => React.ReactNode; notice?: React.ReactNode }) {
+  const { bump, capabilities } = useApp();
   return (
     <Page title={title} crumbs={crumbs(title)}>
-      {data.status === 'loading' ? <LoadingState /> : data.status === 'error' ? <ErrorState onRetry={bump} /> : <section>{children(data.data)}<p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p></section>}
+      {notice}
+      {data.status === 'loading' ? <LoadingState /> : data.status === 'error' ? <ErrorState onRetry={bump} /> : <section>{children(data.data)}{!capabilities.adminWrites && <p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p>}</section>}
     </Page>
   );
 }
@@ -90,7 +94,7 @@ function Dashboard({ data, capabilities }: { data: AdminData; capabilities: ApiC
       ) : (
         <p className="form-note" style={{ marginTop: '.75rem' }}>Usuarios, accesos y pendientes se mostrarán cuando esos listados se integren con el servicio real.</p>
       )}
-      <p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p>
+      {!capabilities.adminWrites && <p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p>}
     </section>
   );
 }
@@ -99,30 +103,43 @@ const ACTIVE_OPTIONS = (on: string, off: string): Array<[string, string]> => [['
 
 export function AdminUsersPage() {
   const data = useAdminData();
-  const { user: me, capabilities } = useApp();
+  const { user: me, capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', role: 'all', status: 'all' });
+  const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [paging, setPaging] = useState({ key: '', page: 1 });
   if (!capabilities.adminDirectory) return <NotIntegrated title="Usuarios" what="El listado de usuarios" />;
+  const filterKey = JSON.stringify(filters.values);
+  const page = paging.key === filterKey ? paging.page : 1;
   return (
-    <AdminScreen title="Usuarios" data={data}>
-      {({ users, companies }) => {
+    <AdminScreen title="Usuarios" data={data} notice={<>
+      {notice && <p className="success-box" role="status">{notice}</p>}
+      {creating && <NewUserDialog onClose={() => setCreating(false)} onCreated={username => { setCreating(false); setNotice(`Usuario «${username}» creado correctamente.`); bump(); }} />}
+    </>}>
+      {({ users, companies, assignments, reports }) => {
         const { q, role, status } = filters.values;
         const needle = norm(q);
-        const rows = users.filter(u => (role === 'all' || u.role === role) && (status === 'all' || (status === 'active') === u.active) && (!needle || norm(`${u.displayName} ${u.email}`).includes(needle)));
+        const rows = users.filter(u => (role === 'all' || u.role === role) && (status === 'all' || (status === 'active') === u.active) && (!needle || norm(`${u.displayName} ${u.email} ${u.username}`).includes(needle)));
+        const visible = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        const accessCount = (u: User) => assignments.filter(a => a.userId === u.id && assignmentStatus(a, users, reports, companies).ok).length;
         const cols: Array<Column<User>> = [
           { header: 'Usuario', cell: u => <><strong><Highlight text={u.displayName} query={q} /></strong>{u.id === me?.id && <> <Tag>Usted</Tag></>}<span className="muted"><Highlight text={u.email} query={q} /></span></> },
-          { header: 'Rol', cell: u => (u.role === 'admin' ? <Tag tone="admin">Administrador</Tag> : 'Usuario') },
+          { header: 'Rol', cell: u => (u.loginBlocked ? <Tag tone="warn">Rol no reconocido · sin acceso</Tag> : u.role === 'admin' ? <Tag tone="admin">Administrador</Tag> : 'Usuario') },
           { header: 'Empresas', cell: u => (u.role === 'admin' ? <span className="muted">Todas</span> : u.companyIds.map(id => companies.find(c => c.id === id)?.name.replace(/ S\.A\.C\.$/, '')).filter(Boolean).join(', ') || '—') },
-          { header: 'Estado', cell: u => <StatusTag active={u.active} /> }
+          { header: 'Informes', cls: 'num', cell: u => (u.role === 'admin' ? <span className="muted">Todos</span> : accessCount(u)) },
+          { header: 'Estado', cell: u => <StatusTag active={u.active} /> },
+          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (u: User) => (u.active && u.role === 'user' && !u.loginBlocked ? <Link className="btn btn-secondary btn-sm" to={`/admin/accesos/nueva?user=${encodeURIComponent(u.id)}`} aria-label={`Asignar accesos a ${u.displayName}`}>Asignar accesos</Link> : null) }] : [])
         ];
         return (
           <>
             <div className="toolbar" role="search">
-              <SearchField id="us-q" label="Buscar usuario" placeholder="Nombre o correo" value={q} onChange={v => filters.set('q', v)} />
+              <SearchField id="us-q" label="Buscar usuario" placeholder="Nombre, usuario o correo" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="us-role" label="Rol" value={role} onChange={v => filters.set('role', v)} options={[['all', 'Todos'], ['user', 'Usuario'], ['admin', 'Administrador']]} />
               <SelectField id="us-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activos', 'Inactivos')} />
+              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setCreating(true); }}>Nuevo usuario</Button>}
             </div>
             <ResultBar shown={rows.length} total={users.length} noun="usuarios" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /> : <NoMatches noun="usuario" onClear={filters.clear} />}
+            {rows.length ? <><DataTable columns={cols} rows={visible} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /><Pager page={page} total={rows.length} onPage={p => setPaging({ key: filterKey, page: p })} /></> : <NoMatches noun="usuario" onClear={filters.clear} />}
           </>
         );
       }}
@@ -208,11 +225,16 @@ export function AdminReportsPage() {
 
 export function AdminAccessPage() {
   const data = useAdminData();
-  const { capabilities } = useApp();
+  const { capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', company: 'all', effect: 'all' });
+  const [revoking, setRevoking] = useState<{ assignment: Assignment; userName: string; reportName: string; companyName: string } | null>(null);
+  const [notice, setNotice] = useState('');
   if (!capabilities.adminDirectory) return <NotIntegrated title="Accesos y asignaciones" what="El listado de asignaciones" />;
   return (
-    <AdminScreen title="Accesos y asignaciones" data={data}>
+    <AdminScreen title="Accesos y asignaciones" data={data} notice={<>
+      {notice && <p className="success-box" role="status">{notice}</p>}
+      {revoking && <RevokeDialog {...revoking} onClose={() => setRevoking(null)} onRevoked={() => { setRevoking(null); setNotice(`Acceso de ${revoking.userName} a «${revoking.reportName}» retirado.`); bump(); }} />}
+    </>}>
       {({ assignments, users, reports, companies }) => {
         const { q, company, effect } = filters.values;
         const needle = norm(q);
@@ -221,13 +243,17 @@ export function AdminAccessPage() {
           const report = reports.find(r => r.id === a.reportId);
           return user && report ? [{ a, user, report, status: assignmentStatus(a, users, reports, companies) }] : [];
         });
-        const rows = all.filter(x => (company === 'all' || x.report.companyId === company) && (effect === 'all' || (effect === 'ok') === x.status.ok) && (!needle || norm(`${x.user.displayName} ${x.user.email} ${x.report.name}`).includes(needle)));
+        const companyOf = (x: { a: Assignment; report: Report }) => x.a.companyId ?? x.report.companyId;
+        const rows = all.filter(x => (company === 'all' || companyOf(x) === company) && (effect === 'all' || (effect === 'ok') === x.status.ok) && (!needle || norm(`${x.user.displayName} ${x.user.email} ${x.report.name}`).includes(needle)));
         type Row = (typeof all)[number];
         const cols: Array<Column<Row>> = [
           { header: 'Usuario', cell: x => <><strong><Highlight text={x.user.displayName} query={q} /></strong><span className="muted"><Highlight text={x.user.email} query={q} /></span></> },
           { header: 'Informe', cell: x => <Highlight text={x.report.name} query={q} /> },
-          { header: 'Empresa', cell: x => companies.find(c => c.id === x.report.companyId)?.name ?? '—' },
-          { header: 'Estado', cell: x => (x.status.ok ? <Tag tone="ok">Vigente</Tag> : <Tag tone="warn">Sin efecto · {x.status.reason}</Tag>) }
+          { header: 'Empresa', cell: x => companies.find(c => c.id === companyOf(x))?.name ?? '—' },
+          { header: 'Estado', cell: x => (x.status.ok ? <Tag tone="ok">Vigente</Tag> : <Tag tone="warn">Sin efecto · {x.status.reason}</Tag>) },
+          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (x: Row) => (x.a.id
+            ? <Button variant="secondary" size="sm" aria-label={`Retirar acceso de ${x.user.displayName} a ${x.report.name}`} onClick={() => { setNotice(''); setRevoking({ assignment: x.a, userName: x.user.displayName, reportName: x.report.name, companyName: companies.find(c => c.id === companyOf(x))?.name ?? '' }); }}>Retirar</Button>
+            : null) }] : [])
         ];
         return (
           <>
@@ -235,10 +261,10 @@ export function AdminAccessPage() {
               <SearchField id="ax-q" label="Buscar asignación" placeholder="Usuario o informe" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="ax-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />
               <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['all', 'Todos'], ['ok', 'Vigentes'], ['off', 'Sin efecto']]} />
-              <Button variant="primary" disabled title="Asistente de asignación: siguiente etapa">Nueva asignación</Button>
+              {capabilities.adminWrites && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
             </div>
             <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={x => `${x.a.userId}-${x.a.reportId}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /> : <NoMatches noun="acceso" onClear={filters.clear} />}
+            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={x => x.a.id ?? `${x.a.userId}-${x.a.reportId}-${x.a.companyId ?? ''}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /> : <NoMatches noun="acceso" onClear={filters.clear} />}
           </>
         );
       }}

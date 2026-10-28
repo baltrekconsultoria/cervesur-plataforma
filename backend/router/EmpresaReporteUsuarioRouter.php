@@ -5,6 +5,7 @@
  * Endpoints protegidos con JWT
  */
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../controllers/EmpresaReporteUsuarioController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -19,9 +20,10 @@ if (preg_match('#^/api/empresa-reporte-usuario$#', $uri)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
 
+        $view = require_view();
         $response = $empresaReporteUsuarioController->getAll($user_data['user_id'], $user_data['role'], require_pagination(20));
 
-        echo json_encode($response);
+        echo json_encode(apply_view($response, $view, 'empresa_reporte_usuario'));
         exit;
     } elseif ($method === 'POST') {
         $user_data = require_auth($jwt_secret);
