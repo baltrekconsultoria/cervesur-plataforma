@@ -1,0 +1,5 @@
+# Reescritura de rutas para despliegue estático en Apache (no se despliega en UX-05.1)
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]

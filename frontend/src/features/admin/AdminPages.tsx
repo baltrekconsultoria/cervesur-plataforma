@@ -1,0 +1,247 @@
+import { Link, useLocation } from 'react-router';
+import type { ApiCapabilities, Assignment, Company, Report, User } from '../../api/types';
+import { useApp } from '../../app/AppProvider';
+import { Page } from '../../app/layout';
+import { assignmentStatus } from '../../domain/access';
+import { Button, DataTable, EmptyState, ErrorState, Highlight, LoadingState, NoMatches, ResultBar, SearchField, SelectField, StatusTag, Tag, type Column } from '../../components/ui';
+import { norm } from '../../lib/text';
+import { useAsync, type AsyncState } from '../../lib/useAsync';
+import { useUrlFilters } from '../../lib/useUrlFilters';
+
+const crumbs = (label: string) => [{ label: 'Administración', to: '/admin' }, { label }];
+const NOTE = 'Estructura inicial de solo lectura: las altas, ediciones y asignaciones simuladas del prototipo UX-04B se portarán en la siguiente etapa.';
+
+interface AdminData { users: User[]; companies: Company[]; reports: Report[]; assignments: Assignment[] }
+
+/** Carga solo lo que el proveedor puede entregar: sin directorio administrativo no se piden usuarios ni asignaciones. */
+function useAdminData(): AsyncState<AdminData> {
+  const { api, version, capabilities } = useApp();
+  return useAsync(async () => {
+    const [companies, reports] = await Promise.all([api.listCompanies(), api.listReports()]);
+    const [users, assignments] = capabilities.adminDirectory ? await Promise.all([api.listUsers(), api.listAssignments()]) : [[], []];
+    return { users, companies, reports, assignments };
+  }, [api, version]);
+}
+
+function NotIntegrated({ title, what }: { title: string; what: string }) {
+  return (
+    <Page title={title} crumbs={crumbs(title)}>
+      <EmptyState title="Se conecta en la siguiente etapa de integración">
+        {what} aún no se obtiene del servicio real. En esta etapa solo están integrados el inicio de sesión, el perfil, las empresas y los reportes.
+      </EmptyState>
+    </Page>
+  );
+}
+
+/** Envoltorio común: carga, error y cabecera. */
+function AdminScreen({ title, data, children }: { title: string; data: AsyncState<AdminData>; children: (d: AdminData) => React.ReactNode }) {
+  const { bump } = useApp();
+  return (
+    <Page title={title} crumbs={crumbs(title)}>
+      {data.status === 'loading' ? <LoadingState /> : data.status === 'error' ? <ErrorState onRetry={bump} /> : <section>{children(data.data)}<p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p></section>}
+    </Page>
+  );
+}
+
+export function AdminDashboardPage() {
+  const data = useAdminData();
+  const { capabilities, bump } = useApp();
+  return (
+    <Page title="Inicio administrativo" crumbs={[{ label: 'Administración' }]}>
+      {data.status === 'loading' ? <LoadingState /> : data.status === 'error' ? <ErrorState onRetry={bump} /> : <Dashboard data={data.data} capabilities={capabilities} />}
+    </Page>
+  );
+}
+
+function Dashboard({ data, capabilities }: { data: AdminData; capabilities: ApiCapabilities }) {
+  const { users, companies, reports, assignments } = data;
+  const directory = capabilities.adminDirectory;
+  const statuses = assignments.map(a => assignmentStatus(a, users, reports, companies));
+  const effective = statuses.filter(s => s.ok).length;
+  const effectiveFor = (r: Report) => assignments.filter(a => a.reportId === r.id && assignmentStatus(a, users, reports, companies).ok).length;
+  const unassigned = reports.filter(r => r.active && !effectiveFor(r)).length;
+  const stale = users.filter(u => !u.active && assignments.some(a => a.userId === u.id)).length;
+  const metric = (label: string, value: number, total: number | null, to: string, note: string) => (
+    <Link className="card metric" to={to}><span className="eyebrow">{label}</span><strong>{value}{total !== null && <> <small className="muted">de {total}</small></>}</strong><span className="muted">{note}</span></Link>
+  );
+  const item = (text: string, count: number, to: string) => (
+    <li><span>{text}</span>{count ? <Link className="btn btn-secondary btn-sm" to={to}>Revisar ({count})</Link> : <Tag tone="ok">Sin pendientes</Tag>}</li>
+  );
+  return (
+    <section>
+      <div className="grid metric-grid">
+        {directory && metric('Usuarios activos', users.filter(u => u.active).length, users.length, '/admin/usuarios?status=active', 'Ver usuarios')}
+        {metric('Empresas activas', companies.filter(c => c.active).length, companies.length, '/admin/empresas?status=active', 'Ver empresas')}
+        {metric('Reportes activos', reports.filter(r => r.active).length, reports.length, '/admin/reportes?status=active', 'Ver reportes')}
+        {directory && metric('Accesos vigentes', effective, null, '/admin/accesos?effect=ok', 'Ver asignaciones')}
+      </div>
+      {directory ? (
+        <div className="dash-cols">
+          <div className="panel">
+            <h2>Requiere atención</h2>
+            <p className="muted">Calculado con los datos sintéticos actuales.</p>
+            <ul className="attention-list">
+              {item('Informes activos sin usuarios con acceso', unassigned, '/admin/reportes?status=unassigned')}
+              {item('Asignaciones sin efecto', statuses.length - effective, '/admin/accesos?effect=off')}
+              {item('Usuarios inactivos con asignaciones', stale, '/admin/usuarios?status=inactive')}
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <p className="form-note" style={{ marginTop: '.75rem' }}>Usuarios, accesos y pendientes se mostrarán cuando esos listados se integren con el servicio real.</p>
+      )}
+      <p className="form-note" style={{ marginTop: '.75rem' }}>{NOTE}</p>
+    </section>
+  );
+}
+
+const ACTIVE_OPTIONS = (on: string, off: string): Array<[string, string]> => [['all', 'Todos'], ['active', on], ['inactive', off]];
+
+export function AdminUsersPage() {
+  const data = useAdminData();
+  const { user: me, capabilities } = useApp();
+  const filters = useUrlFilters({ q: '', role: 'all', status: 'all' });
+  if (!capabilities.adminDirectory) return <NotIntegrated title="Usuarios" what="El listado de usuarios" />;
+  return (
+    <AdminScreen title="Usuarios" data={data}>
+      {({ users, companies }) => {
+        const { q, role, status } = filters.values;
+        const needle = norm(q);
+        const rows = users.filter(u => (role === 'all' || u.role === role) && (status === 'all' || (status === 'active') === u.active) && (!needle || norm(`${u.displayName} ${u.email}`).includes(needle)));
+        const cols: Array<Column<User>> = [
+          { header: 'Usuario', cell: u => <><strong><Highlight text={u.displayName} query={q} /></strong>{u.id === me?.id && <> <Tag>Usted</Tag></>}<span className="muted"><Highlight text={u.email} query={q} /></span></> },
+          { header: 'Rol', cell: u => (u.role === 'admin' ? <Tag tone="admin">Administrador</Tag> : 'Usuario') },
+          { header: 'Empresas', cell: u => (u.role === 'admin' ? <span className="muted">Todas</span> : u.companyIds.map(id => companies.find(c => c.id === id)?.name.replace(/ S\.A\.C\.$/, '')).filter(Boolean).join(', ') || '—') },
+          { header: 'Estado', cell: u => <StatusTag active={u.active} /> }
+        ];
+        return (
+          <>
+            <div className="toolbar" role="search">
+              <SearchField id="us-q" label="Buscar usuario" placeholder="Nombre o correo" value={q} onChange={v => filters.set('q', v)} />
+              <SelectField id="us-role" label="Rol" value={role} onChange={v => filters.set('role', v)} options={[['all', 'Todos'], ['user', 'Usuario'], ['admin', 'Administrador']]} />
+              <SelectField id="us-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activos', 'Inactivos')} />
+            </div>
+            <ResultBar shown={rows.length} total={users.length} noun="usuarios" canClear={filters.active} onClear={filters.clear} />
+            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /> : <NoMatches noun="usuario" onClear={filters.clear} />}
+          </>
+        );
+      }}
+    </AdminScreen>
+  );
+}
+
+export function AdminCompaniesPage() {
+  const data = useAdminData();
+  const { capabilities } = useApp();
+  const filters = useUrlFilters({ q: '', status: 'all' });
+  return (
+    <AdminScreen title="Empresas" data={data}>
+      {({ companies, reports, users }) => {
+        const { q, status } = filters.values;
+        const needle = norm(q);
+        const rows = companies.filter(c => (status === 'all' || (status === 'active') === c.active) && (!needle || norm(`${c.name} ${c.city} ${c.taxId}`).includes(needle)));
+        const cols: Array<Column<Company>> = [
+          { header: 'Empresa', cell: c => <><strong><Highlight text={c.name} query={q} /></strong><span className="muted">RUC <Highlight text={c.taxId} query={q} /></span></> },
+          { header: 'Ciudad', cell: c => <Highlight text={c.city} query={q} /> },
+          ...(capabilities.reportCompany ? [{ header: 'Informes activos', cls: 'num', cell: (c: Company) => reports.filter(r => r.companyIds.includes(c.id) && r.active).length }] : []),
+          ...(capabilities.adminDirectory ? [{ header: 'Usuarios', cls: 'num', cell: (c: Company) => users.filter(u => u.active && u.role === 'user' && u.companyIds.includes(c.id)).length }] : []),
+          { header: 'Estado', cell: c => <StatusTag active={c.active} on="Activa" off="Inactiva" /> }
+        ];
+        return (
+          <>
+            <div className="toolbar" role="search">
+              <SearchField id="ac-q" label="Buscar empresa" placeholder="Nombre, ciudad o RUC" value={q} onChange={v => filters.set('q', v)} />
+              <SelectField id="ac-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activas', 'Inactivas')} />
+            </div>
+            <ResultBar shown={rows.length} total={companies.length} noun="empresas" canClear={filters.active} onClear={filters.clear} />
+            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={c => c.id} rowClass={c => (c.active ? '' : 'is-off')} /> : <NoMatches noun="empresa" onClear={filters.clear} />}
+          </>
+        );
+      }}
+    </AdminScreen>
+  );
+}
+
+export function AdminReportsPage() {
+  const data = useAdminData();
+  const { capabilities } = useApp();
+  const location = useLocation();
+  const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'all' });
+  return (
+    <AdminScreen title="Reportes" data={data}>
+      {({ reports, companies, users, assignments }) => {
+        const { q, status } = filters.values;
+        const company = capabilities.reportCompany ? filters.values.company : 'all';
+        const group = capabilities.reportGroups ? filters.values.group : 'all';
+        const needle = norm(q);
+        const access = (r: Report) => assignments.filter(a => a.reportId === r.id && assignmentStatus(a, users, reports, companies).ok).length;
+        const rows = reports.filter(r => (company === 'all' || r.companyIds.includes(company)) && (group === 'all' || r.group === group)
+          && (status === 'all' || (status === 'active' && r.active) || (status === 'inactive' && !r.active) || (status === 'unassigned' && capabilities.adminDirectory && r.active && !access(r)))
+          && (!needle || norm(`${r.name} ${r.description}`).includes(needle)));
+        const groups = [...new Set(reports.map(r => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+        const from = `${location.pathname}${location.search}`;
+        const cols: Array<Column<Report>> = [
+          { header: 'Reporte', cell: r => <><strong><Highlight text={r.name} query={q} /></strong><span className="muted"><Highlight text={r.description} query={q} /></span></> },
+          ...(capabilities.reportCompany ? [{ header: 'Empresa', cell: (r: Report) => r.companyIds.map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join(' · ') || '—' }] : []),
+          ...(capabilities.reportGroups ? [{ header: 'Grupo', cell: (r: Report) => <Tag>{r.group}</Tag> }] : []),
+          ...(capabilities.adminDirectory ? [{ header: 'Usuarios con acceso', cls: 'num', cell: access }] : []),
+          { header: 'Estado', cell: r => <StatusTag active={r.active} /> },
+          { header: 'Acciones', cls: 'actions-cell', cell: r => <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link> }
+        ];
+        const statusOptions: Array<[string, string]> = [['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : [])];
+        return (
+          <>
+            <div className="toolbar" role="search">
+              <SearchField id="ar-q" label="Buscar reporte" placeholder="Nombre o descripción" value={q} onChange={v => filters.set('q', v)} />
+              {capabilities.reportCompany && <SelectField id="ar-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />}
+              {capabilities.reportGroups && <SelectField id="ar-group" label="Grupo" value={group} onChange={v => filters.set('group', v)} options={[['all', 'Todos'], ...groups.map((g): [string, string] => [g, g])]} />}
+              <SelectField id="ar-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={statusOptions} />
+            </div>
+            <ResultBar shown={rows.length} total={reports.length} noun="reportes" canClear={filters.active} onClear={filters.clear} />
+            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={r => r.id} rowClass={r => (r.active ? '' : 'is-off')} /> : <NoMatches noun="reporte" onClear={filters.clear} />}
+          </>
+        );
+      }}
+    </AdminScreen>
+  );
+}
+
+export function AdminAccessPage() {
+  const data = useAdminData();
+  const { capabilities } = useApp();
+  const filters = useUrlFilters({ q: '', company: 'all', effect: 'all' });
+  if (!capabilities.adminDirectory) return <NotIntegrated title="Accesos y asignaciones" what="El listado de asignaciones" />;
+  return (
+    <AdminScreen title="Accesos y asignaciones" data={data}>
+      {({ assignments, users, reports, companies }) => {
+        const { q, company, effect } = filters.values;
+        const needle = norm(q);
+        const all = assignments.flatMap(a => {
+          const user = users.find(u => u.id === a.userId);
+          const report = reports.find(r => r.id === a.reportId);
+          return user && report ? [{ a, user, report, status: assignmentStatus(a, users, reports, companies) }] : [];
+        });
+        const rows = all.filter(x => (company === 'all' || x.report.companyId === company) && (effect === 'all' || (effect === 'ok') === x.status.ok) && (!needle || norm(`${x.user.displayName} ${x.user.email} ${x.report.name}`).includes(needle)));
+        type Row = (typeof all)[number];
+        const cols: Array<Column<Row>> = [
+          { header: 'Usuario', cell: x => <><strong><Highlight text={x.user.displayName} query={q} /></strong><span className="muted"><Highlight text={x.user.email} query={q} /></span></> },
+          { header: 'Informe', cell: x => <Highlight text={x.report.name} query={q} /> },
+          { header: 'Empresa', cell: x => companies.find(c => c.id === x.report.companyId)?.name ?? '—' },
+          { header: 'Estado', cell: x => (x.status.ok ? <Tag tone="ok">Vigente</Tag> : <Tag tone="warn">Sin efecto · {x.status.reason}</Tag>) }
+        ];
+        return (
+          <>
+            <div className="toolbar" role="search">
+              <SearchField id="ax-q" label="Buscar asignación" placeholder="Usuario o informe" value={q} onChange={v => filters.set('q', v)} />
+              <SelectField id="ax-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />
+              <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['all', 'Todos'], ['ok', 'Vigentes'], ['off', 'Sin efecto']]} />
+              <Button variant="primary" disabled title="Asistente de asignación: siguiente etapa">Nueva asignación</Button>
+            </div>
+            <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />
+            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={x => `${x.a.userId}-${x.a.reportId}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /> : <NoMatches noun="acceso" onClear={filters.clear} />}
+          </>
+        );
+      }}
+    </AdminScreen>
+  );
+}

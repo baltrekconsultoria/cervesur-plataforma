@@ -1,0 +1,5 @@
+# Finales de línea y binarios del frontend (UX-06C.0). Solo aplica a frontend/: no modifica el backend existente.
+frontend/** text=auto eol=lf
+frontend/**/*.png binary
+frontend/**/*.jpg binary
+frontend/**/*.ico binary
