@@ -277,7 +277,8 @@ describe('administración inicial', () => {
     await login('elena.torres');
     await user.click(await screen.findByRole('link', { name: /Usuarios/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Usuarios' })).toBeInTheDocument();
-    expect(document.querySelectorAll('tbody tr')).toHaveLength(4);
+    // El título aparece mientras carga: se espera a la tabla en lugar de depender del tiempo.
+    await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(4));
     await user.selectOptions(screen.getByLabelText('Estado'), 'inactive');
     expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(document.body.textContent).toContain('Jorge Peña');
