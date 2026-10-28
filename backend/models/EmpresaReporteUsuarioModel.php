@@ -58,6 +58,44 @@ class EmpresaReporteUsuarioModel {
         }
 
         try {
+            // UX-07A: el acceso efectivo exige usuario activo, asignación empresa-informe vigente (empresa e informe activos)
+            // y relación vigente del usuario con esa empresa. Una relación ya vigente no se duplica; una retirada se reactiva.
+            $valid = $this->pdo->prepare(
+                'SELECT er.empresa_id FROM empresa_reporte er'
+                . ' INNER JOIN empresa e ON e.id = er.empresa_id AND e.activo = 1'
+                . ' INNER JOIN reporte r ON r.id = er.reporte_id AND r.activo = 1'
+                . ' WHERE er.id = :er AND er.activo = 1'
+                . ' AND EXISTS (SELECT 1 FROM user u WHERE u.id = :u AND u.is_active = 1)'
+            );
+            $valid->execute([':er' => $empresa_reporte_id, ':u' => $user_id]);
+            $empresaId = $valid->fetchColumn();
+            if ($empresaId === false) {
+                $response['message'] = 'El usuario o la asignación empresa-informe no existe o está inactiva';
+                return $response;
+            }
+            $member = $this->pdo->prepare('SELECT 1 FROM empresa_usuario WHERE empresa_id = :e AND user_id = :u AND activo = 1 LIMIT 1');
+            $member->execute([':e' => (int)$empresaId, ':u' => $user_id]);
+            if (!$member->fetchColumn()) {
+                $response['message'] = 'El usuario no está asignado a la empresa de este informe';
+                return $response;
+            }
+            $existing = $this->pdo->prepare('SELECT id, activo FROM user_empresa_reporte WHERE user_id = :u AND empresa_reporte_id = :er ORDER BY activo DESC, id DESC LIMIT 1');
+            $existing->execute([':u' => $user_id, ':er' => $empresa_reporte_id]);
+            $found = $existing->fetch(PDO::FETCH_ASSOC);
+            if ($found) {
+                if ((int)$found['activo'] === 1) {
+                    $response['message'] = 'La relación (user_id, empresa_reporte_id) ya existe';
+                    return $response;
+                }
+                $createdBy = isset($data['created_by']) ? filter_var($data['created_by'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : null;
+                $reactivate = $this->pdo->prepare('UPDATE user_empresa_reporte SET activo = 1, updated_by = :by WHERE id = :id');
+                $reactivate->execute([':by' => $createdBy ?: null, ':id' => (int)$found['id']]);
+                $response['success'] = true;
+                $response['InsertedId'] = (int)$found['id'];
+                $response['message'] = 'Relación usuario-reporte creada correctamente';
+                return $response;
+            }
+
             $sql = "INSERT INTO user_empresa_reporte (user_id, empresa_reporte_id, notas, created_by)
 					VALUES (:user_id, :empresa_reporte_id, :notas, :created_by)";
             $stmt = $this->pdo->prepare($sql);
@@ -116,6 +154,9 @@ class EmpresaReporteUsuarioModel {
 
             $sql = "SELECT
 					eru.id,
+					eru.user_id,
+					er.empresa_id,
+					eru.empresa_reporte_id,
 					u.username AS usuario,
 					u.first_name AS usuario_nombre,
 					u.last_name AS usuario_apellido,

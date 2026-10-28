@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../controllers/EmpresaUsuarioController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -31,8 +32,9 @@ if (preg_match('#^/api/empresa-usuario$#', $uri)) {
         exit;
     } elseif ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
+        $view = require_view();
         $response = $empresaUsuarioController->getAll($user_data['user_id'], $user_data['role'], require_pagination(20));
-        echo json_encode($response);
+        echo json_encode(apply_view($response, $view, 'empresa_usuario'));
         exit;
     }
 }

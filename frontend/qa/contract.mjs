@@ -206,6 +206,56 @@ ok('administrador: 6 informes con sus empresas, sin duplicados', catalogAdmin.le
 const crossAsg = await walkAll('/api/asignacion?view=minimal', usera.token, 100);
 ok('usera: ninguna asignación apunta a un informe que no está en su propio listado', crossAsg.rows.every(a => rowsOf(legacyReports.json).some(r => r.id === a.reporte_id)));
 
+section = 'Administración de accesos (UX-07A)';
+const sameKeys = (row, keys) => JSON.stringify(Object.keys(row).sort()) === JSON.stringify([...keys].sort());
+const adminUsersAll = await walkAll('/api/users?status=all', admin.token, 100);
+ok('administrador: /api/users?status=all devuelve todos los usuarios (activos e inactivos) con total coherente', adminUsersAll.ok && adminUsersAll.rows.length === adminUsersAll.metas[0].total && adminUsersAll.rows.some(u => u.is_active === false) && adminUsersAll.rows.some(u => u.is_active === true));
+ok('/api/users: sin contraseña ni hash ni session_version', !/password|session_version|\$2y\$/i.test(JSON.stringify(adminUsersAll.rows)));
+const euMin = await walkAll('/api/empresa-usuario?view=minimal', admin.token, 100);
+ok('/api/empresa-usuario?view=minimal: solo id, user_id, empresa_id y activo (relación usuario ↔ empresa)', euMin.ok && euMin.rows.length > 0 && euMin.rows.every(r => sameKeys(r, ['id', 'user_id', 'empresa_id', 'activo'])));
+const eruMin = await walkAll('/api/empresa-reporte-usuario?view=minimal', admin.token, 100);
+ok('/api/empresa-reporte-usuario?view=minimal: ids de relación y UUID del informe, sin enlace de Power BI', eruMin.ok && eruMin.rows.length > 0 && eruMin.rows.every(r => sameKeys(r, ['id', 'user_id', 'empresa_id', 'empresa_reporte_id', 'reporte_id', 'activo'])) && !/enlace|example\.invalid/.test(JSON.stringify(eruMin.rows)));
+ok('los tres identificadores son distintos: id de acceso, id empresa_reporte y UUID del informe', eruMin.rows.every(r => typeof r.reporte_id === 'string' && /^[0-9a-f-]{36}$/.test(r.reporte_id) && Number.isInteger(r.empresa_reporte_id) && Number.isInteger(r.id)));
+const eruLegacy = await call('GET', '/api/empresa-reporte-usuario?per_page=2', { token: admin.token });
+ok('compatibilidad: sin view se conservan los campos históricos (usuario, empresa_nombre, reporte_nombre) y se añaden los ids', eruLegacy.status === 200 && rowsOf(eruLegacy.json).every(r => 'usuario' in r && 'empresa_nombre' in r && 'reporte_nombre' in r && 'user_id' in r && 'empresa_reporte_id' in r));
+const asgMin = await walkAll('/api/asignacion?view=minimal', admin.token, 100);
+ok('/api/asignacion?view=minimal aporta el id de la relación empresa_reporte que usa el alta de accesos', asgMin.ok && asgMin.rows.every(a => Number.isInteger(a.id) && Number.isInteger(a.empresa_id) && Number.isInteger(a.reporte_id)));
+
+for (const [label, method, path, body] of [['vincular usuario a empresa', 'POST', '/api/empresa-usuario', { user_id: 1, empresa_id: 1 }], ['conceder acceso', 'POST', '/api/empresa-reporte-usuario', { user_id: 1, empresa_reporte_id: 1 }], ['retirar acceso', 'DELETE', '/api/empresa-reporte-usuario/1', undefined], ['crear usuario', 'POST', '/api/register', { first_name: 'X', last_name: 'Y', username: 'intruso', email: 'intruso@example.invalid', password: 'synthetic-password' }]]) {
+  ok(`usuario normal no puede ${label} → 403`, (await call(method, path, { token: usera.token, body })).status === 403);
+  ok(`sin autenticación no se puede ${label} → 401`, (await call(method, path, { body })).status === 401);
+}
+
+const suffix = randomBytes(3).toString('hex');
+const newUser = { first_name: 'Contrato', last_name: 'Prueba', username: `contrato.${suffix}`, email: `contrato.${suffix}@example.invalid`, password: PASSWORD };
+const created = await call('POST', '/api/register', { token: admin.token, body: { ...newUser, role: 'admin' } });
+ok('alta que intenta fijar el rol → 400 y no crea nada', created.status === 400 && !(await walkAll('/api/users?status=all', admin.token, 100)).rows.some(u => u.username === newUser.username));
+const made = await call('POST', '/api/register', { token: admin.token, body: newUser });
+ok('alta válida → success:true con el mensaje histórico', made.status === 200 && made.json?.success === true && made.json?.message === 'Usuario registrado exitosamente');
+const listed = (await walkAll('/api/users?status=all', admin.token, 100)).rows.find(u => u.username === newUser.username);
+ok('el usuario creado figura con rol user y activo; el servidor decidió ambos', listed?.role === 'user' && listed?.is_active === true);
+ok('alta duplicada → success:false con mensaje claro', (await call('POST', '/api/register', { token: admin.token, body: newUser })).json?.success === false);
+const fresh = await login(newUser.username);
+ok('el usuario creado inicia sesión con el rol user', fresh.json?.success === true && fresh.json?.user?.role === 'user');
+ok('antes de asignar, no ve ningún informe', (await walkAll('/api/reportes?view=minimal', fresh.token, 100)).rows.length === 0);
+const relationA = asgMin.rows.find(a => a.empresa_nombre === 'Empresa A' && a.reporte_nombre === 'Reporte A');
+ok('conceder acceso sin relación con la empresa → success:false y no se crea nada', (await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: listed.id, empresa_reporte_id: relationA.id } })).json?.success === false && (await walkAll('/api/empresa-reporte-usuario/user/' + listed.id, admin.token, 100)).rows.length === 0);
+ok('vincular usuario a Empresa A → success:true', (await call('POST', '/api/empresa-usuario', { token: admin.token, body: { user_id: listed.id, empresa_id: relationA.empresa_id } })).json?.success === true);
+ok('vincular de nuevo no duplica', (await call('POST', '/api/empresa-usuario', { token: admin.token, body: { user_id: listed.id, empresa_id: relationA.empresa_id } })).json?.success === false);
+const granted = await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: listed.id, empresa_reporte_id: relationA.id } });
+ok('conceder Reporte A (id empresa_reporte) → success:true con InsertedId', granted.json?.success === true && Number(granted.json?.InsertedId) > 0);
+ok('conceder de nuevo no duplica', (await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: listed.id, empresa_reporte_id: relationA.id } })).json?.success === false);
+ok('el UUID del informe no sirve como id de relación', (await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: listed.id, empresa_reporte_id: '00000000-0000-0000-0000-000000000011' } })).json?.success === false);
+ok('ahora ve exactamente Reporte A y ningún informe de Empresa B', JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: fresh.token }))) === JSON.stringify(['Reporte A']) && (await call('GET', '/api/reportes/reporteid/00000000-0000-0000-0000-000000000022?view=minimal', { token: fresh.token })).status === 404);
+const mine = (await walkAll('/api/empresa-reporte-usuario?view=minimal', admin.token, 100)).rows.find(r => r.user_id === listed.id && r.empresa_reporte_id === relationA.id);
+ok('el acceso aparece en el listado administrativo con su id de relación', mine && Number(mine.id) === Number(granted.json.InsertedId));
+ok('retirar el acceso → success:true', (await call('DELETE', `/api/empresa-reporte-usuario/${mine.id}`, { token: admin.token })).json?.success === true);
+ok('retirar de nuevo → success:false (ya inactivo)', (await call('DELETE', `/api/empresa-reporte-usuario/${mine.id}`, { token: admin.token })).json?.success === false);
+ok('tras retirar ya no ve informes', (await walkAll('/api/reportes?view=minimal', fresh.token, 100)).rows.length === 0 && (await call('GET', '/api/reportes/reporteid/00000000-0000-0000-0000-000000000011?view=minimal', { token: fresh.token })).status === 404);
+const regrant = await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: listed.id, empresa_reporte_id: relationA.id } });
+ok('volver a conceder reactiva la misma relación (sin duplicar filas)', regrant.json?.success === true && Number(regrant.json.InsertedId) === Number(mine.id));
+ok('tras reactivar vuelve a ver Reporte A', JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: fresh.token }))) === JSON.stringify(['Reporte A']));
+
 section = 'Errores HTTP';
 ok('ruta inexistente → 404 JSON', (await call('GET', '/api/no-existe', { token: usera.token })).status === 404);
 ok('error sin detalles internos (sin rutas de servidor, SQL ni trazas)', !/\/work\/|PDOException|Stack trace|SQLSTATE|\.php/i.test(all));

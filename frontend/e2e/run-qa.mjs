@@ -163,14 +163,18 @@ async function desktop() {
   current = 'Administrador real';
   await login(b, 'admin');
   ok('el administrador entra a /admin con navegación propia', await path(b) === '/admin' && (await text(b, '.role-badge')) === 'Modo administrador');
-  ok('inicio: empresas 2 de 2 y reportes 6 de 6 desde PHP; sin métricas no integradas', (await body(b)).includes('2 de 2') && (await body(b)).includes('6 de 6') && !(await body(b)).includes('Usuarios activos'));
+  ok('inicio: empresas 2 de 2, reportes 6 de 6, usuarios y accesos vigentes reales desde PHP', (await body(b)).includes('2 de 2') && (await body(b)).includes('6 de 6') && (await body(b)).includes('USUARIOS ACTIVOS') && (await body(b)).includes('ACCESOS VIGENTES'));
   await b.shot(join(shots, '09-admin-inicio-real.png'));
   await navTo(b, 'Usuarios');
-  ok('usuarios: aviso de integración pendiente, sin llamadas a /api/users', (await body(b)).includes('Se conecta en la siguiente etapa') && !b.requestLog.some(r => /\/api\/users/.test(r.url)));
+  const adminTok = (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
+  const realUsers = await nodeApi('GET', '/api/users?status=all&per_page=100', adminTok);
+  ok('usuarios: lista real de MySQL (activos e inactivos), sin aviso de integración pendiente', await count(b, 'tbody tr') === realUsers.pagination.total && !(await body(b)).includes('Se conecta en la siguiente etapa'), `${await count(b, 'tbody tr')} filas / ${realUsers.pagination.total} en el servidor`);
+  ok('usuarios: el rol heredado se muestra como Usuario y el rol desconocido como «sin acceso»', (await body(b)).includes('Rol no reconocido') && await b.eval(`[...document.querySelectorAll('tbody tr')].some(r => r.textContent.includes('Demo Legacy') && r.textContent.includes('Usuario'))`));
+  await b.shot(join(shots, '30-admin-usuarios-real.png'));
   await navTo(b, 'Empresas');
   ok('empresas (admin): las 2 activas', await count(b, 'tbody tr') === 2);
   await navTo(b, 'Reportes');
-  ok('reportes (admin): 6 activos con columna Empresa, sin Grupo ni Usuarios (no disponibles)', await count(b, 'tbody tr') === 6 && (await text(b, 'thead')).includes('EMPRESA') && !(await text(b, 'thead')).match(/GRUPO|USUARIOS/));
+  ok('reportes (admin): 6 activos con columnas Empresa y Usuarios con acceso, sin Grupo (no existe)', await count(b, 'tbody tr') === 6 && (await text(b, 'thead')).includes('EMPRESA') && (await text(b, 'thead')).includes('USUARIOS CON ACCESO') && !(await text(b, 'thead')).includes('GRUPO'));
   ok('reportes (admin): el filtro por empresa combina con la búsqueda', await b.eval(`document.querySelector('#ar-company') !== null`) && await b.select('#ar-company', '2').then(() => true) && await count(b, 'tbody tr') >= 2);
   await b.click('.resultbar button');
   await b.type('#ar-q', 'flujo');
@@ -199,13 +203,134 @@ async function desktop() {
   current = 'Aislamiento de red del navegador';
   const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/[0-9a-f-]{36}|id-con[\w-]+/g, ':id')))].sort();
   ok('todas las solicitudes van a 127.0.0.1:4175', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
-  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|asignacion|empresas)$/.test(p)), apiPaths.join(', '));
+  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
   const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url) && !r.url.includes('/reporteid/'));
   ok('todos los listados piden view=minimal y páginas de 100 como máximo', lists.length > 0 && lists.every(r => new URL(r.url).searchParams.get('view') === 'minimal' && Number(new URL(r.url).searchParams.get('per_page')) <= 100 && new URL(r.url).searchParams.has('page')), `${lists.length} solicitudes de listado`);
   ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => r.url.includes('/reporteid/')).every(r => r.url.includes('view=minimal')));
-  ok('no se consume /api/powerbi ni escrituras administrativas', !b.requestLog.some(r => /powerbi|\/api\/(users|empresa-)/i.test(r.url)) && b.requestLog.every(r => r.method === 'GET' || /\/api\/(login|logout)$/.test(r.url)));
+  ok('no se consume /api/powerbi y, solo navegando y consultando, no se escribe nada', !b.requestLog.some(r => /powerbi/i.test(r.url)) && b.requestLog.every(r => r.method === 'GET' || /\/api\/(login|logout)$/.test(r.url)));
+  const adminLists = b.requestLog.filter(r => /\/api\/(users|empresa-usuario|empresa-reporte-usuario)(\?|$)/.test(r.url));
+  ok('los listados administrativos leen todas las páginas (máximo 100 por página)', adminLists.length > 0 && adminLists.every(r => Number(new URL(r.url).searchParams.get('per_page')) === 100 && new URL(r.url).searchParams.has('page')), `${adminLists.length} solicitudes`);
+  ok('los listados de relaciones piden view=minimal (sin enlaces de Power BI ni datos de creación)', adminLists.filter(r => !/\/api\/users/.test(r.url)).every(r => new URL(r.url).searchParams.get('view') === 'minimal'));
   ok('ninguna petición lleva credenciales de cookie ni a hosts externos', b.requests.every(u => /^(http:\/\/127\.0\.0\.1:4175|data:|about:)/.test(u)));
   ok('sin errores de consola (escritorio)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
+  await b.close();
+}
+
+/* UX-07A: escenario funcional completo contra PHP y MySQL sintéticos (alta → asignación → acceso → retirada → persistencia). */
+async function adminFlow() {
+  const b = await launch({ port: 9504 });
+  await b.goto(FRONT + '/');
+  const clickByText = async (selector, label) => { const done = await b.eval(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(selector)})].find(x => x.textContent.includes(${JSON.stringify(label)})); if (!e) return false; e.click(); return true; })()`); await b.wait(500); return done; };
+  const tableRows = b => b.eval(`[...document.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\\s+/g, ' ').trim())`);
+  const adminTok = (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
+  const findUser = async username => (await nodeApi('GET', '/api/users?status=all&per_page=100', adminTok)).users.find(u => u.username === username);
+
+  current = 'UX-07A · alta de usuario';
+  await login(b, 'admin');
+  await navTo(b, 'Usuarios');
+  ok('el administrador ve «Nuevo usuario»', await clickByText('button', 'Nuevo usuario') && await count(b, 'dialog[open]') === 1);
+  await b.shot(join(shots, '31-nuevo-usuario-vacio.png'));
+  await b.click('.modal form button[type=submit]');
+  ok('validaciones claras antes de enviar (sin llamar al servidor)', (await text(b, '.modal')).includes('Ingrese los nombres.') && !b.requestLog.some(r => r.method === 'POST' && r.url.endsWith('/api/register')));
+  await b.type('#nu-first', 'Operador'); await b.type('#nu-last', 'Prueba'); await b.type('#nu-username', 'operador.prueba');
+  await b.type('#nu-email', 'usera@example.invalid'); await b.type('#nu-password', PASSWORD); // correo ya registrado: debe rechazarlo PHP
+  await b.click('.modal form button[type=submit]'); await b.wait(900);
+  ok('rechazo de PHP (correo duplicado): el mensaje se muestra, el diálogo sigue abierto y no se anuncia ningún alta', (await text(b, '.modal')).includes('El email ya está registrado') && await count(b, 'dialog[open]') === 1 && !(await body(b)).includes('creado correctamente'));
+  ok('el rechazo no creó el usuario en MySQL', !(await findUser('operador.prueba')));
+  await b.shot(join(shots, '32-nuevo-usuario-rechazado.png'));
+  await b.type('#nu-email', 'operador.prueba@example.invalid');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('alta confirmada por PHP: el diálogo se cierra y se avisa', await count(b, 'dialog[open]') === 0 && (await body(b)).includes('Usuario «operador.prueba» creado correctamente.'));
+  ok('el usuario aparece en el listado recargado desde el servidor', (await tableRows(b)).some(r => r.includes('Operador Prueba') && r.includes('Activo')));
+  const created = await findUser('operador.prueba');
+  ok('persistió en MySQL con rol user, activo y sin elegirlos desde React', created?.role === 'user' && created?.is_active === true);
+  ok('la petición de alta no envía role, is_active ni session_version', (() => { const post = b.requestLog.filter(r => r.method === 'POST' && r.url.endsWith('/api/register')).at(-1); return Boolean(post) && !/role|is_active|session_version/.test(post.postData ?? ''); })());
+  await b.shot(join(shots, '33-usuario-creado.png'));
+
+  current = 'UX-07A · asignación de accesos';
+  ok('la fila del usuario ofrece «Asignar accesos»', await b.eval(`[...document.querySelectorAll('tbody tr')].some(r => r.textContent.includes('Operador Prueba') && r.querySelector('a[href*="accesos/nueva"]'))`));
+  await clickLink(b, 'Asignar accesos a Operador Prueba');
+  ok('el asistente abre con el usuario preseleccionado', await path(b) === `/admin/accesos/nueva?user=${created.id}` && await b.eval(`document.querySelector('input[name=wz-user]:checked')?.closest('label').textContent.includes('Operador Prueba')`));
+  await b.shot(join(shots, '34-asistente-usuario.png'));
+  await clickByText('button', 'Continuar');
+  ok('paso 2: solo empresas activas', await count(b, 'input[name=wz-company]') === 2);
+  await b.eval(`[...document.querySelectorAll('input[name=wz-company]')].find(i => i.closest('label').textContent.includes('Empresa A')).click()`); await b.wait(300);
+  await b.shot(join(shots, '35-asistente-empresa.png'));
+  await clickByText('button', 'Continuar');
+  ok('paso 3: solo los 5 informes de Empresa A (ninguno de Empresa B)', JSON.stringify(await b.eval(`[...document.querySelectorAll('.selection-list input[type=checkbox]')].map(i => i.closest('label').querySelector('strong').textContent).sort()`)) === JSON.stringify(['Flujo semanal', 'Inventario norte', 'Reporte A', 'Reporte C', 'Ventas regionales']));
+  await b.eval(`[...document.querySelectorAll('.selection-list input[type=checkbox]')].find(i => i.closest('label').textContent.includes('Reporte A')).click()`); await b.wait(300);
+  await b.shot(join(shots, '36-asistente-informes.png'));
+  await clickByText('button', 'Continuar');
+  ok('paso 4: resumen antes de guardar', (await text(b, '.summary-list')).includes('Operador Prueba') && (await text(b, '.summary-list')).includes('Empresa A') && (await text(b, '.summary-list')).includes('Reporte A'));
+  await b.shot(join(shots, '37-asistente-confirmar.png'));
+  await clickByText('button', 'Guardar accesos'); await b.wait(1200);
+  ok('resultado por informe confirmado por PHP', (await text(b, '.success-box')).includes('Accesos guardados') && (await text(b, '[aria-label="Resultado por informe"]')).includes('Concedido'));
+  const writes = b.requestLog.filter(r => r.method === 'POST' && /empresa-(reporte-)?usuario$/.test(r.url));
+  ok('se crearon la relación con la empresa y el acceso, con ids numéricos de relación (no UUID)', writes.length === 2 && /"empresa_reporte_id":\d+/.test(writes[1].postData ?? '') && !/-0000-/.test(writes[1].postData ?? ''), writes.map(w => w.postData).join(' | '));
+  await b.shot(join(shots, '38-asistente-resultado.png'));
+  const operatorLogin = await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD });
+  const operatorReports = await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', operatorLogin.token);
+  ok('persistió en MySQL: el usuario ve en el servidor solo Reporte A', JSON.stringify((operatorReports.data ?? []).map(r => r.nombre)) === '["Reporte A"]');
+
+  current = 'UX-07A · el usuario creado';
+  await clickLink(b, 'Ver accesos');
+  await b.type('#ax-q', 'operador');
+  ok('el listado de accesos muestra la asignación vigente', (await tableRows(b)).some(r => r.includes('Operador Prueba') && r.includes('Reporte A') && r.includes('Empresa A') && r.includes('Vigente')));
+  await b.shot(join(shots, '39-accesos-listado.png'));
+  await logout(b);
+  await login(b, 'operador.prueba');
+  ok('entra como usuario y ve únicamente Reporte A', await path(b) === '/reportes' && JSON.stringify(await cards(b)) === '["Reporte A"]', (await cards(b)).join(', '));
+  await go(b, '/reportes/00000000-0000-0000-0000-000000000022');
+  ok('un informe de Empresa B → acceso denegado neutral', (await text(b, '#page-title')) === 'Acceso denegado' && !(await body(b)).includes('Reporte B'));
+  await go(b, '/admin/usuarios');
+  ok('no alcanza las pantallas administrativas', (await text(b, '.denied')).includes('solo para administradores'));
+  await logout(b);
+
+  current = 'UX-07A · retirada de acceso';
+  await login(b, 'admin');
+  await go(b, '/admin/accesos?q=operador');
+  await clickByText('button', 'Retirar');
+  ok('pide confirmación antes de retirar', await count(b, 'dialog[open]') === 1 && (await text(b, '.modal')).includes('Operador Prueba') && (await text(b, '.modal')).includes('Reporte A'));
+  await b.shot(join(shots, '40-retirar-confirmar.png'));
+  await clickByText('.modal button', 'Cancelar');
+  ok('cancelar no retira nada', await count(b, 'dialog[open]') === 0 && (await tableRows(b)).some(r => r.includes('Operador Prueba')) && !b.requestLog.some(r => r.method === 'DELETE'));
+  await clickByText('button', 'Retirar');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('retirada confirmada por PHP: aviso y la fila desaparece', (await body(b)).includes('retirado') && !(await tableRows(b)).some(r => r.includes('Operador Prueba')));
+  ok('se llamó a DELETE /api/empresa-reporte-usuario/{id numérico}', b.requestLog.some(r => r.method === 'DELETE' && /\/api\/empresa-reporte-usuario\/\d+$/.test(r.url)));
+  await b.shot(join(shots, '41-retirada-confirmada.png'));
+
+  current = 'UX-07A · persistencia tras recargar';
+  await b.send('Page.reload'); await b.wait(1200);
+  ok('recargar vuelve al login (sesión solo en memoria)', await path(b) === '/login');
+  await login(b, 'admin');
+  await go(b, '/admin/accesos?q=operador');
+  ok('tras recargar, el acceso retirado sigue retirado', !(await tableRows(b)).some(r => r.includes('Operador Prueba')) && (await text(b, '#view')).includes('Sin resultados'));
+  await go(b, '/admin/usuarios?q=operador');
+  ok('tras recargar, el usuario creado sigue existiendo', (await tableRows(b)).some(r => r.includes('Operador Prueba')));
+  await logout(b);
+  await login(b, 'operador.prueba');
+  ok('el usuario ya no ve informes', await path(b) === '/reportes' && await count(b, '.report-card') === 0);
+  await go(b, '/reportes/00000000-0000-0000-0000-000000000011');
+  ok('el informe retirado ya no se puede abrir (acceso denegado neutral)', (await text(b, '#page-title')) === 'Acceso denegado');
+  const afterApi = await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', (await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD })).token);
+  ok('MySQL: el servidor tampoco le entrega ningún informe', (afterApi.data ?? []).length === 0);
+
+  current = 'UX-07A · reasignación (reactivar tras retirar)';
+  await logout(b);
+  await login(b, 'admin');
+  await go(b, `/admin/accesos/nueva?user=${created.id}`);
+  await clickByText('button', 'Continuar');
+  await b.eval(`[...document.querySelectorAll('input[name=wz-company]')].find(i => i.closest('label').textContent.includes('Empresa A')).click()`); await b.wait(300);
+  await clickByText('button', 'Continuar');
+  ok('tras retirar, el informe vuelve a estar disponible (no figura como asignado)', await b.eval(`[...document.querySelectorAll('.selection-list input[type=checkbox]')].find(i => i.closest('label').textContent.includes('Reporte A')).disabled === false`));
+  await b.eval(`[...document.querySelectorAll('.selection-list input[type=checkbox]')].find(i => i.closest('label').textContent.includes('Reporte A')).click()`); await b.wait(300);
+  await clickByText('button', 'Continuar');
+  await clickByText('button', 'Guardar accesos'); await b.wait(1200);
+  ok('se vuelve a conceder (PHP reactiva la relación retirada en lugar de duplicarla)', (await text(b, '[aria-label="Resultado por informe"]')).includes('Concedido'));
+  const again = await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', (await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD })).token);
+  ok('MySQL: vuelve a ver Reporte A', JSON.stringify((again.data ?? []).map(r => r.nombre)) === '["Reporte A"]');
+  ok('sin errores de consola (flujo administrativo)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
   await b.close();
 }
 
@@ -248,12 +373,21 @@ async function mobile() {
   await go(b, '/admin/reportes');
   ok('tabla administrativa real como tarjetas en móvil', await b.eval(`getComputedStyle(document.querySelector('tbody tr')).display === 'block' && document.documentElement.scrollWidth <= innerWidth`));
   await b.shot(join(shots, '24-movil-admin-reportes.png'));
+  await go(b, '/admin/usuarios');
+  ok('usuarios (admin) en móvil: tarjetas sin desbordamiento horizontal', await b.eval(`getComputedStyle(document.querySelector('tbody tr')).display === 'block' && document.documentElement.scrollWidth <= innerWidth`));
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('Nuevo usuario')).click()`); await b.wait(500);
+  ok('formulario de alta en móvil: cabe en pantalla y es usable', await b.eval(`(() => { const d = document.querySelector('dialog[open]'); const r = d.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()`));
+  await b.shot(join(shots, '25-movil-nuevo-usuario.png'));
+  await b.eval(`[...document.querySelectorAll('dialog[open] button')].find(x => x.textContent.includes('Cancelar')).click()`); await b.wait(300);
+  await go(b, '/admin/accesos/nueva');
+  ok('asistente de accesos en móvil sin desbordamiento horizontal', await count(b, 'input[name=wz-user]') >= 1 && await b.eval(`document.documentElement.scrollWidth <= innerWidth`));
+  await b.shot(join(shots, '26-movil-asistente.png'));
   ok('sin errores de consola (móvil)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
   await b.close();
 }
 
 try {
-  for (const step of [desktop, expiredJwt, mobile]) { try { await step(); } catch (e) { results.push(['FAIL', `${current} · EXCEPCIÓN`, e.message]); } }
+  for (const step of [desktop, adminFlow, expiredJwt, mobile]) { try { await step(); } catch (e) { results.push(['FAIL', `${current} · EXCEPCIÓN`, e.message]); } }
 } finally {
   previews.forEach(p => p.kill());
   docker('start', 'cervesur-qa-proxy');

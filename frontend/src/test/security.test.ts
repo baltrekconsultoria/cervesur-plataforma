@@ -54,7 +54,11 @@ describe('alcance de integración UX-06A', () => {
   it('el proveedor HTTP solo referencia los endpoints autorizados para esta etapa', () => {
     const http = read(join(root, 'src', 'api', 'http', 'httpApi.ts'));
     const routes = [...http.matchAll(/['"`](\/api\/[^'"`$]*)/g)].map(m => m[1] ?? '');
-    const allowed = ['/api/login', '/api/logout', '/api/user/profile', '/api/reportes', '/api/reportes/reporteid/', '/api/asignacion', '/api/empresas'];
+    const allowed = ['/api/login', '/api/logout', '/api/user/profile', '/api/reportes', '/api/reportes/reporteid/', '/api/asignacion', '/api/empresas',
+      // UX-07A: administración de usuarios y accesos
+      '/api/users', '/api/users?status=all', '/api/register', '/api/empresa-usuario', '/api/empresa-reporte-usuario', '/api/empresa-reporte-usuario/'];
+    // Nunca cambios de rol ni de estado desde esta etapa.
+    expect(routes.filter(r => /role|activ|desactiv|status=(?!all)/i.test(r))).toEqual([]);
     expect(routes.filter(r => !allowed.includes(r)), routes.join(', ')).toEqual([]);
   });
   it('los archivos de entorno versionables no contienen secretos', () => {

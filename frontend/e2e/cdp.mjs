@@ -33,7 +33,7 @@ export async function launch({ width = 1366, height = 850, mobile = false, port 
   const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); ws.send(JSON.stringify({ id: i, method, params })); });
   const requests = []; const requestLog = []; const consoleErrors = [];
   listeners.push(m => {
-    if (m.method === 'Network.requestWillBeSent') { requests.push(m.params.request.url); requestLog.push({ method: m.params.request.method, url: m.params.request.url, hasAuth: Boolean(m.params.request.headers?.Authorization || m.params.request.headers?.authorization) }); }
+    if (m.method === 'Network.requestWillBeSent') { requests.push(m.params.request.url); requestLog.push({ method: m.params.request.method, url: m.params.request.url, postData: m.params.request.postData, hasAuth: Boolean(m.params.request.headers?.Authorization || m.params.request.headers?.authorization) }); }
     if (m.method === 'Runtime.exceptionThrown') consoleErrors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
     if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') consoleErrors.push(m.params.args.map(a => a.value ?? a.description).join(' '));
   });

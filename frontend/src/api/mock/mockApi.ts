@@ -1,6 +1,6 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, LoginRequest, ProfileUpdate, Report, TokenStore, User } from '../types';
+import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, GrantRequest, GrantResult, LoginRequest, NewUser, ProfileUpdate, Report, TokenStore, User } from '../types';
 import { createSeed, type Seed } from './seed';
 
 export type MockScenario = 'normal' | 'empty' | 'forbidden';
@@ -12,7 +12,7 @@ export type MockScenario = 'normal' | 'empty' | 'forbidden';
  * Las credenciales no se validan: basta un usuario sintético existente y una contraseña no vacía.
  */
 export class MockApi implements ApiClient {
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true };
   private seed: Seed = createSeed();
   private sessions = new Map<string, string>();
   private scenario: MockScenario = 'normal';
@@ -67,6 +67,38 @@ export class MockApi implements ApiClient {
 
   async listUsers(): Promise<User[]> { this.requireAdmin(); return this.seed.users.map(u => ({ ...u })); }
   async listAssignments(): Promise<Assignment[]> { this.requireAdmin(); return this.seed.assignments.map(a => ({ ...a })); }
+
+  async createUser(input: NewUser): Promise<void> {
+    this.requireAdmin();
+    const username = input.username.trim().toLowerCase(); const email = input.email.trim().toLowerCase();
+    if (!input.firstName.trim() || !input.lastName.trim() || !username || !email || !input.password) throw new ApiError(400, 'Faltan campos obligatorios');
+    if (input.password.length < 6) throw new ApiError(422, 'La contraseña debe tener al menos 6 caracteres');
+    if (this.seed.users.some(u => u.email === email)) throw new ApiError(422, 'El email ya está registrado');
+    if (this.seed.users.some(u => u.username === username)) throw new ApiError(422, 'El nombre de usuario ya está en uso');
+    this.seed.users.push({ id: `usr-${this.seed.users.length + 1}`, username, displayName: `${input.firstName.trim()} ${input.lastName.trim()}`, email, role: 'user', active: true, phone: input.phone.trim(), companyIds: [] });
+  }
+
+  async grantAccess({ userId, companyId, reportIds }: GrantRequest): Promise<GrantResult[]> {
+    this.requireAdmin();
+    const user = this.seed.users.find(u => u.id === userId);
+    const company = this.seed.companies.find(c => c.id === companyId);
+    if (!user?.active || !company?.active) throw new ApiError(422, 'La empresa o el usuario especificado no existe o está inactivo');
+    if (!user.companyIds.includes(companyId)) user.companyIds.push(companyId);
+    return reportIds.map((reportId): GrantResult => {
+      const report = this.seed.reports.find(r => r.id === reportId);
+      if (!report?.active || !report.companyIds.includes(companyId)) return { reportId, status: 'failed', message: 'El informe no está asignado a esa empresa.' };
+      if (this.seed.assignments.some(a => a.userId === userId && a.reportId === reportId && a.companyId === companyId)) return { reportId, status: 'already', message: 'El usuario ya tenía este acceso.' };
+      this.seed.assignments.push({ id: `asg-${Math.random().toString(36).slice(2, 8)}`, userId, reportId, companyId });
+      return { reportId, status: 'granted', message: 'Acceso concedido.' };
+    });
+  }
+
+  async revokeAssignment(assignmentId: string): Promise<void> {
+    this.requireAdmin();
+    const index = this.seed.assignments.findIndex(a => a.id === assignmentId);
+    if (index < 0) throw new ApiError(422, 'Relación no encontrada o ya inactiva');
+    this.seed.assignments.splice(index, 1);
+  }
 
   async updateProfile({ displayName, phone }: ProfileUpdate): Promise<User> {
     const user = this.requireUser();

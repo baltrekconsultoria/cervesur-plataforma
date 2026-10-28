@@ -133,3 +133,9 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS \
             cervesur-ci-php:local php tests/isolated/http_auth_hardening_test.php
+
+          # UX-07A: administración de accesos (ids de relación, vistas mínimas, validaciones, retirada y reactivación)
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_admin_access_test.php

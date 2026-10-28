@@ -38,5 +38,9 @@ export function createSeed(): Seed {
       { userId: 'usr-2', reportId: 'rep-1' }, { userId: 'usr-2', reportId: 'rep-5' }, { userId: 'usr-4', reportId: 'rep-3' }
     ]
   };
-  return { ...raw, reports: raw.reports.map(r => ({ ...r, companyIds: [r.companyId] })) };
+  return {
+    ...raw,
+    reports: raw.reports.map(r => ({ ...r, companyIds: [r.companyId] })),
+    assignments: raw.assignments.map((a, i) => ({ ...a, id: `asg-${i + 1}`, companyId: raw.reports.find(r => r.id === a.reportId)?.companyId }))
+  };
 }

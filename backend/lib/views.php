@@ -12,6 +12,9 @@ const VIEW_MINIMAL_FIELDS = [
     'reporte' => ['id', 'reporte_id', 'nombre', 'descripcion', 'activo'],
     'empresa' => ['id', 'nombre', 'razon_social', 'ruc', 'ciudad', 'pais', 'logo', 'activo'],
     'asignacion' => ['id', 'empresa_id', 'empresa_nombre', 'reporte_id', 'reporte_nombre', 'activo'],
+    // UX-07A (administración de accesos): solo identificadores y etiquetas; sin `reporte_enlace`, `created_by*` ni notas.
+    'empresa_usuario' => ['id', 'user_id', 'empresa_id', 'activo'],
+    'empresa_reporte_usuario' => ['id', 'user_id', 'empresa_id', 'empresa_reporte_id', 'reporte_id', 'activo'],
 ];
 
 /** Valida `view`: null (sin vista), 'minimal', o responde 400 y termina. */

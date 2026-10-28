@@ -14,7 +14,7 @@ const USER: User = { id: '1', username: 'multi', displayName: 'Usuario Multi', e
 
 /** Cliente que imita el proveedor HTTP: empresa por informe, sin grupos. */
 class CatalogApi implements ApiClient {
-  readonly capabilities: ApiCapabilities = { adminDirectory: false, reportCompany: true, reportGroups: false, profileEdit: false };
+  readonly capabilities: ApiCapabilities = { adminDirectory: false, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: false };
   reportsError: ApiError | null = null;
   constructor(private readonly reports: Report[], private readonly companies: Company[]) {}
   login() { return Promise.resolve({ token: 't', user: USER }); }
@@ -26,6 +26,9 @@ class CatalogApi implements ApiClient {
   listUsers() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   listAssignments() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   updateProfile() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  createUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  grantAccess() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  revokeAssignment() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
 }
 
 async function setup(api: CatalogApi, entry = '/login') {

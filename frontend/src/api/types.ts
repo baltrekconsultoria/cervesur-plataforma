@@ -16,6 +16,8 @@ export interface User {
   phone: string;
   /** Empresas con relación vigente. El acceso a informes NO se deriva de esto. */
   companyIds: string[];
+  /** El rol almacenado no es reconocido: el backend no le permite iniciar sesión (SEC-05A). Solo aparece en el directorio administrativo. */
+  loginBlocked?: boolean;
 }
 
 export interface Company {
@@ -40,10 +42,35 @@ export interface Report {
   active: boolean;
 }
 
+/** Acceso efectivo de un usuario a un informe a través de una empresa (user_empresa_reporte). */
 export interface Assignment {
+  /** Id de la relación en el servidor (necesario para retirarla). Ausente en datos que no lo traen. */
+  id?: string;
   userId: string;
+  /** Id del informe en el modelo del frontend (UUID de Power BI en el proveedor HTTP). */
   reportId: string;
+  /** Empresa a través de la cual se concede el acceso. */
+  companyId?: string;
 }
+
+/** Alta de usuario. El rol, el estado y la versión de sesión los fija siempre el backend. */
+export interface NewUser {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+export interface GrantRequest {
+  userId: string;
+  companyId: string;
+  reportIds: string[];
+}
+
+export type GrantStatus = 'granted' | 'already' | 'failed';
+export interface GrantResult { reportId: string; status: GrantStatus; message: string }
 
 export interface LoginRequest {
   /** Usuario o correo. */
@@ -76,6 +103,8 @@ export interface ApiCapabilities {
   reportGroups: boolean;
   /** El perfil puede actualizarse. */
   profileEdit: boolean;
+  /** Alta de usuarios y concesión/retirada de accesos. */
+  adminWrites: boolean;
 }
 
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */
@@ -94,6 +123,15 @@ export interface ApiClient {
   /** Solo administradores. */
   listAssignments(): Promise<Assignment[]>;
   updateProfile(update: ProfileUpdate): Promise<User>;
+  /** Solo administradores. Resuelve únicamente si el servidor confirmó el alta. */
+  createUser(input: NewUser): Promise<void>;
+  /**
+   * Solo administradores. Relaciona al usuario con la empresa si hace falta y le concede los informes indicados.
+   * Devuelve un resultado por informe; nunca marca como concedido algo que el servidor rechazó.
+   */
+  grantAccess(request: GrantRequest): Promise<GrantResult[]>;
+  /** Solo administradores. Retira (baja lógica) un acceso por el id de la relación. */
+  revokeAssignment(assignmentId: string): Promise<void>;
 }
 
 /** Almacén del token. La implementación por defecto vive solo en memoria. */

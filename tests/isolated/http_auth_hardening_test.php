@@ -158,6 +158,9 @@ $endpoints = [
     ['PUT', '/api/reportes/1', ['nombre' => 'R2']], ['DELETE', '/api/reportes/1'],
     ['GET', '/api/empresas'], ['GET', '/api/empresas/1'], ['GET', '/api/stats'],
 ];
+// Las escrituras de este bucle (PUT/DELETE/POST) pueden prosperar cuando la tabla renombrada no es la que usan: se restaura el fixture al terminar.
+$snapshotTables = ['empresa_usuario', 'user_empresa_reporte', 'empresa_reporte', 'reporte', 'empresa'];
+foreach ($snapshotTables as $table) $pdo->exec("CREATE TABLE `snap_$table` AS SELECT * FROM `$table`");
 $checked = 0; $leaks = [];
 foreach (['empresa_usuario', 'user_empresa_reporte', 'empresa_reporte', 'reporte', 'empresa'] as $table) {
     $pdo->exec("RENAME TABLE `$table` TO `{$table}__off`");
@@ -170,6 +173,11 @@ foreach (['empresa_usuario', 'user_empresa_reporte', 'empresa_reporte', 'reporte
     } finally {
         $pdo->exec("RENAME TABLE `{$table}__off` TO `$table`");
     }
+}
+foreach ($snapshotTables as $table) {
+    $pdo->exec("DELETE FROM `$table`");
+    $pdo->exec("INSERT INTO `$table` SELECT * FROM `snap_$table`");
+    $pdo->exec("DROP TABLE `snap_$table`");
 }
 foreach (array_slice($leaks, 0, 15) as $l) echo "  filtración: $l\n";
 expectCase($checked > 100 && count($leaks) === 0, "no database detail in $checked failing-database responses (" . count($leaks) . ' leaks)');

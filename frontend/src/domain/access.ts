@@ -14,10 +14,12 @@ export interface AssignmentStatus {
 export function assignmentStatus(a: Assignment, users: User[], reports: Report[], companies: Company[]): AssignmentStatus {
   const user = users.find(u => u.id === a.userId);
   const report = reports.find(r => r.id === a.reportId);
-  const company = report && companies.find(c => c.id === report.companyId);
+  // El acceso se concede a través de una empresa concreta (un informe puede pertenecer a varias).
+  const companyId = a.companyId ?? report?.companyId;
+  const company = companyId ? companies.find(c => c.id === companyId) : undefined;
   if (!user?.active) return { ok: false, reason: 'Usuario inactivo' };
   if (!report?.active) return { ok: false, reason: 'Informe inactivo' };
   if (!company?.active) return { ok: false, reason: 'Empresa inactiva' };
-  if (!user.companyIds.includes(report.companyId)) return { ok: false, reason: 'Sin relación con la empresa' };
+  if (!companyId || !user.companyIds.includes(companyId)) return { ok: false, reason: 'Sin relación con la empresa' };
   return { ok: true, reason: 'Vigente' };
 }
