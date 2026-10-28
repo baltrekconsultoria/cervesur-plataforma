@@ -55,7 +55,7 @@ async function desktop() {
   await login(b, 'inactive');
   ok('usuario inactivo: mismo mensaje, sin sesión', await path(b) === '/login' && (await text(b, '[role=alert]')).includes('Credenciales inválidas'));
   await login(b, 'weird');
-  ok('rol inesperado ("superadmin"): sesión rechazada con mensaje claro', await path(b) === '/login' && (await text(b, '[role=alert]')).includes('rol no reconocido'));
+  ok('rol inesperado ("superadmin"): el backend lo rechaza y React muestra el mensaje genérico de credenciales inválidas', await path(b) === '/login' && (await text(b, '[role=alert]')).includes('Credenciales inválidas') && !(await text(b, '[role=alert]')).includes('rol'));
   ok('rol inesperado: no queda ningún dato de la sesión rechazada', await count(b, '.sidebar') === 0 && await storageEmpty(b));
   await b.shot(join(shots, '02-login-rechazado.png'));
   await login(b, 'legacy');

@@ -66,7 +66,7 @@ class AsignacionModel {
             return [
                 'success' => false,
                 'data' => [],
-                'message' => 'Error al listar relaciones: ' . $e->getMessage()
+                'message' => public_error_message('Error al listar relaciones', $e)
             ];
         }
     }
@@ -89,7 +89,7 @@ class AsignacionModel {
 
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            throw new Exception("Error al obtener asignación: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al obtener asignación', $e));
         }
     }
 
@@ -112,7 +112,7 @@ class AsignacionModel {
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            throw new Exception("Error al obtener asignaciones por empresa: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al obtener asignaciones por empresa', $e));
         }
     }
 
@@ -135,7 +135,7 @@ class AsignacionModel {
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            throw new Exception("Error al obtener asignaciones por reporte: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al obtener asignaciones por reporte', $e));
         }
     }
 
@@ -173,7 +173,7 @@ class AsignacionModel {
 
             return $this->pdo->lastInsertId();
         } catch (PDOException $e) {
-            throw new Exception("Error al crear asignación: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al crear asignación', $e));
         }
     }
 
@@ -201,7 +201,7 @@ class AsignacionModel {
 
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {
-            throw new Exception("Error al actualizar asignación: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al actualizar asignación', $e));
         }
     }
 
@@ -224,7 +224,7 @@ class AsignacionModel {
 
             return $stmt->rowCount() > 0;
         } catch (PDOException $e) {
-            throw new Exception("Error al eliminar asignación: " . $e->getMessage());
+            throw new Exception(public_error_message('Error al eliminar asignación', $e));
         }
     }
 

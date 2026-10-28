@@ -7,6 +7,10 @@
 
 header('Content-Type: application/json');
 
+// Los avisos/errores de PHP nunca se imprimen en la respuesta (revelan rutas y SQL); solo van al log interno.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 // Incluir conexión a la base de datos
 require_once __DIR__ . '/../lib/db.php';
 

@@ -127,3 +127,9 @@ jobs:
           docker run --rm --network "$network_name" \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             cervesur-ci-php:local php tests/isolated/http_pagination_test.php
+
+          # SEC-05A: registro solo administrativo, política de roles y ausencia de detalle de BD en respuestas
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_auth_hardening_test.php

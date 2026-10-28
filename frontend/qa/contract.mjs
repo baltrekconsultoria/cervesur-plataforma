@@ -113,11 +113,13 @@ ok('usuario no puede crear empresa → 403', (await call('POST', '/api/empresas'
 ok('usuario no puede crear reporte → 403', (await call('POST', '/api/reportes', { token: usera.token, body: { nombre: 'X' } })).status === 403);
 ok('usuario no puede cambiar el rol de otro → 403', (await call('PUT', '/api/user/2/role', { token: usera.token, body: { role: 'admin' } })).status === 403);
 const legacy = await login('legacy'); const weird = await login('weird');
-ok('rol heredado "usuario": el backend lo devuelve tal cual', legacy.json?.user?.role === 'usuario');
+ok('rol heredado "usuario": el login devuelve el rol normalizado "user" (SEC-05A)', legacy.status === 200 && legacy.json?.success === true && legacy.json?.user?.role === 'user');
 ok('rol heredado "usuario" no tiene privilegios de administrador (403 en /api/users)', (await call('GET', '/api/users', { token: legacy.token })).status === 403);
 ok('rol heredado ve solo su informe asignado', names(await call('GET', '/api/reportes', { token: legacy.token })).join() === 'Reporte A');
-finding('el backend emite roles no normalizados (usuario, superadmin) sin rechazarlos en el login', weird.json?.success === true && weird.json?.user?.role === 'superadmin', `weird → role "${weird.json?.user?.role}"`);
-ok('rol inesperado "superadmin" no obtiene privilegios de administrador (403 en /api/users)', (await call('GET', '/api/users', { token: weird.token })).status === 403);
+ok('rol inesperado "superadmin": el login se rechaza con HTTP 200 y success:false (contrato de errores sin cambios)', weird.status === 200 && weird.json?.success === false);
+ok('rol inesperado "superadmin": mensaje público genérico "Credenciales inválidas"', weird.json?.message === 'Credenciales inválidas');
+ok('rol inesperado "superadmin": no se emite JWT ni datos de usuario', weird.token === undefined && weird.json?.user === undefined && !/eyJ[A-Za-z0-9_-]{10,}\./.test(weird.raw));
+ok('rol inesperado "superadmin": un token ausente no abre /api/users (401)', (await call('GET', '/api/users', { token: weird.token })).status === 401);
 
 section = 'Secretos y campos técnicos';
 const all = rawBodies.join('\n');

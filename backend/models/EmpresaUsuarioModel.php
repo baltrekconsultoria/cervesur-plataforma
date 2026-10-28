@@ -77,9 +77,7 @@ class EmpresaUsuarioModel {
             }
         } catch (PDOException $e) {
             // Para MySQL, el código de error específico está en errorInfo[1]
-            // getCode() devuelve normalmente el SQLSTATE (p.ej. '23000')
             $driverErrorCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : null;
-            $sqlState = $e->getCode();
             $response['success'] = false;
 
             switch ($driverErrorCode) {
@@ -96,12 +94,8 @@ class EmpresaUsuarioModel {
                     $response['message'] = 'Datos inválidos para el campo';
                     break;
                 default:
-                    // Si no hay código de driver, usar mensaje genérico con SQLSTATE para diagnóstico
-                    $response['message'] = 'Error en la base de datos: ' . $e->getMessage();
-                    $response['sqlstate'] = $sqlState;
-                    if ($driverErrorCode !== null) {
-                        $response['mysql_error_code'] = $driverErrorCode;
-                    }
+                    // SQLSTATE y código del driver solo van al log interno, nunca a la respuesta
+                    $response['message'] = public_error_message('Error interno al asignar el usuario a la empresa', $e);
                     break;
             }
         }
@@ -154,7 +148,7 @@ class EmpresaUsuarioModel {
             $response['message'] = 'Consulta exitosa';
         } catch (PDOException $e) {
             $response['success'] = false;
-            $response['message'] = 'Error al consultar la tabla empresa_usuario: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al consultar las relaciones empresa-usuario', $e);
         }
         return $response;
     }
@@ -215,7 +209,7 @@ class EmpresaUsuarioModel {
                 $response['message'] = 'Relación empresa-usuario no encontrada o inactiva';
             }
         } catch (PDOException $e) {
-            $response['message'] = 'Error al consultar la relación empresa-usuario: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al consultar la relación empresa-usuario', $e);
         }
 
         return $response;
@@ -275,7 +269,7 @@ class EmpresaUsuarioModel {
                 $response['message'] = 'No se encontraron relaciones activas para el RUC proporcionado';
             }
         } catch (PDOException $e) {
-            $response['message'] = 'Error al consultar la(s) relación(es) empresa-usuario: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al consultar la(s) relación(es) empresa-usuario', $e);
         }
 
         return $response;
@@ -339,7 +333,7 @@ class EmpresaUsuarioModel {
                 $response['message'] = 'No se encontraron relaciones activas para el nombre de empresa proporcionado';
             }
         } catch (PDOException $e) {
-            $response['message'] = 'Error al consultar relaciones por nombre de empresa: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al consultar relaciones por nombre de empresa', $e);
         }
 
         return $response;
@@ -445,7 +439,7 @@ class EmpresaUsuarioModel {
                     $response['message'] = 'Datos inválidos para el campo';
                     break;
                 default:
-                    $response['message'] = 'Error al actualizar la relación empresa-usuario: ' . $e->getMessage();
+                    $response['message'] = public_error_message('Error al actualizar la relación empresa-usuario', $e);
                     break;
             }
         }
@@ -512,7 +506,7 @@ class EmpresaUsuarioModel {
                 $response['message'] = 'Relación empresa-usuario no encontrada o ya inactiva';
             }
         } catch (PDOException $e) {
-            $response['message'] = 'Error al eliminar relación empresa-usuario: ' . $e->getMessage();
+            $response['message'] = public_error_message('Error al eliminar relación empresa-usuario', $e);
         }
 
         return $response;

@@ -27,7 +27,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -61,7 +61,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -101,7 +101,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -141,7 +141,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -212,7 +212,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -293,7 +293,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }
@@ -327,7 +327,7 @@ class AsignacionController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
         }
     }

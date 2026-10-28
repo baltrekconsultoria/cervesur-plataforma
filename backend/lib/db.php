@@ -6,6 +6,8 @@
 
 // Cargar variables de entorno
 require_once __DIR__ . '/env.php';
+// Mensajes de error públicos (el detalle técnico solo va al log interno)
+require_once __DIR__ . '/errors.php';
 
 // Obtener credenciales desde variables de entorno
 $host = getenv('DB_HOST');
