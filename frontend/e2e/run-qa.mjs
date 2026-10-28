@@ -13,14 +13,16 @@ mkdirSync(shots, { recursive: true });
 const PORT = Number(process.env.E2E_PORT ?? 4175);
 const FRONT = `http://127.0.0.1:${PORT}`;
 const FRONT_SHORT = `http://127.0.0.1:${PORT + 1}`;
-const API = 'http://127.0.0.1:8080';
+const API_PORT = Number(process.env.QA_API_PORT ?? 8080);
+const QA_PREFIX = process.env.QA_PREFIX ?? 'cervesur-qa';
+const API = `http://127.0.0.1:${API_PORT}`;
 const PASSWORD = 'synthetic-password';
 const results = [];
 let current = '';
 const ok = (name, cond, extra = '') => results.push([cond ? 'PASS' : 'FAIL', `${current} · ${name}`, extra]);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const previews = [[PORT, 'http://127.0.0.1:8080'], [PORT + 1, 'http://127.0.0.1:8081']].map(([port, target]) =>
+const previews = [[PORT, `http://127.0.0.1:${API_PORT}`], [PORT + 1, `http://127.0.0.1:${API_PORT + 1}`]].map(([port, target]) =>
   spawn(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--mode', 'qa', '--outDir', 'dist-qa', '--port', String(port)], { cwd: root, stdio: 'ignore', env: { ...process.env, QA_API_TARGET: target } }));
 for (const url of [FRONT, FRONT_SHORT]) { for (let i = 0; i < 40; i++) { try { if ((await fetch(url)).ok) break; } catch { /* aún no */ } await sleep(250); } }
 
@@ -34,6 +36,12 @@ const go = async (b, to) => { await b.eval(`history.pushState({}, '', ${JSON.str
 const navTo = async (b, label) => { await b.eval(`[...document.querySelectorAll('.nav-button')].find(a => a.textContent.includes(${JSON.stringify(label)})).click()`); await b.wait(600); };
 const login = async (b, user, password = PASSWORD) => { await b.type('#login-name', user); await b.type('#login-password', password); await b.click('form button[type=submit]'); await b.wait(700); };
 const logout = async b => { await b.eval(`document.querySelector('.sidebar-footer .text-button').click()`); await b.wait(500); };
+// La página local de pruebas avisa al padre con postMessage (su iframe no comparte origen). Se recarga el marco para recibir el mensaje.
+const stubMessage = async b => {
+  await b.eval(`(() => { window.__qaStub = []; if (!window.__qaStubListener) { window.__qaStubListener = e => { if (e.data && e.data.source === 'qa-powerbi-stub') window.__qaStub.push(e.data); }; addEventListener('message', window.__qaStubListener); } const f = document.querySelector('.powerbi-frame iframe'); f.src = f.src; })()`);
+  await b.wait(1000);
+  return b.eval('window.__qaStub.at(-1) ?? null');
+};
 const cards = b => b.eval(`[...document.querySelectorAll('.report-card h2')].map(h => h.textContent).sort()`);
 const clickLink = async (b, label) => { await b.eval(`[...document.querySelectorAll('a')].find(a => a.getAttribute('aria-label') === ${JSON.stringify(label)} || a.textContent.trim().includes(${JSON.stringify(label)})).click()`); await b.wait(600); };
 async function nodeApi(method, route, token, bodyObj) {
@@ -106,9 +114,17 @@ async function desktop() {
   current = 'Visor y navegación';
   await b.type('#lib-q', 'reporte a');
   await clickLink(b, 'Abrir informe Reporte A');
-  ok('abre el visor simulado del informe autorizado', (await text(b, '#page-title')) === 'Reporte A' && (await text(b, '.powerbi-mock')).includes('Visor Power BI simulado') && await count(b, 'iframe') === 0);
-  ok('el visor no expone enlaces de Power BI', !(await b.eval('document.documentElement.outerHTML')).includes('example.invalid'));
-  await b.shot(join(shots, '04-visor-simulado.png'));
+  await b.wait(900);
+  ok('abre el visor del informe autorizado: iframe hacia la página LOCAL de pruebas (nunca un dominio externo)', (await text(b, '#page-title')) === 'Reporte A' && await count(b, '.powerbi-frame iframe') === 1 && await b.eval(`document.querySelector('.powerbi-frame iframe').src.startsWith(location.origin + '/qa/powerbi-view.html?r=U0lOVEVUSUNPLVJFUE9SVEUtMDAwMQ')`));
+  const frameMsg = await stubMessage(b);
+  ok('el marco (página local) informa por postMessage el token público recibido; no demuestra nada sobre Power BI real', frameMsg?.token === 'U0lOVEVUSUNPLVJFUE9SVEUtMDAwMQ');
+  ok('aislamiento del iframe local: sandbox solo «allow-scripts» (sin allow-same-origin) y el padre no puede leer su documento', await b.eval(`(() => { const f = document.querySelector('.powerbi-frame iframe'); return f.getAttribute('sandbox') === 'allow-scripts' && f.contentDocument === null; })()`));
+  ok('el aviso de modo indica «QA · visor simulado»', (await text(b, '[data-testid=viewer-mode]')).includes('QA · visor simulado') && await b.eval(`document.querySelector('[data-testid=viewer-mode]').dataset.mode === 'qa-simulated'`));
+  ok('la ayuda y la alternativa «Abrir en una pestaña nueva» siguen visibles aunque el marco haya cargado', (await text(b, '.viewer-help')).includes('¿No ve el informe?') && await count(b, '.viewer-help a[target=_blank][rel~=noopener]') === 1);
+  ok('la configuración del visor se pidió al servidor (endpoint autorizado) con el token del usuario', b.requestLog.some(r => r.method === 'GET' && /\/api\/reportes\/reporteid\/[0-9a-f-]{36}\/visor$/.test(r.url) && r.hasAuth));
+  ok('el navegador no contactó ningún dominio externo durante el visor', b.requests.every(u => u.startsWith(FRONT) || /^(data:|about:)/.test(u)));
+  ok('la página no expone el enlace de publicación ni el dominio de los datos de prueba', !(await b.eval('document.documentElement.outerHTML')).match(/example\.invalid|app\.powerbi\.com\/view\?r=/));
+  await b.shot(join(shots, '04-visor-publico-local.png'));
   await clickLink(b, 'Volver a Mis reportes');
   ok('vuelve al listado con el filtro conservado y el foco en el informe', await path(b) === '/reportes?q=reporte+a' && await b.eval(`document.querySelector('#lib-q').value === 'reporte a' && document.activeElement.dataset.reportId !== undefined`), await path(b));
   await b.click('.resultbar button');
@@ -120,6 +136,14 @@ async function desktop() {
   ok('perfil real: nombre y correo del servidor, solo lectura', (await body(b)).includes('Demo User') && await b.eval(`document.querySelector('#pf-email').value === 'usera@example.invalid' && document.querySelector('#pf-name').readOnly`) && await count(b, 'form button[type=submit]') === 0);
   ok('perfil: no hay edición ni se llama a escrituras', !b.requestLog.some(r => ['PUT', 'POST', 'DELETE'].includes(r.method) && !/\/api\/(login|logout)$/.test(r.url)));
   await b.shot(join(shots, '06-perfil-real.png'));
+
+  current = 'Visor · modos privado y no compatible';
+  await go(b, '/reportes/00000000-0000-0000-0000-000000000055'); await b.wait(900);
+  ok('inserción autenticada sin configurar: «requiere configuración de acceso a Power BI», sin iframe ni tokens generales', (await text(b, '[data-testid=viewer-state]')).includes('Este informe requiere configuración de acceso a Power BI') && await count(b, 'iframe') === 0 && !b.requestLog.some(r => r.url.includes('/api/powerbi/tokens')));
+  await b.shot(join(shots, '63-visor-privado.png'));
+  await go(b, '/reportes/00000000-0000-0000-0000-000000000044'); await b.wait(900);
+  ok('enlace no compatible (dato antiguo): aviso claro y ningún iframe', (await text(b, '[data-testid=viewer-state]')).includes('no es compatible con el visor') && await count(b, 'iframe') === 0);
+  await b.shot(join(shots, '64-visor-no-compatible.png'));
 
   current = 'Aislamiento (UI)';
   await go(b, '/reportes/00000000-0000-0000-0000-000000000022');
@@ -192,11 +216,11 @@ async function desktop() {
 
   current = 'Errores HTTP y recuperación';
   await login(b, 'usera');
-  docker('stop', 'cervesur-qa-proxy');
+  docker('stop', `${QA_PREFIX}-proxy`);
   await navTo(b, 'Mis empresas');
   ok('con el backend caído se muestra un error recuperable (no pantalla en blanco)', (await text(b, '#view')).includes('No se pudo cargar la información') && await count(b, '#view button') >= 1);
   await b.shot(join(shots, '11-error-recuperable.png'));
-  docker('start', 'cervesur-qa-proxy');
+  docker('start', `${QA_PREFIX}-proxy`);
   ok('el backend vuelve a responder', await waitApi());
   await b.eval(`[...document.querySelectorAll('#view button')].find(x => x.textContent.includes('Reintentar')).click()`); await b.wait(1000);
   ok('«Reintentar» recupera la pantalla sin volver a iniciar sesión', await count(b, '.company-grid .card') === 1 && await path(b) === '/empresas');
@@ -205,11 +229,12 @@ async function desktop() {
   current = 'Aislamiento de red del navegador';
   const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/[0-9a-f-]{36}|id-con[\w-]+/g, ':id')))].sort();
   ok('todas las solicitudes van al origen local de la aplicación', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
-  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
+  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|reportes\/reporteid\/:id\/visor|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
   const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url) && !r.url.includes('/reporteid/'));
   ok('todos los listados piden view=minimal y páginas de 100 como máximo', lists.length > 0 && lists.every(r => new URL(r.url).searchParams.get('view') === 'minimal' && Number(new URL(r.url).searchParams.get('per_page')) <= 100 && new URL(r.url).searchParams.has('page')), `${lists.length} solicitudes de listado`);
-  ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => r.url.includes('/reporteid/')).every(r => r.url.includes('view=minimal')));
-  ok('no se consume /api/powerbi y, solo navegando y consultando, no se escribe nada', !b.requestLog.some(r => /powerbi/i.test(r.url)) && b.requestLog.every(r => r.method === 'GET' || /\/api\/(login|logout)$/.test(r.url)));
+  ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => r.url.includes('/reporteid/') && !r.url.includes('/visor')).every(r => r.url.includes('view=minimal')));
+  ok('el visor pide su configuración solo con GET autenticado (nunca el endpoint antiguo de tokens)', b.requestLog.filter(r => r.url.includes('/visor')).every(r => r.method === 'GET' && r.hasAuth) && !b.requestLog.some(r => r.url.includes('/api/powerbi/tokens')));
+  ok('no se consume /api/powerbi y, solo navegando y consultando, no se escribe nada', !b.requestLog.some(r => /powerbi/i.test(r.url.replace('/qa/powerbi-view.html', ''))) && b.requestLog.every(r => r.method === 'GET' || /\/api\/(login|logout)$/.test(r.url)));
   const adminLists = b.requestLog.filter(r => /\/api\/(users|empresa-usuario|empresa-reporte-usuario)(\?|$)/.test(r.url));
   ok('los listados administrativos leen todas las páginas (máximo 100 por página)', adminLists.length > 0 && adminLists.every(r => Number(new URL(r.url).searchParams.get('per_page')) === 100 && new URL(r.url).searchParams.has('page')), `${adminLists.length} solicitudes`);
   ok('los listados de relaciones piden view=minimal (sin enlaces de Power BI ni datos de creación)', adminLists.filter(r => !/\/api\/users/.test(r.url)).every(r => new URL(r.url).searchParams.get('view') === 'minimal'));
@@ -347,10 +372,11 @@ async function catalogFlow() {
   const A = async () => (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
   const digits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
   const ruc = `20${digits}`;
-  const uuid = crypto.randomUUID(); const group = crypto.randomUUID();
+  const token = `U0lOVEVUSUNP${digits}`; const token2 = `U0lOVEVUSUNQ${digits}`;
+  const link = `https://app.powerbi.com/view?r=${token}`; const link2 = `https://app.powerbi.com/view?r=${token2}&pageName=ReportSection1`;
   const companyName = `Empresa C ${digits.slice(0, 4)}`; const reportName = `Informe Sintético ${digits.slice(0, 4)}`; const username = `operador.${digits.slice(0, 5)}`;
   const findCompany = async () => (await nodeApi('GET', '/api/empresas?view=minimal&per_page=100', await A())).data.find(c => c.ruc === ruc);
-  const findReport = async () => (await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', await A())).data.find(r => r.reporte_id === uuid);
+  const findReport = async () => (await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', await A())).data.find(r => r.nombre === reportName);
 
   current = 'UX-07B · empresas';
   await login(b, 'admin');
@@ -381,28 +407,35 @@ async function catalogFlow() {
   current = 'UX-07B · reportes';
   await navTo(b, 'Reportes'); await settle();
   ok('«Nuevo reporte» disponible', await clickByText('button', 'Nuevo reporte') && await count(b, 'dialog[open]') === 1);
-  ok('el formulario explica los campos técnicos y pide datos sintéticos', (await text(b, '.modal')).includes('solo datos sintéticos') && (await text(b, '.modal')).includes('UUID del informe'));
-  await b.type('#rp-name', reportName); await b.type('#rp-description', 'Informe de prueba UX-07B'); await b.type('#rp-link', 'esto no es una url'); await b.type('#rp-group', 'no-uuid'); await b.type('#rp-uuid', '123');
+  ok('el formulario simplificado: solo nombre, descripción y enlace (sin pedir ids de Power BI) y pide datos sintéticos', (await text(b, '.modal')).includes('solo enlaces sintéticos') && await count(b, '.modal input') === 3 && await count(b, '#rp-group, #rp-uuid') === 0);
+  await b.shot(join(shots, '60-reporte-formulario-simplificado.png'));
+  await b.type('#rp-name', reportName); await b.type('#rp-description', 'Informe de prueba UX-07C'); await b.type('#rp-link', 'esto no es una url');
   await b.click('.modal form button[type=submit]');
-  ok('validaciones de enlace y UUID antes de enviar', (await text(b, '.modal')).includes('URL válida') && (await text(b, '.modal')).includes('UUID válido') && !b.requestLog.some(r => r.method === 'POST' && r.url.endsWith('/api/reportes')));
+  ok('enlace inválido: mensaje antes de enviar, sin llamar al servidor', (await text(b, '.modal')).includes('HTTPS') && !b.requestLog.some(r => r.method === 'POST' && r.url.endsWith('/api/reportes')));
+  await b.type('#rp-link', 'https://example.invalid/informes/ux07c');
+  ok('dominio externo: se detecta como no compatible', (await text(b, '[data-testid=link-detected]')).includes('Enlace no compatible') && (await text(b, '[data-testid=link-detected]')).includes('app.powerbi.com'));
+  const forged = await nodeApi('POST', '/api/reportes', await A(), { nombre: `${reportName} (forzado)`, enlace: 'https://example.invalid/informes/ux07c' });
+  ok('PHP también rechaza el dominio externo si se evita la interfaz', forged?.success === false && !(await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', await A())).data.some(r => r.nombre.includes('(forzado)')));
+  await b.type('#rp-link', '<iframe src="https://app.powerbi.com/view?r=' + token + '"></iframe>');
+  ok('un iframe pegado se rechaza (solo se admite la URL)', (await text(b, '[data-testid=link-detected]')).includes('no el código HTML'));
   await b.shot(join(shots, '53-reporte-validaciones.png'));
-  await b.type('#rp-link', 'https://example.invalid/informes/ux07b'); await b.type('#rp-group', group); await b.type('#rp-uuid', '00000000-0000-0000-0000-000000000011'); // UUID de Reporte A
-  await b.click('.modal form button[type=submit]'); await b.wait(900);
-  ok('UUID repetido: PHP lo rechaza y no hay éxito falso', (await text(b, '.modal')).includes('Ya existe un informe con ese ID de Power BI') && await count(b, 'dialog[open]') === 1 && !(await findReport()));
-  await b.type('#rp-uuid', uuid);
+  await b.type('#rp-link', link);
+  ok('enlace de publicación en web: tipo detectado y sin identificadores inventados', (await text(b, '[data-testid=link-detected]')).includes('Publicación web') && (await text(b, '[data-testid=link-detected]')).includes('no se inventan'));
+  await b.shot(join(shots, '61-reporte-enlace-detectado.png'));
   await b.click('.modal form button[type=submit]'); await b.wait(1200);
   ok('reporte creado: aviso y fila sin empresa', (await body(b)).includes(`Reporte «${reportName}» creado correctamente`) && (await tableRows(b)).some(r => r.includes(reportName) && r.includes('—')));
   const report = await findReport();
-  ok('persistió en MySQL con su UUID en minúsculas', report?.nombre === reportName && report?.reporte_id === uuid);
+  const reportForm = (await nodeApi('GET', `/api/reportes/${report?.id}?view=form`, await A())).data;
+  ok('persistió con identidad interna estable: id numérico, referencia UUID v4 propia y SIN identificadores de Power BI inventados (grupo NULL)', Boolean(report) && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(report.reporte_id) && reportForm.grupo_id === null && reportForm.enlace === link);
   await b.select('#ar-status', 'unlinked'); await b.wait(400);
   ok('el filtro «Sin empresa» lo encuentra', (await tableRows(b)).some(r => r.includes(reportName)));
   await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Editar ${reportName}`)}).click()`); await b.wait(900);
-  ok('editar carga el enlace y los identificadores reales (solo administrador)', await b.eval(`document.querySelector('#rp-link').value === 'https://example.invalid/informes/ux07b' && document.querySelector('#rp-uuid').value === ${JSON.stringify(uuid)}`));
+  ok('editar carga el enlace real (solo administrador)', await b.eval(`document.querySelector('#rp-link').value === ${JSON.stringify(link)}`));
   await b.type('#rp-description', 'Descripción editada');
   await b.click('.modal form button[type=submit]'); await b.wait(1200);
   ok('edición confirmada', (await body(b)).includes('actualizado correctamente') && (await tableRows(b)).some(r => r.includes(reportName) && r.includes('Descripción editada')));
   const stored = (await nodeApi('GET', `/api/reportes/${report.id}?view=form`, await A())).data;
-  ok('persistió y el editor quedó registrado (updated_by)', stored.descripcion === 'Descripción editada' && (docker('exec', 'cervesur-qa-db', 'sh', '-c', `mysql -N -uroot -p"$MYSQL_ROOT_PASSWORD" fixture -e "SELECT updated_by FROM reporte WHERE id = ${Number(report.id)}" 2>/dev/null`).stdout ?? '').trim().match(/^\d+$/) !== null);
+  ok('persistió y el editor quedó registrado (updated_by)', stored.descripcion === 'Descripción editada' && (docker('exec', `${QA_PREFIX}-db`, 'sh', '-c', `mysql -N -uroot -p"$MYSQL_ROOT_PASSWORD" fixture -e "SELECT updated_by FROM reporte WHERE id = ${Number(report.id)}" 2>/dev/null`).stdout ?? '').trim().match(/^\d+$/) !== null);
   await b.shot(join(shots, '54-reporte-editado.png'));
 
   current = 'UX-07B · asociación empresa ↔ informe';
@@ -425,6 +458,15 @@ async function catalogFlow() {
   await navTo(b, 'Reportes'); await settle();
   ok('el listado de reportes muestra el informe con su empresa', (await tableRows(b)).some(r => r.includes(reportName) && r.includes(companyName)));
 
+  current = 'UX-07C · editar el enlace conserva identidad y asociaciones';
+  await navTo(b, 'Reportes'); await settle();
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Editar ${reportName}`)}).click()`); await b.wait(900);
+  await b.type('#rp-link', link2);
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  const afterEdit = (await nodeApi('GET', `/api/reportes/${report.id}?view=form`, await A())).data;
+  ok('el enlace nuevo se guardó y la referencia interna, el id numérico y la ausencia de grupo no cambiaron', afterEdit.enlace === link2 && afterEdit.reporte_id === report.reporte_id && String(afterEdit.id) === String(report.id) && afterEdit.grupo_id === null);
+  ok('la asociación con la empresa sigue vigente tras editar el enlace', (await nodeApi('GET', '/api/asignacion?view=minimal&per_page=100', await A())).data.data.some(a => a.reporte_id === report.id && a.empresa_id === company.id));
+
   current = 'UX-07B · integración con UX-07A';
   await navTo(b, 'Usuarios'); await settle();
   await clickByText('button', 'Nuevo usuario');
@@ -444,11 +486,25 @@ async function catalogFlow() {
   await logout(b);
   await login(b, username);
   ok('el usuario entra y ve únicamente el informe asignado', await path(b) === '/reportes' && JSON.stringify(await cards(b)) === JSON.stringify([reportName]), (await cards(b)).join(', '));
+  ok('el catálogo del usuario no trae el enlace de publicación', !(await b.eval('document.documentElement.outerHTML')).includes('app.powerbi.com') && !(await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token).then(r => JSON.stringify(r)).catch(() => '')).includes('powerbi.com'));
   await b.shot(join(shots, '58-usuario-ve-informe.png'));
   await go(b, '/reportes/00000000-0000-0000-0000-000000000022'); await settle();
   ok('un informe ajeno → acceso denegado neutral', (await text(b, '#page-title')) === 'Acceso denegado');
-  await go(b, `/reportes/${uuid}`); await settle();
-  ok('el informe asignado abre en el visor simulado, sin enlace técnico', (await text(b, '#page-title')) === reportName && !(await b.eval('document.documentElement.outerHTML')).includes('example.invalid'));
+  await go(b, `/reportes/${report.reporte_id}`); await settle(); await b.wait(900);
+  ok('el informe asignado abre en el visor: iframe hacia la página local con el token del enlace vigente (el nuevo, no el anterior)', (await text(b, '#page-title')) === reportName && await b.eval(`document.querySelector('.powerbi-frame iframe')?.src === location.origin + '/qa/powerbi-view.html?r=${token2}&pageName=ReportSection1'`));
+  const frameMsg2 = await stubMessage(b);
+  ok('el marco de pruebas informa el token y la página del enlace vigente', frameMsg2?.token === token2 && frameMsg2?.page === 'ReportSection1');
+  await b.shot(join(shots, '62-visor-informe-nuevo.png'));
+  const userToken = (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token;
+  const viewerOf = async tok => nodeApi('GET', `/api/reportes/reporteid/${report.reporte_id}/visor`, tok);
+  const authorized = await viewerOf(userToken);
+  ok('el servidor entrega la configuración solo al usuario autorizado (modo público y enlace vigente, sin credenciales)', authorized?.data?.modo === 'publico' && authorized.data.url === link2 && !JSON.stringify(authorized).match(/secret|tenant|client|password|token/i));
+  const other = await viewerOf((await nodeApi('POST', '/api/login', null, { login: 'userb', password: PASSWORD })).token);
+  ok('otro usuario (sin acceso) no obtiene la URL: respuesta idéntica a un informe inexistente', other?.success === false && JSON.stringify(other) === JSON.stringify(await nodeApi('GET', '/api/reportes/reporteid/00000000-0000-4000-8000-00000000dead/visor', userToken)) && !JSON.stringify(other).includes('powerbi'));
+  await nodeApi('DELETE', `/api/asignacion/${links[0].id}`, await A());
+  ok('desactivar la asociación empresa ↔ informe bloquea nuevas solicitudes del visor', (await viewerOf(userToken))?.success === false);
+  await nodeApi('POST', '/api/asignacion', await A(), { empresa_id: company.id, reporte_id: Number(report.id) });
+  ok('reasociar restablece el visor (misma relación reactivada)', (await viewerOf(userToken))?.data?.modo === 'publico');
   await logout(b);
 
   current = 'UX-07B · retirada y persistencia';
@@ -460,8 +516,9 @@ async function catalogFlow() {
   await logout(b);
   await login(b, username);
   ok('el usuario ya no ve el informe', await path(b) === '/reportes' && await count(b, '.report-card') === 0);
-  await go(b, `/reportes/${uuid}`); await settle();
-  ok('y no puede abrirlo', (await text(b, '#page-title')) === 'Acceso denegado');
+  ok('retirar el acceso bloquea nuevas solicitudes al visor (el servidor, no la interfaz)', (await nodeApi('GET', `/api/reportes/reporteid/${report.reporte_id}/visor`, (await nodeApi('POST', '/api/login', null, { login: username, password: PASSWORD })).token))?.success === false);
+  await go(b, `/reportes/${report.reporte_id}`); await settle();
+  ok('y no puede abrirlo', (await text(b, '#page-title')) === 'Acceso denegado' && await count(b, 'iframe') === 0);
   await logout(b);
   await login(b, 'admin');
   await go(b, `/admin/asociaciones?company=${company.id}`); await settle();
@@ -555,7 +612,7 @@ try {
   for (const step of [desktop, adminFlow, catalogFlow, expiredJwt, mobile]) { try { await step(); } catch (e) { results.push(['FAIL', `${current} · EXCEPCIÓN`, e.message]); } }
 } finally {
   previews.forEach(p => p.kill());
-  docker('start', 'cervesur-qa-proxy');
+  docker('start', `${QA_PREFIX}-proxy`);
 }
 for (const [status, name, extra] of results) console.log(`${status}  ${name}${extra ? `  → ${extra}` : ''}`);
 const failed = results.filter(r => r[0] === 'FAIL').length;

@@ -89,14 +89,46 @@ Todo con datos **sintéticos**. Los cambios se guardan en MySQL y sobreviven a F
 9. **Persistencia**: F5, ingrese como `admin` y repita las consultas: empresa, reporte y asociaciones tal como las dejó.
 10. **Móvil** (390 px): los formularios de empresa y reporte y «Informes por empresa» caben sin desplazamiento horizontal.
 
+## 3d. Visor de Power BI y registro por enlace (UX-07C)
+
+El visor **no usa Power BI real** en este entorno: los informes sembrados traen enlaces sintéticos de «Publicar en web» y el iframe abre una **página local de pruebas** (`/qa/powerbi-view.html`) que muestra el token recibido. No hay acceso a Microsoft.
+
+1. **Nuevo reporte simplificado** (admin → Reportes → «Nuevo reporte»): solo Nombre, Descripción y **Enlace de Power BI** (ya no se piden IDs). Pegue un enlace inválido y observe el aviso: `abc` («debe usar HTTPS»), `https://example.invalid/x` («debe pertenecer a app.powerbi.com»), un `<iframe …>` («pegue solo la URL») y `http://app.powerbi.com/view?r=…` («HTTPS»). Ninguno envía nada al servidor.
+2. **Enlace válido**: `https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE` → «Tipo de enlace detectado: Publicación web… no se inventan». Cree el reporte (p. ej. «Informe público QA») y asócielo a **Empresa C** («Informes por empresa»), cree/asigne un usuario («Accesos»).
+3. **Inserción autenticada** (opcional): enlace `https://app.powerbi.com/reportEmbed?reportId=11111111-2222-4333-8444-555555555555` → «Inserción autenticada. Se detectó: ID del informe… · sin ID de grupo en el enlace».
+4. **Visor del usuario**: inicie sesión como ese usuario y abra el informe: se ve la página local «Informe de Power BI simulado» con el token recibido, el estado de carga, y debajo «¿No ve el informe?… **Abrir en una pestaña nueva**». La ayuda sigue visible aunque el marco haya cargado (el evento *load* no demuestra que Power BI lo mostró).
+5. **Modos** (con `usera`): **Reporte A** → visor local; **Inventario norte** → «Este informe requiere configuración de acceso a Power BI» (inserción autenticada, sin tokens); **Ventas regionales** → «El enlace de este informe no es compatible con el visor» (dato antiguo).
+6. **Seguridad**: copie la URL de un informe ajeno (`/reportes/00000000-0000-0000-0000-000000000022`) → «Acceso denegado». Con el admin retire el acceso o desvincule el informe de la empresa y recargue la página del informe del usuario → deja de abrirse (el servidor ya no entrega la configuración).
+7. **Editar el enlace**: Reportes → «Editar» el informe → cambie el enlace por otro `…/view?r=…&pageName=ReportSection1` → guardar. Las asociaciones y el acceso del usuario siguen; el visor muestra el token y la página nuevos.
+8. **Móvil** (390 px): el visor y el formulario caben sin desplazamiento horizontal.
+9. **Power BI real**: **no se prueba aquí.** Solo con un enlace público explícitamente autorizado, en un entorno aprobado, y comprobando visualmente su contenido.
+
+## 3e. Visor con un informe público REAL de Power BI (UX-07C.1, opt-in)
+
+**Requiere conectividad externa del navegador** (solo para este apartado y solo el navegador: PHP y MySQL siguen aislados). Use únicamente un enlace de «Publicar en web» **explícitamente autorizado** para difusión pública. El enlace real vive solo en su MySQL sintético local (no en Git).
+
+1. **No** ejecute `qa:up`, `qa:down`, `test:contract` ni `test:e2e:qa` sobre su entorno (se perderían los datos del QA manual).
+2. Compile la variante real (no toca `dist-qa` ni `.env.qa`) y sírvala en otro puerto:
+   ```powershell
+   cd <carpeta del worktree wt-ux07c>/frontend
+   npm run build:qa:real
+   npm run preview:qa:real      # http://127.0.0.1:4177 (déjela abierta; Ctrl+C para detenerla)
+   ```
+   Su API/MySQL del QA (puerto 8080) y la vista previa simulada (4175) siguen funcionando.
+3. Abra http://127.0.0.1:4177, inicie sesión (el usuario con el informe asignado, o `admin`) y abra el reporte con el enlace real ya registrado.
+4. Verifique: arriba del visor aparece **«QA · Power BI público REAL…»** (en 4175 aparece «QA · visor simulado»). En DevTools → Elements, el `<iframe>` tiene `src="https://app.powerbi.com/view?r=…"` y `sandbox="allow-scripts allow-same-origin allow-popups"`; en Network, la petición del marco va a `app.powerbi.com`. La advertencia del sandbox puede seguir apareciendo (justificada: ver `INFORME-UX-07C1.md`).
+5. Compruebe **visualmente** gráficos, filtros/segmentadores y navegación entre páginas del informe. Si el marco queda en blanco, pruebe «Abrir en una pestaña nueva» y anote lo que muestre DevTools (Console/Network); el evento *load* no prueba que el informe se muestre.
+6. Seguridad: con otro usuario sin asignación, abra `/reportes/<id del informe>` → «Acceso denegado» (no obtiene la URL). Retire el acceso o desvincule el informe y recargue → deja de abrirse.
+7. **Volver al modo simulado:** detenga el 4177 (Ctrl+C) y use http://127.0.0.1:4175 (compilación `dist-qa`, `npm run build:qa` si necesita reconstruirla). No hay nada más que revertir.
+
 ## 4. Pruebas automáticas
 
 ```powershell
-npm test                   # 117 unitarias y de componentes
+npm test                   # 185 unitarias y de componentes
 npm run build; npm run test:e2e        # 85 E2E del modo simulado
-npm run test:contract      # 172 comprobaciones de contrato y permisos contra PHP real
-npm run build:qa; npm run test:e2e:qa  # 164 E2E navegador → React → PHP real (escenarios UX-07A y UX-07B). Si ya tiene una vista previa en el puerto 4175: `$env:E2E_PORT=4275`
-npm run qa:backend-ci      # CI del backend (PHP lint, seguridad, HTTP base, paginación, SEC-05A, UX-07A y UX-07B)
+npm run test:contract      # 199 comprobaciones de contrato y permisos contra PHP real
+npm run build:qa; npm run test:e2e:qa  # (NO sobre el entorno de QA manual: use QA_PREFIX=cervesur-qa2 QA_API_PORT=18080 con su propio qa:up/qa:down) 185 E2E navegador → React → PHP real (escenarios UX-07A, UX-07B y UX-07C). Si ya tiene una vista previa en el puerto 4175: `$env:E2E_PORT=4275`
+npm run qa:backend-ci      # CI del backend (PHP lint, seguridad, HTTP base, paginación, SEC-05A, UX-07A, UX-07B y UX-07C)
 ```
 
 ## 5. Apagar y limpiar

@@ -9,7 +9,7 @@ const TEST_FILES = ['src/**/*.test.{ts,tsx}', 'src/test/**/*.ts'];
 
 export default tseslint.config(
   // Artefactos generados, dependencias, copias de respaldo/referencia y capturas.
-  { ignores: ['dist/**', 'dist-qa/**', 'node_modules/**', 'coverage/**', '_referencia-UX-05.1/**', '_respaldo*/**', 'docs/**', 'e2e/.tmp/**', 'qa/.runtime/**'] },
+  { ignores: ['dist/**', 'dist-qa/**', 'dist-qa-real/**', 'node_modules/**', 'coverage/**', '_referencia-UX-05.1/**', '_respaldo*/**', 'docs/**', 'e2e/.tmp/**', 'qa/.runtime/**'] },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
 
   js.configs.recommended,

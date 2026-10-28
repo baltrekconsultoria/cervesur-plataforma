@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User } from '../types';
+import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User, ViewerConfig } from '../types';
 
 /**
  * Adaptadores entre el JSON REAL del backend PHP (verificado contra el código en UX-06A/06B.0, no solo contra
@@ -100,7 +100,7 @@ export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
 
 export function toReportDetail(dto: ReportFormDto): ReportDetail {
   if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de informe incompleta.');
-  return { internalId: String(dto.id), name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', groupId: dto.grupo_id ?? '', reportId: dto.reporte_id ?? '' };
+  return { internalId: String(dto.id), name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', ref: dto.reporte_id ?? '' };
 }
 
 /** Asociación empresa ↔ informe: `reportNumericId` es `reporte.id`; se traduce al UUID con el catálogo. */
@@ -167,4 +167,14 @@ export function companyBody(input: CompanyInput, editing: boolean): Record<strin
   return body;
 }
 
-export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim(), grupo_id: input.groupId.trim(), reporte_id: input.reportId.trim() });
+export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim() });
+
+/** GET /api/reportes/reporteid/{uuid}/visor: configuración autorizada del visor. */
+export interface ViewerDto { modo?: unknown; url?: unknown }
+export function toViewerConfig(dto: ViewerDto | null | undefined): ViewerConfig {
+  if (!dto || typeof dto !== 'object') throw invalid('Respuesta del visor incompleta.');
+  if (dto.modo === 'publico' && typeof dto.url === 'string' && dto.url) return { mode: 'public', url: dto.url };
+  if (dto.modo === 'privado') return { mode: 'private' };
+  if (dto.modo === 'no_compatible') return { mode: 'unsupported' };
+  throw invalid('Respuesta del visor inesperada.');
+}

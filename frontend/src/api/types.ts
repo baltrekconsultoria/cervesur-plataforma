@@ -77,20 +77,33 @@ export interface CompanyInput {
 }
 export interface CompanyDetail extends CompanyInput { id: string }
 
-/** Datos técnicos de un informe: el vínculo y los identificadores de Power BI solo los ve un administrador. */
+/**
+ * Alta o edición de un informe (UX-07C): solo nombre, descripción y enlace de Power BI.
+ * Los identificadores de Power BI, cuando el enlace los trae, los extrae y valida el servidor; nunca se piden ni se inventan.
+ */
 export interface ReportInput {
   name: string;
   description: string;
-  /** Enlace del informe en Power BI. */
+  /** Enlace de Power BI (publicación web, inserción o enlace normal). Solo lo ve un administrador. */
   link: string;
-  /** UUID del grupo (workspace) de Power BI. */
-  groupId: string;
-  /** UUID del informe en Power BI (es el identificador que usa la interfaz). */
-  reportId: string;
 }
 export interface ReportDetail extends ReportInput {
-  /** Id numérico interno (MySQL): necesario para guardar cambios. */
+  /** Id numérico interno (MySQL): identidad estable del informe, necesaria para guardar cambios. */
   internalId: string;
+  /** Referencia UUID estable (la que usan las rutas y la interfaz). Puede ser una referencia interna de Cervesur y no un id de Power BI. */
+  ref: string;
+}
+
+/**
+ * Configuración autorizada del visor de un informe.
+ *  - simulated: proveedor simulado (sin servicios externos).
+ *  - public: informe publicado en web; `url` es su enlace de publicación (el visor lo revalida y reconstruye).
+ *  - private: inserción autenticada de Power BI; requiere una configuración de acceso que aún no existe.
+ *  - unsupported: el enlace registrado no es compatible con el visor.
+ */
+export interface ViewerConfig {
+  mode: 'simulated' | 'public' | 'private' | 'unsupported';
+  url?: string;
 }
 
 /** Asociación empresa ↔ informe (tabla `empresa_reporte`). `reportId` es el UUID del informe. */
@@ -148,6 +161,8 @@ export interface ApiCapabilities {
   profileEdit: boolean;
   /** Alta de usuarios y concesión/retirada de accesos. */
   adminWrites: boolean;
+  /** El visor consulta al servidor la configuración autorizada de cada informe (en lugar de mostrar el panel simulado). */
+  liveViewer: boolean;
 }
 
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */
@@ -180,6 +195,8 @@ export interface ApiClient {
   createCompany(input: CompanyInput): Promise<void>;
   updateCompany(id: string, input: CompanyInput): Promise<void>;
   getReportDetail(reportId: string): Promise<ReportDetail>;
+  /** Configuración del visor; el servidor la entrega solo si el usuario está autorizado (403/404 se tratan igual). */
+  getViewerConfig(reportId: string): Promise<ViewerConfig>;
   createReport(input: ReportInput): Promise<void>;
   updateReport(internalId: string, input: ReportInput): Promise<void>;
   /** Asociaciones empresa ↔ informe vigentes. */

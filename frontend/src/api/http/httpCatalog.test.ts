@@ -28,7 +28,7 @@ function server(reply: Reply = () => null) {
 }
 
 const COMPANY = { name: ' Empresa C ', legalName: 'Empresa C S.A.C.', taxId: '20999999991', city: '', country: '', email: '', phone: '', address: '' };
-const REPORT = { name: ' Informe C ', description: '', link: 'https://example.invalid/c', groupId: '11111111-1111-1111-1111-111111111111', reportId: '22222222-2222-2222-2222-222222222222' };
+const REPORT = { name: ' Informe C ', description: '', link: 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE' };
 
 describe('catálogo HTTP · empresas', () => {
   it('lee el detalle editable con view=form y descarta cualquier otro campo', async () => {
@@ -69,23 +69,45 @@ describe('catálogo HTTP · informes', () => {
     const { client, calls } = server(c => (c.path.startsWith('/api/reportes/reporteid/') ? json(200, { success: true, data: { id: 21, nombre: 'Informe uno', descripcion: null, enlace: 'https://example.invalid/1', grupo_id: 'g', reporte_id: 'r' } }) : null));
     const detail = await client.getReportDetail('aaaaaaaa-0000-0000-0000-000000000021');
     expect(calls[0]?.query.get('view')).toBe('form');
-    expect(detail).toEqual({ internalId: '21', name: 'Informe uno', description: '', link: 'https://example.invalid/1', groupId: 'g', reportId: 'r' });
+    expect(detail).toEqual({ internalId: '21', name: 'Informe uno', description: '', link: 'https://example.invalid/1', ref: 'r' });
   });
 
-  it('el alta y la edición envían los 5 campos con los nombres del backend; la edición usa el id numérico interno', async () => {
+  it('el alta y la edición envían solo nombre, descripción y vínculo (nunca ids de Power BI); la edición usa el id numérico interno', async () => {
     const { client, calls } = server();
     await client.createReport(REPORT);
     await client.updateReport('21', REPORT);
     const [post, put] = calls.filter(c => c.method === 'POST' || c.method === 'PUT');
     expect(post?.path).toBe('/api/reportes');
     expect(put?.path).toBe('/api/reportes/21');
-    for (const call of [post, put]) expect(call?.body).toEqual({ nombre: 'Informe C', descripcion: '', enlace: 'https://example.invalid/c', grupo_id: REPORT.groupId, reporte_id: REPORT.reportId });
+    for (const call of [post, put]) expect(call?.body).toEqual({ nombre: 'Informe C', descripcion: '', enlace: REPORT.link });
     await expect(client.updateReport('aaaaaaaa-0000-0000-0000-000000000021', REPORT)).rejects.toMatchObject({ kind: 'validation' }); // el UUID no sirve como id interno
   });
 
-  it('un UUID duplicado rechazado por PHP no se da por guardado', async () => {
+  it('un rechazo de PHP (enlace no compatible, id repetido) no se da por guardado', async () => {
     const { client } = server(() => json(200, { success: false, message: 'Ya existe un informe con ese ID de Power BI' }));
     await expect(client.createReport(REPORT)).rejects.toMatchObject({ message: 'Ya existe un informe con ese ID de Power BI' });
+  });
+
+  it('la configuración del visor se pide al endpoint autorizado y traduce los tres modos', async () => {
+    const modes: Record<string, unknown> = { a: { modo: 'publico', url: 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE' }, b: { modo: 'privado' }, c: { modo: 'no_compatible' } };
+    const { client, calls } = server(c => { const key = c.path.split('/').at(-2) ?? ''; return c.path.endsWith('/visor') ? json(200, { success: true, data: modes[key.slice(-1)] }) : null; });
+    expect(await client.getViewerConfig('00000000-0000-4000-8000-00000000000a')).toEqual({ mode: 'public', url: 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE' });
+    expect(await client.getViewerConfig('00000000-0000-4000-8000-00000000000b')).toEqual({ mode: 'private' });
+    expect(await client.getViewerConfig('00000000-0000-4000-8000-00000000000c')).toEqual({ mode: 'unsupported' });
+    expect(calls[0]?.path).toBe('/api/reportes/reporteid/00000000-0000-4000-8000-00000000000a/visor');
+    expect(calls.every(c => c.method === 'GET')).toBe(true);
+  });
+
+  it('una respuesta del visor desconocida o sin enlace se rechaza (no se muestra nada)', async () => {
+    for (const data of [{ modo: 'publico' }, { modo: 'otro' }, null]) {
+      const { client } = server(() => json(200, { success: true, data }));
+      await expect(client.getViewerConfig('00000000-0000-4000-8000-00000000000a')).rejects.toMatchObject({ kind: 'invalid_response' });
+    }
+  });
+
+  it('un informe sin autorización responde igual que uno inexistente (404 → acceso denegado)', async () => {
+    const { client } = server(() => json(404, { success: false, message: 'Reporte no encontrado' }));
+    await expect(client.getViewerConfig('00000000-0000-4000-8000-00000000000a')).rejects.toMatchObject({ kind: 'not_found' });
   });
 });
 

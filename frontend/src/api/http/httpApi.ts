@@ -1,6 +1,6 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User } from '../types';
-import { companyBody, composeReportCatalog, reportBody, toActive, toAssignment, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
+import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import { companyBody, composeReportCatalog, reportBody, toActive, toAssignment, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
 interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock }
@@ -34,6 +34,8 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  *  - `/api/users?status=all` (usuarios), `/api/empresa-usuario` (usuario ↔ empresa) y `/api/empresa-reporte-usuario` (acceso efectivo), con `view=minimal` donde existe.
  *  - POST /api/register (alta; el backend fija rol, estado y versión de sesión), POST /api/empresa-usuario, POST/DELETE /api/empresa-reporte-usuario.
  *  - Las escrituras solo se dan por buenas si el servidor responde `success:true`; un rechazo (HTTP 200 con `success:false`) se informa tal cual.
+ * UX-07C (visor): `GET /api/reportes/reporteid/{uuid}/visor` entrega la configuración del visor solo si el servidor autoriza el acceso;
+ *  el alta de informes envía únicamente nombre, descripción y vínculo del informe (el servidor extrae y valida los identificadores de Power BI).
  * UX-07B (catálogo): `GET /api/empresas/{id}?view=form` y `GET /api/reportes/reporteid/{uuid}?view=form` (solo administradores) para editar;
  *  POST/PUT /api/empresas, POST/PUT /api/reportes y POST/DELETE /api/asignacion (asociación empresa ↔ informe con ids numéricos internos).
  *  El formulario de empresa NO envía ni lee credenciales de Power BI.
@@ -41,7 +43,7 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  */
 export class HttpApiClient implements ApiClient {
   // El nombre del grupo no existe en ninguna fuente real: el filtro de grupo permanece oculto.
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: true };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: true, liveViewer: true };
   private readonly baseUrl: string;
   private readonly tokens: TokenStore;
   private readonly fetchImpl: typeof fetch;
@@ -176,6 +178,12 @@ export class HttpApiClient implements ApiClient {
     const env = await this.request('GET', `/api/reportes/reporteid/${encodeURIComponent(reportId)}?view=form`);
     if (!env.data || typeof env.data !== 'object') throw new ApiError(404, 'Informe no encontrado');
     return toReportDetail(env.data as ReportFormDto);
+  }
+
+  async getViewerConfig(reportId: string): Promise<ViewerConfig> {
+    // Endpoint autorizado del servidor (UX-07C): sin asignación vigente responde 404, igual que un informe inexistente.
+    const env = await this.request('GET', `/api/reportes/reporteid/${encodeURIComponent(reportId)}/visor`);
+    return toViewerConfig(env.data as Parameters<typeof toViewerConfig>[0]);
   }
 
   async createReport(input: ReportInput): Promise<void> {

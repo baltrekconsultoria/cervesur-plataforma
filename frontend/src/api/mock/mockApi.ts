@@ -1,6 +1,7 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User } from '../types';
+import { classifyPowerBiLink } from '../../domain/powerbiLink';
+import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { createSeed, type Seed } from './seed';
 
 export type MockScenario = 'normal' | 'empty' | 'forbidden';
@@ -12,12 +13,12 @@ export type MockScenario = 'normal' | 'empty' | 'forbidden';
  * Las credenciales no se validan: basta un usuario sintético existente y una contraseña no vacía.
  */
 export class MockApi implements ApiClient {
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true, liveViewer: false };
   private seed: Seed = createSeed();
   private sessions = new Map<string, string>();
   /** Datos técnicos y de contacto que el modelo normalizado no lleva (solo para los formularios administrativos). */
   private companyExtra = new Map<string, Partial<CompanyInput>>();
-  private reportMeta = new Map<string, { link: string; groupId: string; reportId: string }>();
+  private reportMeta = new Map<string, string>();
   private scenario: MockScenario = 'normal';
 
   constructor(private readonly tokens: TokenStore) {}
@@ -123,29 +124,37 @@ export class MockApi implements ApiClient {
 
   async getReportDetail(reportId: string): Promise<ReportDetail> {
     this.requireAdmin();
-    const index = this.seed.reports.findIndex(r => r.id === reportId);
-    const report = this.seed.reports[index];
+    const report = this.seed.reports.find(r => r.id === reportId);
     if (!report) throw new ApiError(404, 'Informe no encontrado');
-    const meta = this.reportMeta.get(reportId) ?? { link: `http://localhost`, groupId: '00000000-0000-0000-0000-000000000001', reportId: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}` };
-    return { internalId: report.id, name: report.name, description: report.description, ...meta };
+    // El simulador no inventa enlaces: un informe sembrado no tiene vínculo hasta que el administrador lo escribe.
+    const link = this.reportMeta.get(reportId) ?? '';
+    return { internalId: report.id, name: report.name, description: report.description, link, ref: report.id };
+  }
+
+  async getViewerConfig(reportId: string): Promise<ViewerConfig> {
+    const user = this.requireUser();
+    const report = this.seed.reports.find(r => r.id === reportId);
+    const allowed = user.role === 'admin' ? Boolean(report) : Boolean(report) && this.effectiveReports(user).some(r => r.id === reportId);
+    if (!report || !allowed || this.scenario === 'forbidden') throw new ApiError(404, 'Reporte no encontrado');
+    return { mode: 'simulated' };
   }
 
   async createReport(input: ReportInput): Promise<void> {
     this.requireAdmin();
-    this.validateReport(input, null);
-    const id = input.reportId.trim().toLowerCase();
+    this.validateReport(input);
+    const id = `rep-${this.seed.reports.length + 1}`;
     this.seed.reports.push({ id, name: input.name.trim(), description: input.description.trim(), companyId: '', companyIds: [], group: 'Sin grupo', active: true });
-    this.reportMeta.set(id, { link: input.link.trim(), groupId: input.groupId.trim().toLowerCase(), reportId: id });
+    this.reportMeta.set(id, input.link.trim());
   }
 
   async updateReport(internalId: string, input: ReportInput): Promise<void> {
     this.requireAdmin();
     const report = this.seed.reports.find(r => r.id === internalId);
     if (!report) throw new ApiError(422, 'Reporte no encontrado');
-    this.validateReport(input, internalId);
+    this.validateReport(input);
     Object.assign(report, { name: input.name.trim(), description: input.description.trim() });
-    // En el simulador el identificador del informe no cambia (los accesos lo referencian).
-    this.reportMeta.set(internalId, { link: input.link.trim(), groupId: input.groupId.trim().toLowerCase(), reportId: input.reportId.trim().toLowerCase() });
+    // La identidad del informe no cambia al editar el vínculo (los accesos y las asociaciones la referencian).
+    this.reportMeta.set(internalId, input.link.trim());
   }
 
   async listReportLinks(): Promise<ReportLink[]> {
@@ -182,12 +191,10 @@ export class MockApi implements ApiClient {
     if (this.seed.companies.some(c => c.taxId === input.taxId.trim() && c.id !== selfId)) throw new ApiError(422, 'El RUC ya está registrado');
   }
 
-  private validateReport(input: ReportInput, selfId: string | null): void {
-    if (!input.name.trim() || !input.link.trim() || !input.groupId.trim() || !input.reportId.trim()) throw new ApiError(422, 'Complete nombre, vínculo del informe, ID de grupo e ID de informe');
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuid.test(input.groupId.trim()) || !uuid.test(input.reportId.trim())) throw new ApiError(422, 'Los identificadores de Power BI deben ser UUID válidos');
-    const target = input.reportId.trim().toLowerCase();
-    if (this.seed.reports.some(r => r.id === target && r.id !== selfId)) throw new ApiError(422, 'Ya existe un informe con ese ID de Power BI');
+  private validateReport(input: ReportInput): void {
+    if (!input.name.trim()) throw new ApiError(422, "El campo 'nombre' es obligatorio");
+    const link = classifyPowerBiLink(input.link);
+    if (!link.ok) throw new ApiError(422, link.error);
   }
 
   async revokeAssignment(assignmentId: string): Promise<void> {

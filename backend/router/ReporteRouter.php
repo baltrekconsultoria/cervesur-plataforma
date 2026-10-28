@@ -116,6 +116,19 @@ if (strpos($uri, '/api/reportes') === 0) {
         exit;
     }
 
+    // GET /api/reportes/reporteid/{uuid}/visor - Configuración del visor (UX-07C), solo si el servidor autoriza el acceso
+    if ($method === 'GET' && preg_match('/^\/api\/reportes\/reporteid\/([a-f0-9\-]{36})\/visor$/', $uri, $matches)) {
+        $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
+        $user = require_auth($jwt_secret);
+        header('Cache-Control: no-store, no-cache, must-revalidate, private');
+        header('Pragma: no-cache');
+        header('X-Content-Type-Options: nosniff');
+        [$response, $status] = $reporteController->getViewer($matches[1], $user['user_id'], $user['role']);
+        http_response_code($status);
+        echo json_encode($response);
+        exit;
+    }
+
     // GET /api/reportes/reporteid/{uuid} - Obtener reporte por reporte_id
     if ($method === 'GET' && preg_match('/^\/api\/reportes\/reporteid\/([a-f0-9\-]{36})$/', $uri, $matches)) {
         // Verificar autenticación

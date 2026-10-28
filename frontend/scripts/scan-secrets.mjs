@@ -1,5 +1,5 @@
 // Auditoría de secretos y de artefactos prohibidos sobre lo que REALMENTE se publicaría (archivos que git versionaría
-// según las reglas de ignorado) y sobre las compilaciones (dist, dist-qa) si existen.
+// según las reglas de ignorado) y sobre las compilaciones (dist, dist-qa, dist-qa-real) si existen.
 // Uso: node scripts/scan-secrets.mjs   (desde frontend/). Sale con código 1 si encuentra algo.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -40,7 +40,7 @@ try {
   publishable = walk(root).filter(f => !/^(node_modules|coverage)\//.test(f));
 }
 // 2) Compilaciones: son ignoradas por git, pero se auditan igualmente.
-const builds = ['dist', 'dist-qa'].filter(d => existsSync(join(root, d)));
+const builds = ['dist', 'dist-qa', 'dist-qa-real'].filter(d => existsSync(join(root, d)));
 const files = [...new Set([...publishable, ...builds.flatMap(d => walk(join(root, d)).map(f => `${d}/${f}`.replace(`${d}/${d}/`, `${d}/`)))])];
 
 const findings = [];

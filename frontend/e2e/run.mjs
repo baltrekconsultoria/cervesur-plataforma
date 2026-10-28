@@ -247,12 +247,13 @@ function secrets() {
   const all = textFiles.map(f => readFileSync(f, 'utf8')).join('\n');
   ok('la compilación no contiene JWT', !/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/.test(all));
   ok('la compilación no contiene claves privadas ni secretos de cliente', !/BEGIN [A-Z ]*PRIVATE KEY|clientsecret\s*[:=]/i.test(all));
-  ok('la compilación no referencia enlaces de Power BI ni credenciales powerbi_*', !/app\.powerbi\.com|powerbi_/.test(all));
-  // UX-07B: el formulario administrativo de informes mapea el campo técnico `enlace` (solo administradores). Se limita a ese mapeo (lectura y escritura).
-  ok('el campo técnico `enlace` solo aparece en el mapeo administrativo del adaptador (máx. 2 apariciones)', (all.match(/\benlace\b/g) ?? []).length <= 2, String((all.match(/\benlace\b/g) ?? []).length));
+  // UX-07C: la compilación incluye solo el host oficial y el endpoint «view» (sin token): ningún enlace de publicación concreto ni credenciales.
+  ok('la compilación no contiene enlaces de publicación concretos ni credenciales powerbi_*', !/powerbi\.com\/view\?r=[A-Za-z0-9_-]{16,}|reportEmbed\?reportId=[0-9a-f]{8}-|powerbi_/.test(all));
+  // El campo técnico `enlace` del backend solo se usa como clave en el mapeo administrativo del adaptador (lectura y escritura).
+  ok('el campo técnico `enlace` solo aparece como clave en el mapeo administrativo del adaptador (máx. 3 apariciones)', (all.match(/\.enlace\b|\benlace:/g) ?? []).length <= 3, String((all.match(/\.enlace\b|\benlace:/g) ?? []).length));
   ok('la compilación no incluye Flutter/CanvasKit', !/canvaskit|flutter_bootstrap|main\.dart/i.test(all) && !files.some(f => /canvaskit|main\.dart|flutter/i.test(f)));
   const urls = [...new Set(all.match(/https?:\/\/[^\s"'`)\\]+/g) ?? [])];
-  ok('URLs absolutas en la compilación: solo cadenas inertes de React, React Router y espacios de nombres W3C', urls.every(u => /^https?:\/\/(react\.dev|reactrouter\.com|www\.w3\.org|github\.com\/ungap|localhost$)/i.test(u)), urls.join(', '));
+  ok('URLs absolutas en la compilación: solo cadenas inertes de React, React Router, espacios de nombres W3C y el endpoint oficial «view» de Power BI (sin token)', urls.every(u => /^https?:\/\/(react\.dev|reactrouter\.com|www\.w3\.org|github\.com\/ungap|localhost$|app\.powerbi\.com\/view$)/i.test(u)), urls.join(', '));
   ok('logotipos originales presentes en dist', files.some(f => f.endsWith('logo-cervesur-horizontal.png')) && files.some(f => f.endsWith('logo-cervesur-vertical.png')));
 }
 
