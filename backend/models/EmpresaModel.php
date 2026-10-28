@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../lib/pagination.php';
+
 /**
  * Modelo para la tabla empresa
  * Maneja todas las operaciones de base de datos relacionadas con empresas
@@ -33,12 +35,11 @@ class EmpresaModel {
         return $empresa;
     }
 
-    public function getAll($user_id, $role = 'user') {
+    public function getAll($user_id, $role = 'user', $pagination = null, &$total = null) {
         $params = [];
-        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1' . $this->visibleEmpresaSql($user_id, $role, $params) . ' ORDER BY e.nombre ASC';
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-        return array_map([$this, 'withoutSecrets'], $stmt->fetchAll(PDO::FETCH_ASSOC));
+        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1' . $this->visibleEmpresaSql($user_id, $role, $params);
+        [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'e.nombre ASC, e.id ASC', $pagination);
+        return array_map([$this, 'withoutSecrets'], $rows);
     }
 
     public function getById($id, $user_id, $role = 'user') {

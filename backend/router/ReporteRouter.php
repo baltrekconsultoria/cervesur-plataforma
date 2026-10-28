@@ -6,6 +6,8 @@
  */
 
 // Incluir dependencias
+require_once __DIR__ . '/../lib/views.php';
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 require_once __DIR__ . '/../controllers/ReporteController.php';
 
@@ -74,7 +76,9 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        $reporteController->getAll($user['user_id'], $user['role']);
+        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user) {
+            $reporteController->getAll($user['user_id'], $user['role'], require_pagination());
+        });
         exit;
     }
 
@@ -83,7 +87,9 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        $reporteController->getActivos($user['user_id'], $user['role']);
+        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user) {
+            $reporteController->getActivos($user['user_id'], $user['role'], require_pagination());
+        });
         exit;
     }
 
@@ -92,7 +98,9 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        $reporteController->getById($matches[1], $user['user_id'], $user['role']);
+        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user, $matches) {
+            $reporteController->getById($matches[1], $user['user_id'], $user['role']);
+        });
         exit;
     }
 
@@ -101,7 +109,9 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        $reporteController->getByGrupoId($matches[1], $user['user_id'], $user['role']);
+        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user, $matches) {
+            $reporteController->getByGrupoId($matches[1], $user['user_id'], $user['role']);
+        });
         exit;
     }
 
@@ -110,7 +120,9 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        $reporteController->getByReporteId($matches[1], $user['user_id'], $user['role']);
+        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user, $matches) {
+            $reporteController->getByReporteId($matches[1], $user['user_id'], $user['role']);
+        });
         exit;
     }
 

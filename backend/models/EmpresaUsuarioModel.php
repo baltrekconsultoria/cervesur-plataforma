@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../lib/pagination.php';
+
 
 class EmpresaUsuarioModel {
     private $pdo;
@@ -110,7 +112,7 @@ class EmpresaUsuarioModel {
      * Obtiene todas las relaciones de la tabla empresa_usuario.
      * @return array Resultado con las filas encontradas o error.
      */
-    public function getAll($userId, $role) {
+    public function getAll($userId, $role, $pagination = null) {
         $response = [
             'success' => false,
             'data' => [],
@@ -137,12 +139,8 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE eu.activo = 1 $scope
-                    ORDER BY eu.created_at DESC
-                    LIMIT 20";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    WHERE eu.activo = 1 $scope";
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eu.created_at DESC, eu.id DESC', $pagination);
 
             // Procesar resultados: convertir activo a booleano y normalizar
             foreach ($rows as &$row) {
@@ -152,6 +150,7 @@ class EmpresaUsuarioModel {
             $response['success'] = true;
             $response['data'] = $rows;
             $response['count'] = count($rows);
+            $response += pagination_response($pagination, $total);
             $response['message'] = 'Consulta exitosa';
         } catch (PDOException $e) {
             $response['success'] = false;
@@ -222,7 +221,7 @@ class EmpresaUsuarioModel {
         return $response;
     }
 
-    public function getByEmpresaRuc($empresa_ruc, $userId, $role) {
+    public function getByEmpresaRuc($empresa_ruc, $userId, $role, $pagination = null) {
         $response = [
             'success' => false,
             'data' => [],
@@ -259,19 +258,18 @@ class EmpresaUsuarioModel {
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
                     WHERE e.ruc = :ruc AND eu.activo = 1 $scope";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eu.created_at DESC, eu.id DESC', $pagination);
 
             // Procesar resultados: convertir activo a booleano para consistencia
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
 
-            if ($rows) {
+            if ($rows || ($total !== null && $total > 0)) {
                 $response['success'] = true;
                 $response['data'] = $rows;
                 $response['count'] = count($rows);
+            $response += pagination_response($pagination, $total);
                 $response['message'] = 'Relación encontrada';
             } else {
                 $response['message'] = 'No se encontraron relaciones activas para el RUC proporcionado';
@@ -288,7 +286,7 @@ class EmpresaUsuarioModel {
      * @param string $empresa_nombre Nombre (o parte del nombre) de la empresa a buscar
      * @return array Resultado de la consulta
      */
-    public function getByEmpresaNombre($empresa_nombre, $userId, $role) {
+    public function getByEmpresaNombre($empresa_nombre, $userId, $role, $pagination = null) {
         $response = [
             'success' => false,
             'data' => [],
@@ -323,22 +321,19 @@ class EmpresaUsuarioModel {
                     INNER JOIN user u ON u.id = eu.user_id
                     LEFT JOIN user uc ON uc.id = eu.created_by
                     LEFT JOIN user uu ON uu.id = eu.updated_by
-                    WHERE e.nombre LIKE :empresa_nombre AND eu.activo = 1 $scope
-                    ORDER BY eu.created_at DESC
-                    LIMIT 20";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    WHERE e.nombre LIKE :empresa_nombre AND eu.activo = 1 $scope";
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eu.created_at DESC, eu.id DESC', $pagination);
 
             // Procesar resultados: convertir activo a booleano para consistencia
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
 
-            if ($rows) {
+            if ($rows || ($total !== null && $total > 0)) {
                 $response['success'] = true;
                 $response['data'] = $rows;
                 $response['count'] = count($rows);
+            $response += pagination_response($pagination, $total);
                 $response['message'] = 'Relaciones encontradas';
             } else {
                 $response['message'] = 'No se encontraron relaciones activas para el nombre de empresa proporcionado';

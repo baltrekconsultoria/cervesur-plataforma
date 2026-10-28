@@ -5,6 +5,8 @@
  * Incluye todas las operaciones CRUD y búsquedas
  */
 
+require_once __DIR__ . '/../lib/views.php';
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../controllers/EmpresaController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -21,8 +23,8 @@ if (preg_match('#^/api/empresas$#', $uri)) {
         $user_data = require_auth($jwt_secret);
         $user_id = $user_data['user_id'];
         $role = $user_data['role'];
-        $response = $empresaController->getAll($user_id, $role);
-        echo json_encode($response);
+        $response = $empresaController->getAll($user_id, $role, require_pagination());
+        echo json_encode(apply_view($response, require_view(), 'empresa'));
         exit;
     } elseif ($method === 'POST') {
         // POST /api/empresas - Crear nueva empresa
@@ -48,7 +50,7 @@ if (preg_match('#^/api/empresas/buscar/(.+)$#', $uri, $matches)) {
         $role = $user_data['role'];
         $search = urldecode($matches[1]);
         $response = $empresaController->search($search, $user_id, $role);
-        echo json_encode($response);
+        echo json_encode(apply_view($response, require_view(), 'empresa'));
         exit;
     }
 }
@@ -61,7 +63,7 @@ if (preg_match('#^/api/empresas/ciudad/(.+)$#', $uri, $matches)) {
         $role = $user_data['role'];
         $ciudad = urldecode($matches[1]);
         $response = $empresaController->getByCity($ciudad, $user_id, $role);
-        echo json_encode($response);
+        echo json_encode(apply_view($response, require_view(), 'empresa'));
         exit;
     }
 }
@@ -75,7 +77,7 @@ if (preg_match('#^/api/empresas/(\d+)$#', $uri, $matches)) {
         $user_id = $user_data['user_id'];
         $role = $user_data['role'];
         $response = $empresaController->getById($id, $user_id, $role);
-        echo json_encode($response);
+        echo json_encode(apply_view($response, require_view(), 'empresa'));
         exit;
     } elseif ($method === 'PUT') {
         // PUT /api/empresas/{id} - Actualizar empresa

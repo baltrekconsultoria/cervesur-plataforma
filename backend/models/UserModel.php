@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../lib/pagination.php';
+
 /**
  * Modelo para la tabla user
  * Maneja todas las operaciones de base de datos relacionadas con usuarios
@@ -149,34 +151,29 @@ class UserModel {
      *   - 'inactive': solo usuarios inactivos
      * @return array Arreglo estructurado con success, data/message
      */
-    public function getAllUsers($filter = true) {
+    public function getAllUsers($filter = true, $pagination = null) {
         try {
             // Construir query según el filtro
             if ($filter === true || $filter === 'active') {
                 // Solo usuarios activos
                 $sql = "SELECT id, first_name, last_name, username, email, phone, avatar, role, last_login, is_active, created_at
                         FROM user
-                        WHERE is_active = 1
-                        ORDER BY created_at DESC";
+                        WHERE is_active = 1";
                 $filter_type = 'active';
             } elseif ($filter === 'inactive') {
                 // Solo usuarios inactivos
                 $sql = "SELECT id, first_name, last_name, username, email, phone, avatar, role, last_login, is_active, created_at
                         FROM user
-                        WHERE is_active = 0
-                        ORDER BY created_at DESC";
+                        WHERE is_active = 0";
                 $filter_type = 'inactive';
             } else {
                 // Todos los usuarios (activos e inactivos)
                 $sql = "SELECT id, first_name, last_name, username, email, phone, avatar, role, last_login, is_active, created_at
-                        FROM user
-                        ORDER BY created_at DESC";
+                        FROM user";
                 $filter_type = 'all';
             }
 
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute();
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$users, $total] = paginated_rows($this->pdo, $sql, [], 'created_at DESC, id DESC', $pagination);
 
             // Convertir is_active a booleano para cada usuario
             foreach ($users as &$user) {
@@ -188,7 +185,7 @@ class UserModel {
                 'data' => $users,
                 'count' => count($users),
                 'filter' => $filter_type
-            ];
+            ] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             error_log("Error en UserModel::getAllUsers: " . $e->getMessage());
             return [

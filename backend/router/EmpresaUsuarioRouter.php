@@ -4,6 +4,7 @@
  * Router para manejar asignación de usuarios a empresas
  */
 
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../controllers/EmpresaUsuarioController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -30,7 +31,7 @@ if (preg_match('#^/api/empresa-usuario$#', $uri)) {
         exit;
     } elseif ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
-        $response = $empresaUsuarioController->getAll($user_data['user_id'], $user_data['role']);
+        $response = $empresaUsuarioController->getAll($user_data['user_id'], $user_data['role'], require_pagination(20));
         echo json_encode($response);
         exit;
     }
@@ -41,7 +42,7 @@ if (preg_match('#^/api/empresa-usuario/empresa/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $nombre = urldecode($matches[1]);
-        $response = $empresaUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role']);
+        $response = $empresaUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role'], require_pagination(20));
         echo json_encode($response);
         exit;
     }
@@ -52,7 +53,7 @@ if (preg_match('#^/api/empresa-usuario/ruc/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $ruc = urldecode($matches[1]);
-        $response = $empresaUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role']);
+        $response = $empresaUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role'], require_pagination());
         echo json_encode($response);
         exit;
     }

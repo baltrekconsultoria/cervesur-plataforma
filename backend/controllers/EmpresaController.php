@@ -5,6 +5,7 @@
  * Valida datos y coordina con el modelo
  */
 
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../models/EmpresaModel.php';
 
 class EmpresaController {
@@ -20,15 +21,16 @@ class EmpresaController {
      * @param string $role Rol del usuario
      * @return array Respuesta JSON
      */
-    public function getAll($user_id, $role) {
+    public function getAll($user_id, $role, $pagination = null) {
         try {
-            $empresas = $this->empresaModel->getAll($user_id, $role);
+            $total = null;
+            $empresas = $this->empresaModel->getAll($user_id, $role, $pagination, $total);
 
             return [
                 'success' => true,
                 'data' => $empresas,
                 'count' => count($empresas)
-            ];
+            ] + pagination_response($pagination, $total);
         } catch (Exception $e) {
             return [
                 'success' => false,

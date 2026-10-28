@@ -6,6 +6,8 @@
  */
 
 // Incluir dependencias necesarias
+require_once __DIR__ . '/../lib/views.php';
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../controllers/AsignacionController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -22,10 +24,11 @@ $controller = new AsignacionController($pdo);
 // GET /api/asignacion - Obtener todas las asignaciones
 if ($method === 'GET' && $uri === '/api/asignacion') {
     $user = require_auth($jwt_secret);
-    $result = $controller->getAll($user['user_id'], $user['role']);
+    $view = require_view();
+    $result = $controller->getAll($user['user_id'], $user['role'], require_pagination());
 
     http_response_code($result['success'] ? 200 : 400);
-    echo json_encode($result);
+    echo json_encode(apply_view($result, $view, 'asignacion'));
     exit;
 }
 
@@ -33,10 +36,11 @@ if ($method === 'GET' && $uri === '/api/asignacion') {
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $id = (int)$matches[1];
+    $view = require_view();
     $result = $controller->getById($id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
-    echo json_encode($result);
+    echo json_encode(apply_view($result, $view, 'asignacion'));
     exit;
 }
 
@@ -44,10 +48,11 @@ if ($method === 'GET' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $match
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/empresa\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $empresa_id = (int)$matches[1];
+    $view = require_view();
     $result = $controller->getByEmpresa($empresa_id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
-    echo json_encode($result);
+    echo json_encode(apply_view($result, $view, 'asignacion'));
     exit;
 }
 
@@ -55,10 +60,11 @@ if ($method === 'GET' && preg_match('/^\/api\/asignacion\/empresa\/(\d+)$/', $ur
 if ($method === 'GET' && preg_match('/^\/api\/asignacion\/reporte\/(\d+)$/', $uri, $matches)) {
     $user = require_auth($jwt_secret);
     $reporte_id = (int)$matches[1];
+    $view = require_view();
     $result = $controller->getByReporte($reporte_id, $user['user_id'], $user['role']);
 
     http_response_code($result['success'] ? 200 : 404);
-    echo json_encode($result);
+    echo json_encode(apply_view($result, $view, 'asignacion'));
     exit;
 }
 

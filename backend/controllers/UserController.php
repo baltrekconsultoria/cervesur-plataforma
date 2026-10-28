@@ -77,10 +77,10 @@ class UserController {
      * @param bool|string $filter Puede ser true (solo activos), false (todos), o 'inactive' (solo inactivos)
      * @return array Respuesta con la lista de usuarios
      */
-    public function getAllUsers($filter = true) {
+    public function getAllUsers($filter = true, $pagination = null) {
         try {
             // Obtener todos los usuarios (el modelo ya maneja errores y devuelve estructura consistente)
-            $result = $this->userModel->getAllUsers($filter);
+            $result = $this->userModel->getAllUsers($filter, $pagination);
 
             // Si hay error, devolver directamente la respuesta del modelo
             if (!$result['success']) {
@@ -92,7 +92,7 @@ class UserController {
                 'users' => $result['data'],
                 'total' => $result['count'],
                 'filter' => $result['filter'] ?? 'active'
-            ];
+            ] + (isset($result['pagination']) ? ['pagination' => $result['pagination']] : []);
         } catch (Exception $e) {
             // Loguear el error y devolver un mensaje genérico
             error_log('Error en UserController::getAllUsers: ' . $e->getMessage());

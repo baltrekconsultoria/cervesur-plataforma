@@ -15,15 +15,15 @@ class AsignacionController {
     /**
      * Obtener todas las asignaciones
      */
-    public function getAll($userId, $role) {
+    public function getAll($userId, $role, $pagination = null) {
         try {
-            $asignaciones = $this->model->getAll($userId, $role);
+            $asignaciones = $this->model->getAll($userId, $role, $pagination);
 
             return [
                 'success' => true,
                 'data' => $asignaciones,
                 'count' => count($asignaciones)
-            ];
+            ] + (isset($asignaciones['pagination']) ? ['pagination' => $asignaciones['pagination']] : []);
         } catch (Exception $e) {
             return [
                 'success' => false,
