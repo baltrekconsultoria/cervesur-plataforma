@@ -1,0 +1,3 @@
+# Imagen SOLO para verificar la configuración de Apache en local (php:8.3-apache oficial + la extensión que usa el backend).
+FROM php:8.3-apache
+RUN docker-php-ext-install pdo_mysql && a2enmod rewrite headers

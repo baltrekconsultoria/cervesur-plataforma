@@ -1,0 +1,30 @@
+# REFERENCIA (no se aplica a ningún servidor). Sitio React de PRUEBA en un subdominio propio, junto al Flutter existente.
+# Sustituya los marcadores ejemplo.com / rutas por los reales ANTES de usarlo; no guarde certificados ni contraseñas en el repositorio.
+# Activar:  a2enmod rewrite headers alias ssl   y   apachectl configtest   antes de recargar.
+# Revertir: a2dissite cervesur-react-prueba && systemctl reload apache2  (no toca el sitio Flutter).
+
+<VirtualHost *:80>
+    ServerName portal-prueba.ejemplo.com
+    # Todo el tráfico va por HTTPS.
+    RewriteEngine On
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName portal-prueba.ejemplo.com
+    Define CERVESUR_REACT_FRONT   /var/www/cervesur-react-prueba/public
+    Define CERVESUR_REACT_BACKEND /opt/cervesur-react-prueba/backend
+
+    SSLEngine on
+    SSLCertificateFile    /ruta/al/certificado.pem      # <- certificado del subdominio (fuera del repositorio)
+    SSLCertificateKeyFile /ruta/a/la/clave-privada.pem  # <- clave privada (fuera del repositorio, permisos 600)
+
+    Include /etc/apache2/cervesur/react-common.conf
+
+    ErrorLog  ${APACHE_LOG_DIR}/cervesur-react-prueba-error.log
+    CustomLog ${APACHE_LOG_DIR}/cervesur-react-prueba-access.log combined
+
+    # Acceso controlado durante la prueba (elija UNA opción y retírela al terminar):
+    #   <Location "/">  Require ip 203.0.113.0/24  </Location>        # lista de IP permitidas (dirección de documentación)
+    #   <Location "/">  AuthType Basic ... Require valid-user </Location>   # usuario/contraseña de Apache (htpasswd fuera del repo)
+</VirtualHost>

@@ -5,12 +5,14 @@ import { useApp } from '../../app/AppProvider';
 import { homePath, sanitizeReturnTo } from '../../auth/returnTo';
 import { Button } from '../../components/ui';
 
-const DEMO_ACCOUNTS: Array<[string, string]> = [['maria.rios', 'Usuario con reportes asignados'], ['elena.torres', 'Administrador']];
+// Cuentas de demostración: solo existen con el proveedor simulado; la compilación de servidor las elimina del bundle.
+const SERVER_BUILD = import.meta.env.VITE_DEPLOY_TARGET === 'server';
+const DEMO_ACCOUNTS: Array<[string, string]> = SERVER_BUILD ? [] : [['maria.rios', 'Usuario con reportes asignados'], ['elena.torres', 'Administrador']];
 
 export function LoginPage() {
   const { login, user, mock, provider, lastUsername, sessionExpired, expiredUserId } = useApp();
   const location = useLocation();
-  const [username, setUsername] = useState(lastUsername || 'maria.rios');
+  const [username, setUsername] = useState(lastUsername || (mock ? DEMO_ACCOUNTS[0]?.[0] ?? '' : ''));
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,9 +66,11 @@ export function LoginPage() {
           )}
           <Button type="submit" disabled={busy}>Ingresar al portal</Button>
         </form>
-        <p className="form-note">{provider === 'http'
-          ? 'Entorno QA local: las credenciales se envían únicamente al backend aislado de este equipo (datos sintéticos).'
-          : 'Prototipo local con datos ficticios. No se envían credenciales; con el proveedor simulado solo se valida que la cuenta exista.'}</p>
+        {!SERVER_BUILD && (
+          <p className="form-note">{provider === 'http'
+            ? 'Entorno QA local: las credenciales se envían únicamente al backend aislado de este equipo (datos sintéticos).'
+            : 'Prototipo local con datos ficticios. No se envían credenciales; con el proveedor simulado solo se valida que la cuenta exista.'}</p>
+        )}
       </section>
     </main>
   );

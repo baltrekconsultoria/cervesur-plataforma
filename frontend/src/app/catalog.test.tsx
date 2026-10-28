@@ -45,6 +45,8 @@ async function setup(api: CatalogApi, entry = '/login') {
   const tokens = createMemoryTokenStore();
   render(<MemoryRouter initialEntries={[entry]}><AppProvider services={{ tokens, client: api }}><App /></AppProvider></MemoryRouter>);
   const user = userEvent.setup();
+  expect(screen.getByLabelText('Correo o usuario')).toHaveValue(''); // con un proveedor real no se precarga ninguna cuenta de demostración
+  await user.type(screen.getByLabelText('Correo o usuario'), 'multi');
   await user.type(screen.getByLabelText('Contraseña'), 'x');
   await user.click(screen.getByRole('button', { name: 'Ingresar al portal' }));
   await screen.findByRole('heading', { level: 1, name: 'Mis reportes' });
@@ -121,7 +123,9 @@ describe('catálogo por empresa (proveedor con relación empresa–informe, sin 
     const tokens = createMemoryTokenStore();
     render(<MemoryRouter initialEntries={['/login']}><AppProvider services={{ tokens, client: api }}><App /></AppProvider></MemoryRouter>);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Contraseña'), 'x');
+    expect(screen.getByLabelText('Correo o usuario')).toHaveValue(''); // con un proveedor real no se precarga ninguna cuenta de demostración
+  await user.type(screen.getByLabelText('Correo o usuario'), 'multi');
+  await user.type(screen.getByLabelText('Contraseña'), 'x');
     await user.click(screen.getByRole('button', { name: 'Ingresar al portal' }));
     expect(await screen.findByText('No se pudo cargar la información')).toBeInTheDocument();
     expect(document.querySelectorAll('.report-card')).toHaveLength(0);

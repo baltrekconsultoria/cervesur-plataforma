@@ -290,3 +290,4 @@ a.metric { color: inherit; }
 .form-grid > label { align-content: start; }
 .modal-error { margin: 0; padding: .5rem 1.1rem; border-top: 1px solid var(--line); background: #fbeeee; }
 .modal-body .form-note { margin-top: .1rem; }
+.config-error { max-width: 560px; margin: 4rem auto; padding: 1.5rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }

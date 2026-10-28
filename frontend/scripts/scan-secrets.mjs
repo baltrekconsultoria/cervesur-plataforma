@@ -40,7 +40,7 @@ try {
   publishable = walk(root).filter(f => !/^(node_modules|coverage)\//.test(f));
 }
 // 2) Compilaciones: son ignoradas por git, pero se auditan igualmente.
-const builds = ['dist', 'dist-qa', 'dist-qa-real'].filter(d => existsSync(join(root, d)));
+const builds = ['dist', 'dist-qa', 'dist-qa-real', 'dist-production'].filter(d => existsSync(join(root, d)));
 const files = [...new Set([...publishable, ...builds.flatMap(d => walk(join(root, d)).map(f => `${d}/${f}`.replace(`${d}/${d}/`, `${d}/`)))])];
 
 const findings = [];

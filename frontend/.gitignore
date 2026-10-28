@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-qa/
 dist-qa-real/
+dist-production/
 coverage/
 .env
 .env.*
