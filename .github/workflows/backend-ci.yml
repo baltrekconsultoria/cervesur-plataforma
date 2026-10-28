@@ -111,10 +111,19 @@ jobs:
             --read-only --tmpfs /tmp \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env DB_HOST=db --env DB_NAME=fixture --env DB_USER=root --env DB_PASS \
-            --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 \
+            --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4 \
             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
 
           sleep 1
           docker run --rm --network "$network_name" \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             cervesur-ci-php:local php tests/isolated/http_test.php
+
+          # UX-06B.0: fixture de volumen (0, 1, 20, 21, 45 y 105 relaciones) y pruebas de paginación, vistas y compatibilidad.
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/seed_pagination.php
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            cervesur-ci-php:local php tests/isolated/http_pagination_test.php

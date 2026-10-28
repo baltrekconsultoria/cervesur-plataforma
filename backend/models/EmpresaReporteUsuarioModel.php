@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../lib/pagination.php';
+
 
 /**
  * Modelo para gestionar la relación usuario ↔ empresa_reporte
@@ -107,7 +109,7 @@ class EmpresaReporteUsuarioModel {
      *   - message (string): Mensaje descriptivo del resultado.
      *   - InsertedId (int, opcional): ID autoincremental del nuevo registro si fue exitoso.
      */
-    public function getAll($user_id, $role) {
+    public function getAll($user_id, $role, $pagination = null) {
         try {
             $params = [];
             $scope = $this->visibleScope($user_id, $role, $params);
@@ -136,14 +138,9 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN user u ON u.id = eru.user_id
 				LEFT JOIN user uc ON uc.id = eru.created_by
 				LEFT JOIN user uu ON uu.id = eru.updated_by
-                WHERE eru.activo = 1 $scope
-				ORDER BY eru.created_at DESC
-				LIMIT 20";
+                WHERE eru.activo = 1 $scope";
 
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eru.created_at DESC, eru.id DESC', $pagination);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
@@ -152,7 +149,7 @@ class EmpresaReporteUsuarioModel {
                 'data' => $rows,
                 'count' => count($rows),
                 'message' => 'Consulta exitosa',
-            ];
+            ] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             return [
                 'success' => false,
@@ -237,7 +234,7 @@ class EmpresaReporteUsuarioModel {
      *   - updated_at (string|null): Fecha y hora de última actualización.
      *   - activo (bool): Estado de la relación (true = activo).
      */
-    public function getByEmpresaRuc($ruc, $userId, $role) {
+    public function getByEmpresaRuc($ruc, $userId, $role, $pagination = null) {
         $ruc = is_string($ruc) ? trim($ruc) : '';
         if ($ruc === '') {
             return ['success' => false, 'data' => [], 'message' => 'RUC inválido'];
@@ -261,13 +258,11 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN reporte r ON r.id = er.reporte_id
 				INNER JOIN user u ON u.id = eru.user_id
                 WHERE e.ruc = :ruc AND eru.activo = 1 $scope";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eru.created_at DESC, eru.id DESC', $pagination);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
-            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'];
+            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             return ['success' => false, 'data' => [], 'message' => 'Error al consultar por RUC: ' . $e->getMessage()];
         }
@@ -296,7 +291,7 @@ class EmpresaReporteUsuarioModel {
      *
      * Si ocurre algún error, retorna success=false y un mensaje descriptivo.
      */
-    public function getByEmpresaNombre($nombre, $userId, $role) {
+    public function getByEmpresaNombre($nombre, $userId, $role, $pagination = null) {
         $nombre = is_string($nombre) ? trim($nombre) : '';
         if ($nombre === '') {
             return ['success' => false, 'data' => [], 'message' => 'Nombre de empresa inválido'];
@@ -320,16 +315,12 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN empresa e ON e.id = er.empresa_id
 				INNER JOIN reporte r ON r.id = er.reporte_id
 				INNER JOIN user u ON u.id = eru.user_id
-                WHERE e.nombre LIKE :nombre AND eru.activo = 1 $scope
-				ORDER BY eru.created_at DESC
-				LIMIT 20";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                WHERE e.nombre LIKE :nombre AND eru.activo = 1 $scope";
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eru.created_at DESC, eru.id DESC', $pagination);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
-            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'];
+            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => $rows ? 'Relaciones encontradas' : 'Sin resultados'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             return ['success' => false, 'data' => [], 'message' => 'Error al consultar por nombre: ' . $e->getMessage()];
         }
@@ -356,7 +347,7 @@ class EmpresaReporteUsuarioModel {
      *   - updated_at (string|null): Fecha de última actualización.
      *   - activo (bool): Indica si la relación está activa.
      */
-    public function getByUserId($userId, $requestUserId, $role) {
+    public function getByUserId($userId, $requestUserId, $role, $pagination = null) {
         $userId = filter_var($userId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($userId === false) {
             return ['success' => false, 'data' => [], 'message' => 'user_id inválido'];
@@ -379,13 +370,11 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN empresa e ON e.id = er.empresa_id
 				INNER JOIN reporte r ON r.id = er.reporte_id
                 WHERE eru.user_id = :user_id AND eru.activo = 1 $scope";
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eru.created_at DESC, eru.id DESC', $pagination);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
-            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => 'Consulta exitosa'];
+            return ['success' => true, 'data' => $rows, 'count' => count($rows), 'message' => 'Consulta exitosa'] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             return ['success' => false, 'data' => [], 'message' => 'Error al consultar por usuario: ' . $e->getMessage()];
         }

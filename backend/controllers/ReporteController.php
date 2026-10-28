@@ -80,9 +80,9 @@ class ReporteController {
      * Obtener todos los reportes
      * GET /api/reportes
      */
-    public function getAll($user_id, $role) {
+    public function getAll($user_id, $role, $pagination = null) {
         try {
-            $result = $this->reporteModel->getAll($user_id, $role);
+            $result = $this->reporteModel->getAll($user_id, $role, $pagination);
 
             if ($result['success']) {
                 http_response_code(200);
@@ -207,9 +207,9 @@ class ReporteController {
      * Obtener solo reportes activos
      * GET /api/reportes/activos
      */
-    public function getActivos($user_id, $role) {
+    public function getActivos($user_id, $role, $pagination = null) {
         try {
-            $result = $this->reporteModel->getAll($user_id, $role);
+            $result = $this->reporteModel->getAll($user_id, $role, $pagination);
 
             if ($result['success']) {
                 http_response_code(200);

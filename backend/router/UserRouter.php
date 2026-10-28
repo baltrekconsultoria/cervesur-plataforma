@@ -5,6 +5,8 @@
  * Maneja operaciones relacionadas con el perfil y datos de usuario
  */
 
+require_once __DIR__ . '/../lib/pagination.php';
+
 // Endpoint protegido: obtener datos básicos del usuario autenticado
 if ($method === 'GET' && $uri === '/api/user') {
     require_once __DIR__ . '/../lib/auth_middleware.php';
@@ -403,7 +405,7 @@ if ($method === 'GET' && $uri === '/api/users') {
 
     // Instanciar controlador y obtener todos los usuarios
     $userController = new UserController($pdo);
-    $result = $userController->getAllUsers($filter);
+    $result = $userController->getAllUsers($filter, require_pagination());
 
     // Responder
     echo json_encode($result);

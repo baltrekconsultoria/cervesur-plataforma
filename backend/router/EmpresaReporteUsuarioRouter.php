@@ -4,6 +4,7 @@
  * Router para manejar la relación usuario ↔ empresa_reporte
  * Endpoints protegidos con JWT
  */
+require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../controllers/EmpresaReporteUsuarioController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -18,7 +19,7 @@ if (preg_match('#^/api/empresa-reporte-usuario$#', $uri)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
 
-        $response = $empresaReporteUsuarioController->getAll($user_data['user_id'], $user_data['role']);
+        $response = $empresaReporteUsuarioController->getAll($user_data['user_id'], $user_data['role'], require_pagination(20));
 
         echo json_encode($response);
         exit;
@@ -78,7 +79,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/ruc/(.+)$#', $uri, $matches)) {
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $ruc = urldecode($matches[1]);
-        $response = $empresaReporteUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role']);
+        $response = $empresaReporteUsuarioController->getByEmpresaRuc($ruc, $user_data['user_id'], $user_data['role'], require_pagination());
         echo json_encode($response);
         exit;
     }
@@ -89,7 +90,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/empresa/(.+)$#', $uri, $matches))
     if ($method === 'GET') {
         $user_data = require_auth($jwt_secret);
         $nombre = urldecode($matches[1]);
-        $response = $empresaReporteUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role']);
+        $response = $empresaReporteUsuarioController->getByEmpresaNombre($nombre, $user_data['user_id'], $user_data['role'], require_pagination(20));
         echo json_encode($response);
         exit;
     }
@@ -105,7 +106,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/user/(\d+)$#', $uri, $matches)) {
             echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
             exit;
         }
-        $response = $empresaReporteUsuarioController->getByUserId($userId, $user_data['user_id'], $user_data['role']);
+        $response = $empresaReporteUsuarioController->getByUserId($userId, $user_data['user_id'], $user_data['role'], require_pagination());
         echo json_encode($response);
         exit;
     }

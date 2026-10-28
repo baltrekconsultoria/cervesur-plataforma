@@ -4,6 +4,8 @@
  * Modelo para la gestión de reportes
  * Maneja operaciones CRUD en la tabla reporte
  */
+require_once __DIR__ . '/../lib/pagination.php';
+
 class ReporteModel {
     private $pdo;
 
@@ -180,22 +182,19 @@ class ReporteModel {
     /**
      * Obtener todos los reportes autorizados.
      */
-    public function getAll($user_id, $role) {
+    public function getAll($user_id, $role, $pagination = null) {
         try {
             $params = [];
             $sql = $this->reportBaseSql()
-                . $this->authorizedReportSql($user_id, $role, $params)
-                . " ORDER BY r.created_at DESC";
+                . $this->authorizedReportSql($user_id, $role, $params);
 
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $reportes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$reportes, $total] = paginated_rows($this->pdo, $sql, $params, 'r.created_at DESC, r.id DESC', $pagination);
 
             return [
                 'success' => true,
                 'data' => $reportes,
                 'count' => count($reportes)
-            ];
+            ] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             error_log("Error en ReporteModel::getAll: " . $e->getMessage());
             return [

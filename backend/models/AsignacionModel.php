@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../lib/pagination.php';
+
 /**
  * Modelo para la tabla empresa_reporte
  * Maneja las operaciones de base de datos para asignaciones de reportes a empresas
@@ -27,7 +29,7 @@ class AsignacionModel {
     /**
      * Obtener todas las asignaciones activas
      */
-    public function getAll($userId, $role) {
+    public function getAll($userId, $role, $pagination = null) {
         try {
             $params = [];
             $scope = $this->visibleScope($userId, $role, $params);
@@ -48,12 +50,9 @@ class AsignacionModel {
                     INNER JOIN reporte r ON r.id = er.reporte_id
                     LEFT JOIN user uc ON uc.id = er.created_by
                     LEFT JOIN user uu ON uu.id = er.updated_by
-                    WHERE er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope
-                    ORDER BY er.created_at DESC";
+                    WHERE er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope";
 
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'er.created_at DESC, er.id DESC', $pagination);
             foreach ($rows as &$row) {
                 $row['activo'] = (bool)$row['activo'];
             }
@@ -62,7 +61,7 @@ class AsignacionModel {
                 'data' => $rows,
                 'count' => count($rows),
                 'message' => 'Consulta exitosa'
-            ];
+            ] + pagination_response($pagination, $total);
         } catch (PDOException $e) {
             return [
                 'success' => false,
