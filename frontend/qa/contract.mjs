@@ -3,8 +3,9 @@
 // Salida: PASS / FAIL / HALLAZGO (comportamiento conocido del backend que conviene corregir; no hace fallar la ejecución).
 import { createHmac, randomBytes } from 'node:crypto';
 
-const API = 'http://127.0.0.1:8080';
-const SHORT = 'http://127.0.0.1:8081';
+const API_PORT = Number(process.env.QA_API_PORT ?? 8080);
+const API = `http://127.0.0.1:${API_PORT}`;
+const SHORT = `http://127.0.0.1:${API_PORT + 1}`;
 const PASSWORD = 'synthetic-password'; // contraseña sintética pública del fixture del repositorio
 const results = [];
 let section = '';
@@ -275,9 +276,10 @@ ok('usuario normal no puede editar empresas (403)', (await call('PUT', `/api/emp
 ok('editar al RUC de otra empresa → success:false', (await call('PUT', `/api/empresas/${companyId}`, { token: admin.token, body: { ruc: '00000000001' } })).json?.success === false);
 
 const uuidReport = crypto.randomUUID(); const uuidGroup = crypto.randomUUID();
-const reportBody = { nombre: `Informe ${ruc2}`, descripcion: 'Sintético', enlace: `https://example.invalid/${ruc2}`, grupo_id: uuidGroup, reporte_id: uuidReport.toUpperCase() };
+// UX-07C: el informe se registra con su enlace; los identificadores se extraen del enlace de inserción.
+const reportBody = { nombre: `Informe ${ruc2}`, descripcion: 'Sintético', enlace: `https://app.powerbi.com/reportEmbed?reportId=${uuidReport.toUpperCase()}&groupId=${uuidGroup}` };
 ok('usuario normal no puede crear reportes (403)', (await call('POST', '/api/reportes', { token: usera.token, body: reportBody })).status === 403);
-for (const [field, bad] of [['enlace', 'no-url'], ['grupo_id', 'x'], ['reporte_id', '123'], ['nombre', '']]) {
+for (const [field, bad] of [['enlace', 'no-url'], ['enlace', 'https://example.invalid/x'], ['grupo_id', 'x'], ['reporte_id', '123'], ['nombre', '']]) {
   ok(`reporte con ${field} inválido → success:false`, (await call('POST', '/api/reportes', { token: admin.token, body: { ...reportBody, [field]: bad } })).json?.success === false);
 }
 const newReport = await call('POST', '/api/reportes', { token: admin.token, body: reportBody });
@@ -319,6 +321,66 @@ ok('desvincular dos veces → success:false', (await call('DELETE', `/api/asigna
 ok('tras desvincular, el usuario deja de ver el reporte y no puede abrirlo', (await walkAll('/api/reportes?view=minimal', op.token, 100)).rows.length === 0 && (await call('GET', `/api/reportes/reporteid/${uuidReport}?view=minimal`, { token: op.token })).status === 404);
 const relink = await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: reportInternalId } });
 ok('volver a asociar reactiva la misma relación (sin duplicar) y restituye el acceso', relink.json?.success === true && Number(relink.json?.data?.id) === linkId && JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token }))) === JSON.stringify([`Informe ${ruc2}`]));
+
+
+section = 'Visor de Power BI y registro por enlace (UX-07C)';
+const countReports = async () => (await walkAll('/api/reportes?view=minimal', admin.token, 100)).rows.length;
+const publicLink = t => `https://app.powerbi.com/view?r=${t}`;
+const tok1 = `U0lOVEVUSUNP${ruc1.slice(0, 9)}`; const tok2 = `U0lOVEVUSUNQ${ruc1.slice(0, 9)}`;
+const reportsBefore = await countReports();
+for (const [label, bad] of [['dominio externo', 'https://example.invalid/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE'], ['HTTP', 'http://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE'], ['iframe pegado', '<iframe src="https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE"></iframe>'], ['host suplantado', 'https://app.powerbi.com.evil.example/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE'], ['parámetro de redirección', 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE&redirect=https://evil.example'], ['javascript', 'javascript:alert(1)'], ['inserción sin reportId', 'https://app.powerbi.com/reportEmbed?groupId=11111111-2222-4333-8444-555555555555']]) {
+  const r = await call('POST', '/api/reportes', { token: admin.token, body: { nombre: `Malicioso ${ruc1}`, enlace: bad } });
+  ok(`enlace rechazado por el servidor (${label})`, r.json?.success === false);
+}
+ok('los enlaces rechazados no crearon ningún informe', (await countReports()) === reportsBefore);
+
+const pubCreated = await call('POST', '/api/reportes', { token: admin.token, body: { nombre: `Público ${ruc1}`, descripcion: 'Solo enlace', enlace: publicLink(tok1) } });
+const pubId = Number(pubCreated.json?.data?.id); const pubRef = pubCreated.json?.data?.reporte_id;
+ok('se registra un informe con solo nombre, descripción y enlace público', pubCreated.json?.success === true && pubId > 0);
+const pubForm = (await call('GET', `/api/reportes/${pubId}?view=form`, { token: admin.token })).json?.data;
+ok('no se inventan ids de Power BI: grupo NULL y referencia interna UUID v4 distinta del token', pubForm?.grupo_id === null && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(pubRef ?? '') && !pubForm?.enlace.includes(pubRef));
+const embId = crypto.randomUUID();
+const embCreated = await call('POST', '/api/reportes', { token: admin.token, body: { nombre: `Inserción ${ruc1}`, enlace: `https://app.powerbi.com/reportEmbed?reportId=${embId.toUpperCase()}` } });
+const embForm = (await call('GET', `/api/reportes/${Number(embCreated.json?.data?.id)}?view=form`, { token: admin.token })).json?.data;
+ok('en un enlace de inserción se extrae el reportId (minúsculas) y el grupo ausente queda NULL', embCreated.json?.success === true && embForm?.reporte_id === embId && embForm?.grupo_id === null);
+
+const pubLink = Number((await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: pubId } })).json?.data?.id);
+const embLink = Number((await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: Number(embCreated.json.data.id) } })).json?.data?.id);
+const grantPub = Number((await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: opId, empresa_reporte_id: pubLink } })).json?.InsertedId);
+await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: opId, empresa_reporte_id: embLink } });
+const viewerOf = (ref, token) => call('GET', `/api/reportes/reporteid/${ref}/visor`, { token });
+const v = await viewerOf(pubRef, op.token);
+ok('el usuario autorizado recibe el modo público con su enlace', v.status === 200 && v.json?.data?.modo === 'publico' && v.json?.data?.url === publicLink(tok1));
+ok('la respuesta no contiene credenciales, secretos ni tokens generales', !/secret|tenant|client|access_token|password|powerbi_/i.test(v.raw));
+const headers = (await fetch(`${API}/api/reportes/reporteid/${pubRef}/visor`, { headers: { Authorization: `Bearer ${op.token}` } })).headers;
+ok('la configuración del visor se sirve con Cache-Control: no-store', /no-store/.test(headers.get('cache-control') ?? '') && /no-cache/.test(headers.get('pragma') ?? ''));
+const dead = await viewerOf('00000000-0000-4000-8000-00000000dead', usera.token);
+const denied = await viewerOf(pubRef, usera.token);
+ok('un usuario sin acceso recibe exactamente la misma respuesta que ante un informe inexistente (no revela su existencia)', denied.status === 404 && denied.raw === dead.raw && !/powerbi/.test(denied.raw));
+ok('sin autenticación no hay configuración del visor', (await viewerOf(pubRef)).status === 401);
+ok('el administrador puede abrir cualquier informe activo', (await viewerOf(pubRef, admin.token)).json?.data?.modo === 'publico');
+const emb = await viewerOf(embId, op.token);
+ok('inserción autenticada: modo «privado», sin enlace ni tokens (requiere configuración de Microsoft)', emb.status === 200 && emb.json?.data?.modo === 'privado' && !('url' in (emb.json?.data ?? {})) && !/powerbi\.com/.test(emb.raw));
+const legacyViewer = await viewerOf('00000000-0000-0000-0000-000000000044', admin.token);
+ok('un dato antiguo con enlace no compatible → «no_compatible» y su enlace no se devuelve', legacyViewer.json?.data?.modo === 'no_compatible' && !/example\.invalid/.test(legacyViewer.raw));
+const catalog = await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token });
+ok('el catálogo normal (vista mínima) no entrega ningún enlace', !/powerbi\.com|"enlace"/.test(catalog.raw));
+
+await call('DELETE', `/api/empresa-reporte-usuario/${grantPub}`, { token: admin.token });
+ok('un acceso retirado bloquea nuevas solicitudes del visor', (await viewerOf(pubRef, op.token)).status === 404);
+await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: opId, empresa_reporte_id: pubLink } });
+ok('al volver a conceder el acceso, el visor responde de nuevo', (await viewerOf(pubRef, op.token)).status === 200);
+await call('DELETE', `/api/asignacion/${pubLink}`, { token: admin.token });
+ok('una asociación empresa ↔ informe desactivada también lo bloquea', (await viewerOf(pubRef, op.token)).status === 404);
+await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: pubId } });
+
+const edited = await call('PUT', `/api/reportes/${pubId}`, { token: admin.token, body: { nombre: `Público ${ruc1}`, descripcion: 'Editado', enlace: publicLink(tok2) } });
+const afterEdit = (await call('GET', `/api/reportes/${pubId}?view=form`, { token: admin.token })).json?.data;
+ok('editar el enlace conserva el id interno, la referencia y las asociaciones, e invalida el enlace anterior', edited.json?.success === true && afterEdit?.reporte_id === pubRef && Number(afterEdit?.id) === pubId && (await viewerOf(pubRef, op.token)).json?.data?.url === publicLink(tok2));
+ok('el historial de rutas por UUID sigue funcionando', (await call('GET', `/api/reportes/reporteid/${pubRef}?view=minimal`, { token: admin.token })).json?.data?.reporte_id === pubRef);
+await call('DELETE', `/api/reportes/${pubId}`, { token: admin.token });
+ok('un informe dado de baja no se puede abrir ni por su administrador', (await viewerOf(pubRef, admin.token)).status === 404);
+await call('DELETE', `/api/reportes/${Number(embCreated.json.data.id)}`, { token: admin.token });
 
 // Limpieza: la empresa y el reporte de prueba se dan de baja (baja lógica) para no alterar los recuentos de otras suites sobre el mismo entorno.
 await call('DELETE', `/api/empresas/${companyId}`, { token: admin.token });

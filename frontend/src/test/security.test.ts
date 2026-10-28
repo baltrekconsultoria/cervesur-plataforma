@@ -25,13 +25,14 @@ describe('higiene de seguridad del código fuente', () => {
   it('no incluye URLs absolutas hacia servicios externos', () => {
     for (const file of sources) {
       const urls = read(file).match(/https?:\/\/[^\s'"`)]+/g) ?? [];
-      const external = urls.filter(url => !/^https?:\/\/(localhost|127\.0\.0\.1|portal\.ejemplo\.com|app\.powerbi\.com\/(x|view\?r=secreto)|www\.w3\.org)/.test(url));
+      const external = urls.filter(url => !/^https?:\/\/(localhost|127\.0\.0\.1|portal\.ejemplo\.com|app\.powerbi\.com\/(x|view$|view\?r=secreto)|www\.w3\.org)/.test(url));
       expect(external, file).toEqual([]);
     }
   });
-  it('solo el adaptador conoce el campo "enlace" y los campos powerbi_*', () => {
+  it('solo el adaptador conoce el campo técnico "enlace" (como clave de datos) y los campos powerbi_*', () => {
     for (const file of sources.filter(f => !f.replace(/\\/g, '/').endsWith('api/http/adapters.ts'))) {
-      expect(read(file), file).not.toMatch(/\benlace\b|powerbi_/);
+      // «enlace» es también vocabulario de la interfaz (UX-07C): se prohíbe su uso como CLAVE del backend (`dto.enlace`, `enlace:`, 'enlace').
+      expect(read(file), file).not.toMatch(/\.enlace\b|\benlace\s*:|['"`]enlace['"`]|powerbi_/);
     }
   });
   it('no existe ninguna dependencia de Power BI ni de Flutter en esta etapa', () => {

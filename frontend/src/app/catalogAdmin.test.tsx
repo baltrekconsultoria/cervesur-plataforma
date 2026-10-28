@@ -47,8 +47,7 @@ type U = ReturnType<typeof userEvent.setup>;
 const fill = async (user: U, label: RegExp, value: string) => { const input = screen.getByLabelText(label); await user.clear(input); if (value) await user.type(input, value); };
 const rowOf = (text: string) => screen.queryAllByRole('row').find(r => r.textContent?.includes(text));
 const submit = async (user: U, name: string) => user.click(within(await screen.findByRole('dialog')).getByRole('button', { name }));
-const UUID_A = '10000000-0000-4000-8000-000000000001';
-const UUID_G = '20000000-0000-4000-8000-000000000002';
+const LINK = 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE';
 
 describe('UX-07B · empresas', () => {
   it('valida, informa el rechazo de PHP (RUC duplicado) sin dar éxito falso, crea y edita', async () => {
@@ -93,39 +92,31 @@ describe('UX-07B · empresas', () => {
 });
 
 describe('UX-07B · reportes', () => {
-  it('valida los identificadores técnicos, rechaza un UUID repetido, crea, filtra «Sin empresa» y edita', async () => {
+  it('simplifica el alta (nombre, descripción y enlace), detecta el tipo de enlace, rechaza enlaces inseguros, crea, filtra «Sin empresa» y edita', async () => {
     const { user, go, login } = setup();
     await login('elena.torres');
     await screen.findByRole('heading', { level: 1, name: 'Inicio administrativo' });
     await act(async () => { go('/admin/reportes'); });
     await user.click(await screen.findByRole('button', { name: 'Nuevo reporte' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nuevo reporte' });
-    expect(within(dialog).getByText(/solo datos sintéticos/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/solo enlaces sintéticos/i)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/ID del grupo|ID del informe/i)).toBeNull(); // ya no se piden identificadores de Power BI
 
     await fill(user, /^Nombre/, 'Informe Sintético C');
-    await fill(user, /^Enlace del informe/, 'esto no es una url');
-    await fill(user, /^ID del grupo/, 'no-uuid');
-    await fill(user, /^ID del informe/, '123');
+    await fill(user, /^Enlace de Power BI/, 'https://example.invalid/informe-c');
+    expect(within(dialog).getByTestId('link-detected').textContent).toContain('app.powerbi.com');
     await submit(user, 'Crear reporte');
-    expect(within(dialog).getByText(/URL válida/)).toBeVisible();
-    expect(within(dialog).getAllByText(/UUID válido/)).toHaveLength(2);
+    expect(within(dialog).getAllByText(/app\.powerbi\.com/).length).toBeGreaterThan(0);
+    for (const unsafe of ['http://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE', '<iframe src="x"></iframe>', 'https://app.powerbi.com.evil.example/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE']) {
+      await fill(user, /^Enlace de Power BI/, unsafe);
+      expect(within(dialog).getByTestId('link-detected').textContent).toContain('Enlace no compatible');
+    }
 
-    await fill(user, /^Enlace del informe/, 'https://example.invalid/informe-c');
-    await fill(user, /^ID del grupo/, UUID_G);
-    await fill(user, /^ID del informe/, UUID_A);
+    await fill(user, /^Enlace de Power BI/, LINK);
+    expect(within(dialog).getByTestId('link-detected').textContent).toContain('Publicación web');
     await submit(user, 'Crear reporte');
     expect(await screen.findByText(/Reporte «Informe Sintético C» creado correctamente/)).toBeInTheDocument();
     await waitFor(() => expect(rowOf('Informe Sintético C')).toBeTruthy());
-
-    await user.click(screen.getByRole('button', { name: 'Nuevo reporte' }));
-    await fill(user, /^Nombre/, 'Duplicado');
-    await fill(user, /^Enlace del informe/, 'https://example.invalid/d');
-    await fill(user, /^ID del grupo/, UUID_G);
-    await fill(user, /^ID del informe/, UUID_A.toUpperCase());
-    await submit(user, 'Crear reporte');
-    expect(await screen.findByText('Ya existe un informe con ese ID de Power BI')).toBeVisible();
-    expect(rowOf('Duplicado')).toBeUndefined();
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }));
 
     await user.selectOptions(screen.getByLabelText('Estado'), 'unlinked');
     await waitFor(() => expect(screen.queryAllByRole('row').filter(r => r.closest('tbody')).map(r => r.textContent)).toHaveLength(1));
@@ -133,7 +124,7 @@ describe('UX-07B · reportes', () => {
 
     await user.click(screen.getByRole('button', { name: 'Editar Informe Sintético C' }));
     const edit = await screen.findByRole('dialog', { name: 'Editar reporte' });
-    expect(await within(edit).findByDisplayValue('https://example.invalid/informe-c')).toBeInTheDocument();
+    expect(await within(edit).findByDisplayValue(LINK)).toBeInTheDocument();
     await fill(user, /^Descripción/, 'Descripción editada');
     await submit(user, 'Guardar cambios');
     expect(await screen.findByText(/Reporte «Informe Sintético C» actualizado correctamente/)).toBeInTheDocument();
@@ -190,9 +181,7 @@ describe('UX-07B + UX-07A · circuito completo (simulado)', () => {
     await act(async () => { go('/admin/reportes'); });
     await user.click(await screen.findByRole('button', { name: 'Nuevo reporte' }));
     await fill(user, /^Nombre/, 'Informe Sintético C');
-    await fill(user, /^Enlace del informe/, 'https://example.invalid/informe-c');
-    await fill(user, /^ID del grupo/, UUID_G);
-    await fill(user, /^ID del informe/, UUID_A);
+    await fill(user, /^Enlace de Power BI/, LINK);
     await submit(user, 'Crear reporte');
     await screen.findByText(/creado correctamente/);
 

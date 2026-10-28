@@ -75,11 +75,12 @@ expectCase(($d['success'] ?? true) === false, 'editing a non-existent company fa
 // ================= INFORMES =================
 $uuidReport = '11111111-2222-3333-4444-555555555555';
 $uuidGroup = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-$report = ['nombre' => 'Informe Sintético C', 'descripcion' => 'Prueba UX-07B', 'enlace' => 'https://example.invalid/reportes/c', 'grupo_id' => $uuidGroup, 'reporte_id' => strtoupper($uuidReport)];
+// UX-07C: el informe se registra con su enlace; los identificadores se extraen del enlace (inserción), no se piden aparte.
+$report = ['nombre' => 'Informe Sintético C', 'descripcion' => 'Prueba UX-07B', 'enlace' => 'https://app.powerbi.com/reportEmbed?reportId=' . strtoupper($uuidReport) . '&groupId=' . $uuidGroup];
 [$s] = requestApi('POST', '/api/reportes', $report, $userA);
 expectCase($s === 403, 'non-admin cannot create a report');
 $beforeCount = (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte');
-foreach ([['nombre', ''], ['enlace', ''], ['grupo_id', ''], ['reporte_id', ''], ['enlace', 'esto no es una url'], ['grupo_id', 'no-uuid'], ['reporte_id', '123']] as [$field, $bad]) {
+foreach ([['nombre', ''], ['enlace', ''], ['enlace', 'esto no es una url'], ['enlace', 'https://example.invalid/x'], ['enlace', 'http://app.powerbi.com/reportEmbed?reportId=' . $uuidReport], ['enlace', 'https://app.powerbi.com/reportEmbed?reportId=123'], ['reporte_id', '123']] as [$field, $bad]) {
     [$s, $d] = requestApi('POST', '/api/reportes', [$field => $bad] + $report, $admin);
     expectCase(($d['success'] ?? true) === false && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $beforeCount, "report with invalid $field is rejected and nothing is written");
 }
@@ -110,13 +111,13 @@ expectCase(($d['success'] ?? false) === true && $after['nombre'] === 'Informe Si
 expectCase((int)$after['updated_by'] === $adminId, 'the editor is recorded in updated_by (previously always NULL)');
 [$s, $d] = requestApi('PUT', "/api/reportes/$rid", ['nombre' => 'Solo nombre'], $admin);
 expectCase(($d['success'] ?? true) === false && scalar($pdo, 'SELECT nombre FROM reporte WHERE id = ?', [$rid]) === 'Informe Sintético C v2', 'a partial edit is rejected with a clear message and changes nothing');
-[$s, $d] = requestApi('PUT', "/api/reportes/$rid", ['reporte_id' => '00000000-0000-0000-0000-000000000011'] + $report, $admin);
+[$s, $d] = requestApi('PUT', "/api/reportes/$rid", ['enlace' => 'https://app.powerbi.com/reportEmbed?reportId=00000000-0000-0000-0000-000000000011'] + $report, $admin);
 expectCase(($d['success'] ?? true) === false && scalar($pdo, 'SELECT reporte_id FROM reporte WHERE id = ?', [$rid]) === $uuidReport, 'editing to the UUID of another report is rejected');
 [$s, $d] = requestApi('PUT', '/api/reportes/987654', $report, $admin);
 expectCase(($d['success'] ?? true) === false, 'editing a non-existent report fails');
-[$s, $d] = requestApi('PUT', "/api/reportes/$rid", ['reporte_id' => '11111111-2222-3333-4444-555555555556'] + $report, $admin);
+[$s, $d] = requestApi('PUT', "/api/reportes/$rid", ['enlace' => 'https://app.powerbi.com/reportEmbed?reportId=11111111-2222-3333-4444-555555555556&groupId=' . $uuidGroup] + $report, $admin);
 expectCase(($d['success'] ?? false) === true && scalar($pdo, 'SELECT reporte_id FROM reporte WHERE id = ?', [$rid]) === '11111111-2222-3333-4444-555555555556', 'the Power BI UUID of a report can be corrected');
-requestApi('PUT', "/api/reportes/$rid", ['reporte_id' => $uuidReport] + $report, $admin);
+requestApi('PUT', "/api/reportes/$rid", $report, $admin);
 
 // ================= ASOCIACIONES EMPRESA-INFORME =================
 [$s, $d] = requestApi('POST', '/api/empresas', ['nombre' => 'Empresa D Sintética', 'razon_social' => 'Empresa D S.A.C.', 'ruc' => '20999999992'], $admin);

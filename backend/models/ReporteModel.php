@@ -34,7 +34,7 @@ class ReporteModel {
                 'nombre' => $data['nombre'],
                 'descripcion' => $data['descripcion'] ?? null,
                 'enlace' => $data['enlace'],
-                'grupo_id' => $data['grupo_id'],
+                'grupo_id' => $data['grupo_id'] ?? null,
                 'reporte_id' => $data['reporte_id'],
                 'created_by' => $data['created_by'] ?? null
             ]);
@@ -62,6 +62,25 @@ class ReporteModel {
                 'success' => false,
                 'message' => 'Error interno del servidor '
             ];
+        }
+    }
+
+    /** Identificadores almacenados de un informe activo (para conservarlos al editar solo el enlace). */
+    public function internalRow($id) {
+        $stmt = $this->pdo->prepare('SELECT reporte_id, grupo_id FROM reporte WHERE id = :id AND activo = 1 LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** Longitud máxima real de la columna `enlace` en esta base (null si no se puede determinar). */
+    public function linkMaxLength() {
+        try {
+            $stmt = $this->pdo->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reporte' AND COLUMN_NAME = 'enlace'");
+            $stmt->execute();
+            $value = $stmt->fetchColumn();
+            return $value === false || $value === null ? null : (int)$value;
+        } catch (PDOException $e) {
+            return null;
         }
     }
 
@@ -142,7 +161,7 @@ class ReporteModel {
                 'nombre' => $data['nombre'],
                 'descripcion' => $data['descripcion'] ?? null,
                 'enlace' => $data['enlace'],
-                'grupo_id' => $data['grupo_id'],
+                'grupo_id' => $data['grupo_id'] ?? null,
                 'reporte_id' => $data['reporte_id'],
                 'updated_by' => $data['updated_by'],
                 'id' => $id

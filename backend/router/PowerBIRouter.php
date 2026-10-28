@@ -18,6 +18,12 @@ if ($method === 'GET' && preg_match('/^\/api\/powerbi\/tokens\/(\d+)$/', $uri, $
         exit;
     }
     $data = $credentials['data'];
+    // UX-07C: un informe registrado solo por su enlace público no tiene identificadores de Power BI: no se contacta con Microsoft.
+    if (empty($data['grupo_id']) || empty($data['reporte_id'])) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'Reporte no disponible']);
+        exit;
+    }
     $result = $controller->getAccessToken($data['powerbi_tenant'], $data['powerbi_client'], $data['powerbi_clientsecret']);
     http_response_code($result['success'] ? 200 : 502);
     echo json_encode($result);

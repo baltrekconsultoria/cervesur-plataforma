@@ -18,7 +18,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.BACKEND_REPO ?? join(here, '..', '..');
 const QA = here;
 const IMAGE = 'cervesur-ci-php:local';
-const N = { db: 'cervesur-qa-db', app: 'cervesur-qa-app', short: 'cervesur-qa-app-short', proxy: 'cervesur-qa-proxy', dbNet: 'cervesur-qa-db-net', frontNet: 'cervesur-qa-front-net' };
+// QA_PREFIX y QA_API_PORT permiten levantar un SEGUNDO entorno independiente (otros nombres y puertos) sin tocar el que se usa para el QA manual.
+const PREFIX = process.env.QA_PREFIX ?? 'cervesur-qa';
+const API_PORT = Number(process.env.QA_API_PORT ?? 8080);
+const SHORT_PORT = API_PORT + 1;
+const N = { db: `${PREFIX}-db`, app: `${PREFIX}-app`, short: `${PREFIX}-app-short`, proxy: `${PREFIX}-proxy`, dbNet: `${PREFIX}-db-net`, frontNet: `${PREFIX}-front-net` };
 
 function docker(args, { env = {}, allowFail = false, input } = {}) {
   const r = spawnSync('docker', args, { env: { ...process.env, ...env }, encoding: 'utf8', input });
@@ -84,14 +88,14 @@ async function up() {
       IMAGE, 'php', '-S', '0.0.0.0:8080', 'tests/isolated/router.php'], { env });
   }
   // Reenviador: publica solo 127.0.0.1:8080/8081 y reenvía bytes a la red interna.
-  docker(['create', '--name', N.proxy, '--network', N.frontNet, '--publish', '127.0.0.1:8080:8080', '--publish', '127.0.0.1:8081:8081', ...harden,
+  docker(['create', '--name', N.proxy, '--network', N.frontNet, '--publish', `127.0.0.1:${API_PORT}:8080`, '--publish', `127.0.0.1:${SHORT_PORT}:8081`, ...harden,
     '--volume', `${QA}:/qa:ro`, IMAGE, 'php', '/qa/proxy.php', '8080=app:8080,8081=app-short:8080']);
   docker(['network', 'connect', N.dbNet, N.proxy]);
   docker(['start', N.proxy]);
-  for (const port of [8080, 8081]) {
+  for (const port of [API_PORT, SHORT_PORT]) {
     await waitFor(`API en 127.0.0.1:${port}`, async () => { try { return (await fetch(`http://127.0.0.1:${port}/api/ping`)).ok; } catch { return false; } }, 40);
   }
-  console.log('Entorno QA listo:\n  API principal   http://127.0.0.1:8080  (JWT 3600 s)\n  API JWT corto   http://127.0.0.1:8081  (JWT 2 s, solo pruebas de expiración)\n  Cuentas sintéticas (contraseña pública del fixture: synthetic-password): usera, userb, admin, inactive, legacy, weird, nobody');
+  console.log(`Entorno QA listo (${PREFIX}):\n  API principal   http://127.0.0.1:${API_PORT}  (JWT 3600 s)\n  API JWT corto   http://127.0.0.1:${SHORT_PORT}  (JWT 2 s, solo pruebas de expiración)\n  Cuentas sintéticas (contraseña pública del fixture: synthetic-password): usera, userb, admin, inactive, legacy, weird, nobody`);
 }
 
 function status() {
@@ -144,7 +148,7 @@ async function ci() {
       console.log('\n(Esta rama no incluye la suite de paginación del PR #4; se omite.)');
     }
     // SEC-05A (registro, roles, errores) y UX-07A (administración de accesos): mismos contenedores; requieren las credenciales de la base.
-    for (const [file, title] of [['http_auth_hardening_test.php', 'SEC-05A: registro, roles y errores internos'], ['http_admin_access_test.php', 'UX-07A: administración de accesos'], ['http_company_report_test.php', 'UX-07B: empresas, informes y asociaciones']]) {
+    for (const [file, title] of [['http_auth_hardening_test.php', 'SEC-05A: registro, roles y errores internos'], ['http_admin_access_test.php', 'UX-07A: administración de accesos'], ['http_company_report_test.php', 'UX-07B: empresas, informes y asociaciones'], ['http_viewer_test.php', 'UX-07C: enlaces, identificadores y visor']]) {
       if (existsSync(join(REPO, 'tests', 'isolated', file))) run(`Pruebas HTTP ${title} (tests/isolated/${file})`, ['run', '--rm', '--network', net, ...vol, '--env', 'TEST_DB_PASS', IMAGE, 'php', `tests/isolated/${file}`], { env: { ...process.env, ...env } });
     }
   } finally { clean(); }

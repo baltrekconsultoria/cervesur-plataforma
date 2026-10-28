@@ -5,6 +5,7 @@ require_once __DIR__ . '/../backend/controllers/PowerBIController.php';
 require_once __DIR__ . '/../backend/lib/jwt.php';
 require_once __DIR__ . '/../backend/lib/roles.php';
 require_once __DIR__ . '/../backend/lib/errors.php';
+require_once __DIR__ . '/../backend/lib/powerbi_link.php';
 
 function check($condition, $name) {
     if (!$condition) { fwrite(STDERR, "FAIL: $name\n"); exit(1); }
@@ -92,3 +93,18 @@ $logged = (string)file_get_contents($captured);
 check($publicMessage === 'Error al consultar', 'public error message is the generic text');
 check(strpos($publicMessage, 'SQLSTATE') === false && strpos($publicMessage, 'secret') === false, 'public error message hides database detail');
 check(strpos($logged, 'SQLSTATE[42S02]') !== false, 'technical detail is kept in the internal log');
+
+// UX-07C: clasificación de enlaces de Power BI (vectores compartidos con la prueba de React)
+$vectors = json_decode((string)file_get_contents(__DIR__ . '/fixtures/link_vectors.json'), true)['cases'];
+foreach ($vectors as $case) {
+    $r = classify_powerbi_link($case['url']);
+    if (isset($case['error'])) {
+        check($r['ok'] === false && $r['kind'] === null && $r['report_id'] === null && $r['group_id'] === null && strpos((string)$r['error'], $case['error']) !== false, 'link rejected: ' . $case['name']);
+    } else {
+        $okIds = ($case['reportId'] ?? null) === $r['report_id'] && ($case['groupId'] ?? null) === $r['group_id'] && ($case['token'] ?? null) === $r['token'];
+        check($r['ok'] === true && $r['kind'] === $case['kind'] && $okIds && $r['error'] === null, 'link accepted: ' . $case['name']);
+    }
+}
+check(classify_powerbi_link(null)['ok'] === false && classify_powerbi_link(['https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE'])['ok'] === false, 'link classification rejects non-string input');
+$refs = [generate_report_ref(), generate_report_ref()];
+check($refs[0] !== $refs[1] && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $refs[0]) === 1, 'internal report references are random UUID v4 values');

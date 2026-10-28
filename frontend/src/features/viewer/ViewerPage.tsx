@@ -4,6 +4,7 @@ import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { DeniedState } from '../../components/DeniedState';
 import { ButtonLink, ErrorState, LoadingState, Tag } from '../../components/ui';
+import { ViewerPanel } from './ViewerPanel';
 import { useAsync } from '../../lib/useAsync';
 
 const isInternal = (value: unknown): value is string => typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
@@ -66,13 +67,7 @@ function ViewerContent({ reportId }: { reportId: string }) {
         {siblings.length > 0 && (
           <div className="sibling-nav">Más informes de {ownerNames}: {siblings.map(s => <Link key={s.id} to={`/reportes/${encodeURIComponent(s.id)}`} state={{ from }}>{s.name}</Link>)}</div>
         )}
-        <div className="powerbi-mock">
-          <div className="mock-inner">
-            <div className="powerbi-icon" aria-hidden="true">▥</div>
-            <h2>Visor Power BI simulado</h2>
-            <p>En producción, este espacio cargará únicamente el informe autorizado mediante un token de inserción limitado. Esta base no incluye el SDK de Power BI ni realiza solicitudes externas.</p>
-          </div>
-        </div>
+        <ViewerPanel reportId={report.id} title={report.name} />
       </section>
     </Page>
   );

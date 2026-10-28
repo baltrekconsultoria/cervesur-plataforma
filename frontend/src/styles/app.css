@@ -169,6 +169,23 @@ tr.is-off td:not(.actions-cell) { color: var(--ink-600); }
 .powerbi-mock .mock-inner { width: min(480px, 90%); padding: 1.5rem; border: 1px solid rgba(255,255,255,.38); border-radius: 12px; background: rgba(0,0,0,.2); }
 .powerbi-icon { font-size: 2rem; }
 
+/* Visor de Power BI (UX-07C) */
+.powerbi-frame-wrap { display: grid; gap: .5rem; }
+.powerbi-frame { position: relative; min-height: clamp(320px, 62vh, 760px); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.powerbi-frame iframe { display: block; width: 100%; height: clamp(320px, 62vh, 760px); border: 0; background: #fff; }
+.powerbi-frame-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; margin: 0; padding: 1rem; text-align: center; color: var(--ink-700); background: rgba(255,255,255,.85); pointer-events: none; }
+.powerbi-frame[data-state="frame-loaded"] .powerbi-frame-loading { display: none; }
+.viewer-help a { font-weight: 650; }
+.viewer-mode { margin: 0; padding: .45rem .7rem; border-radius: 6px; font-size: .85rem; border: 1px dashed var(--line); background: var(--surface-2); }
+.viewer-mode--real { color: var(--wine-800, #5a1d1d); background: #fff4e0; border: 1px solid #e0b25a; }
+.viewer-state { display: grid; justify-items: center; gap: .4rem; padding: 2rem 1rem; text-align: center; border: 1px solid var(--line); border-left: 4px solid var(--gold-500); border-radius: var(--radius); background: var(--surface); }
+.viewer-state h2 { margin: 0; font-size: 1.1rem; }
+.viewer-state p { max-width: 62ch; margin: 0; color: var(--ink-700); }
+.viewer-state--warn { border-left-color: var(--wine-700); }
+.link-detected { margin: 0; padding: .5rem .7rem; border-radius: 6px; font-size: .85rem; border: 1px solid var(--line); background: var(--surface-2); }
+.link-detected--ok { color: var(--success); background: var(--success-bg); border-color: #a9d3bd; }
+.link-detected--error { color: var(--danger); background: #fbeeee; border-color: #e6bcbc; }
+
 /* Asistente */
 .stepper { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .6rem; padding: 0; list-style: none; }
 .step { display: flex; align-items: center; gap: .35rem; padding: .25rem .65rem; border: 0; border-radius: 999px; color: var(--ink-700); background: #e8e5df; font-size: .78rem; font-weight: 750; }

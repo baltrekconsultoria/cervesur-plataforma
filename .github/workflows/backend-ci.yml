@@ -145,3 +145,9 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS \
             cervesur-ci-php:local php tests/isolated/http_company_report_test.php
+
+          # UX-07C: registro por enlace, identificadores internos/externos y configuración autorizada del visor (incluye la migración reversible)
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_viewer_test.php

@@ -17,6 +17,8 @@
     "dev:qa": "node scripts/ensure-qa-env.mjs && vite --mode qa",
     "build:qa": "node scripts/ensure-qa-env.mjs && tsc --noEmit && vite build --mode qa --outDir dist-qa",
     "preview:qa": "vite preview --mode qa --outDir dist-qa --port 4175",
+    "build:qa:real": "node scripts/build-qa-real.mjs",
+    "preview:qa:real": "vite preview --mode qa --outDir dist-qa-real --port 4177",
     "qa:up": "node qa/backend.mjs up",
     "qa:down": "node qa/backend.mjs down",
     "qa:status": "node qa/backend.mjs status",

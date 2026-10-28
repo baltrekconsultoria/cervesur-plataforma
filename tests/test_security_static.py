@@ -104,5 +104,28 @@ class SecurityStaticChecks(unittest.TestCase):
                 self.assertNotIn("'sqlstate'", line)
         self.assertIn("display_errors", source("backend/router/index.php"))
 
+    def test_viewer_endpoint_requires_auth_and_is_not_cached(self):
+        text = source("backend/router/ReporteRouter.php")
+        block = text[text.index("/visor$/"):text.index("// GET /api/reportes/reporteid/{uuid} - Obtener reporte por reporte_id")]
+        self.assertLess(block.index("require_auth("), block.index("getViewer("))
+        self.assertIn("no-store", block)
+        controller = source("backend/controllers/ReporteController.php")
+        viewer = controller[controller.index("public function getViewer"):controller.index("public function getAll")]
+        for forbidden in ("powerbi_clientsecret", "access_token", "powerbi_tenant", "getAccessToken"):
+            self.assertNotIn(forbidden, viewer)
+        self.assertLess(viewer.index("getByReporteId("), viewer.index("classify_powerbi_link("))
+
+    def test_report_links_are_always_classified_before_saving(self):
+        controller = source("backend/controllers/ReporteController.php")
+        self.assertIn("classify_powerbi_link(", controller[controller.index("private function validateReport"):controller.index("public function create")])
+        link = source("backend/lib/powerbi_link.php")
+        self.assertIn("app.powerbi.com", link)
+        self.assertNotIn("file_get_contents(", link)
+        self.assertNotIn("curl_", link)
+
+    def test_legacy_token_endpoint_refuses_reports_without_power_bi_ids(self):
+        router = source("backend/router/PowerBIRouter.php")
+        self.assertLess(router.index("grupo_id"), router.index("getAccessToken("))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

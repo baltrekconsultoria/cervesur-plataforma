@@ -31,4 +31,12 @@ $pdo->exec('INSERT INTO user_empresa_reporte (id,user_id,empresa_reporte_id,acti
 $pdo->exec('INSERT INTO empresa_usuario (id,empresa_id,user_id,activo) VALUES (10,1,8,1),(11,2,8,1)');
 $pdo->exec('INSERT INTO empresa_reporte (id,empresa_id,reporte_id,activo) VALUES (9,2,4,1)');
 $pdo->exec('INSERT INTO user_empresa_reporte (id,user_id,empresa_reporte_id,activo) VALUES (10,8,1,1),(11,8,5,1),(12,8,9,1)');
+// UX-07C: enlaces SINTÉTICOS con la forma de «Publicar en web» (no son informes reales; el visor QA los abre en una página local).
+// «Reporte C» (3) y «Ventas regionales» (4) conservan su enlace antiguo NO compatible y «Inventario norte» (5) es una inserción autenticada: así se ven los tres modos.
+$publicLinks = [1 => 'U0lOVEVUSUNPLVJFUE9SVEUtMDAwMQ', 2 => 'U0lOVEVUSUNPLVJFUE9SVEUtMDAwMg', 6 => 'U0lOVEVUSUNPLVJFUE9SVEUtMDAwNg'];
+$setLink = $pdo->prepare('UPDATE reporte SET enlace = ? WHERE id = ?');
+foreach ($publicLinks as $id => $token) {
+    $setLink->execute(['https://app.powerbi.com/view?r=' . $token, $id]);
+}
+$setLink->execute(['https://app.powerbi.com/reportEmbed?reportId=00000000-0000-0000-0000-000000000055&groupId=00000000-0000-0000-0000-000000000002', 5]);
 echo "Synthetic QA fixtures added\n";

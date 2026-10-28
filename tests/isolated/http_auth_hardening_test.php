@@ -154,8 +154,8 @@ $endpoints = [
     ['GET', '/api/empresa-reporte-usuario'], ['GET', '/api/empresa-reporte-usuario/1'], ['GET', '/api/empresa-reporte-usuario/ruc/00000000001'], ['GET', '/api/empresa-reporte-usuario/empresa/Empresa%20A'], ['GET', '/api/empresa-reporte-usuario/user/1'],
     ['POST', '/api/empresa-reporte-usuario', ['empresa_reporte_id' => 1, 'user_id' => 3]], ['PUT', '/api/empresa-reporte-usuario/1', ['notas' => 'x']], ['DELETE', '/api/empresa-reporte-usuario/1'],
     ['GET', '/api/asignacion'], ['POST', '/api/asignacion', ['empresa_id' => 1, 'reporte_id' => 1]],
-    ['GET', '/api/reportes'], ['GET', '/api/reportes/activos'], ['GET', '/api/reportes/1'], ['POST', '/api/reportes', ['nombre' => 'R', 'enlace' => 'https://example.invalid/r', 'grupo_id' => '00000000-0000-0000-0000-000000000009', 'reporte_id' => '00000000-0000-0000-0000-000000000009']],
-    ['PUT', '/api/reportes/1', ['nombre' => 'R2']], ['DELETE', '/api/reportes/1'],
+    ['GET', '/api/reportes'], ['GET', '/api/reportes/activos'], ['GET', '/api/reportes/1'], ['POST', '/api/reportes', ['nombre' => 'R', 'enlace' => 'https://app.powerbi.com/reportEmbed?reportId=00000000-0000-0000-0000-000000000009&groupId=00000000-0000-0000-0000-000000000008']],
+    ['PUT', '/api/reportes/1', ['nombre' => 'R2', 'enlace' => 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE']], ['DELETE', '/api/reportes/1'],
     ['GET', '/api/empresas'], ['GET', '/api/empresas/1'], ['GET', '/api/stats'],
 ];
 // Las escrituras de este bucle (PUT/DELETE/POST) pueden prosperar cuando la tabla renombrada no es la que usan: se restaura el fixture al terminar.
