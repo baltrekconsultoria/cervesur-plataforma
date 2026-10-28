@@ -76,8 +76,9 @@ if (preg_match('#^/api/empresas/(\d+)$#', $uri, $matches)) {
         $user_data = require_auth($jwt_secret);
         $user_id = $user_data['user_id'];
         $role = $user_data['role'];
+        [$view, $resource] = require_detail_view($role, 'empresa');
         $response = $empresaController->getById($id, $user_id, $role);
-        echo json_encode(apply_view($response, require_view(), 'empresa'));
+        echo json_encode(apply_view($response, $view, $resource));
         exit;
     } elseif ($method === 'PUT') {
         // PUT /api/empresas/{id} - Actualizar empresa

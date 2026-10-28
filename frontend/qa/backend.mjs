@@ -144,7 +144,7 @@ async function ci() {
       console.log('\n(Esta rama no incluye la suite de paginación del PR #4; se omite.)');
     }
     // SEC-05A (registro, roles, errores) y UX-07A (administración de accesos): mismos contenedores; requieren las credenciales de la base.
-    for (const [file, title] of [['http_auth_hardening_test.php', 'SEC-05A: registro, roles y errores internos'], ['http_admin_access_test.php', 'UX-07A: administración de accesos']]) {
+    for (const [file, title] of [['http_auth_hardening_test.php', 'SEC-05A: registro, roles y errores internos'], ['http_admin_access_test.php', 'UX-07A: administración de accesos'], ['http_company_report_test.php', 'UX-07B: empresas, informes y asociaciones']]) {
       if (existsSync(join(REPO, 'tests', 'isolated', file))) run(`Pruebas HTTP ${title} (tests/isolated/${file})`, ['run', '--rm', '--network', net, ...vol, '--env', 'TEST_DB_PASS', IMAGE, 'php', `tests/isolated/${file}`], { env: { ...process.env, ...env } });
     }
   } finally { clean(); }

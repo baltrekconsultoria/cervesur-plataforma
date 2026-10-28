@@ -13,21 +13,42 @@ const VIEW_MINIMAL_FIELDS = [
     'empresa' => ['id', 'nombre', 'razon_social', 'ruc', 'ciudad', 'pais', 'logo', 'activo'],
     'asignacion' => ['id', 'empresa_id', 'empresa_nombre', 'reporte_id', 'reporte_nombre', 'activo'],
     // UX-07A (administración de accesos): solo identificadores y etiquetas; sin `reporte_enlace`, `created_by*` ni notas.
+    // UX-07B (formularios de edición, SOLO administradores): datos no sensibles. Nunca incluye powerbi_* ni secretos;
+    // el informe incluye su enlace porque es un dato que el administrador debe poder corregir.
+    'empresa_form' => ['id', 'nombre', 'razon_social', 'ruc', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 'activo'],
+    'reporte_form' => ['id', 'nombre', 'descripcion', 'enlace', 'grupo_id', 'reporte_id', 'activo'],
     'empresa_usuario' => ['id', 'user_id', 'empresa_id', 'activo'],
     'empresa_reporte_usuario' => ['id', 'user_id', 'empresa_id', 'empresa_reporte_id', 'reporte_id', 'activo'],
 ];
 
 /** Valida `view`: null (sin vista), 'minimal', o responde 400 y termina. */
-function require_view() {
+function require_view(array $allowed = ['minimal']) {
     if (!array_key_exists('view', $_GET)) {
         return null;
     }
-    if ($_GET['view'] !== 'minimal') {
+    if (!is_string($_GET['view']) || !in_array($_GET['view'], $allowed, true)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'El parámetro view solo admite el valor "minimal"']);
+        echo json_encode(['success' => false, 'message' => 'El parámetro view solo admite el valor ' . implode(' o ', array_map(function ($v) { return '"' . $v . '"'; }, $allowed))]);
         exit;
     }
-    return 'minimal';
+    return $_GET['view'];
+}
+
+/**
+ * Vista de un detalle (UX-07B): `minimal` para cualquiera; `form` solo para administradores (403 al resto).
+ * Devuelve [vista, recurso] para apply_view()/run_with_view().
+ */
+function require_detail_view($role, $resource) {
+    $view = require_view(['minimal', 'form']);
+    if ($view === 'form') {
+        if (strtolower((string)$role) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+        return [$view, $resource . '_form'];
+    }
+    return [$view, $resource];
 }
 
 function project_view_row(array $row, array $allowed) {

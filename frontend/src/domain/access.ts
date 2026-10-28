@@ -20,6 +20,7 @@ export function assignmentStatus(a: Assignment, users: User[], reports: Report[]
   if (!user?.active) return { ok: false, reason: 'Usuario inactivo' };
   if (!report?.active) return { ok: false, reason: 'Informe inactivo' };
   if (!company?.active) return { ok: false, reason: 'Empresa inactiva' };
+  if (companyId && !report.companyIds.includes(companyId)) return { ok: false, reason: 'Informe desvinculado de la empresa' };
   if (!companyId || !user.companyIds.includes(companyId)) return { ok: false, reason: 'Sin relación con la empresa' };
   return { ok: true, reason: 'Vigente' };
 }

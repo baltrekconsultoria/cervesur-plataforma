@@ -9,8 +9,10 @@ import { launch } from './cdp.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const shots = process.env.E2E_SHOTS_DIR ?? join(root, 'e2e', '.tmp', 'capturas-qa');
 mkdirSync(shots, { recursive: true });
-const FRONT = 'http://127.0.0.1:4175';
-const FRONT_SHORT = 'http://127.0.0.1:4176';
+// Puertos configurables (E2E_PORT): evita chocar con una vista previa que el equipo tenga abierta para QA manual.
+const PORT = Number(process.env.E2E_PORT ?? 4175);
+const FRONT = `http://127.0.0.1:${PORT}`;
+const FRONT_SHORT = `http://127.0.0.1:${PORT + 1}`;
 const API = 'http://127.0.0.1:8080';
 const PASSWORD = 'synthetic-password';
 const results = [];
@@ -18,7 +20,7 @@ let current = '';
 const ok = (name, cond, extra = '') => results.push([cond ? 'PASS' : 'FAIL', `${current} · ${name}`, extra]);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const previews = [[4175, 'http://127.0.0.1:8080'], [4176, 'http://127.0.0.1:8081']].map(([port, target]) =>
+const previews = [[PORT, 'http://127.0.0.1:8080'], [PORT + 1, 'http://127.0.0.1:8081']].map(([port, target]) =>
   spawn(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'preview', '--mode', 'qa', '--outDir', 'dist-qa', '--port', String(port)], { cwd: root, stdio: 'ignore', env: { ...process.env, QA_API_TARGET: target } }));
 for (const url of [FRONT, FRONT_SHORT]) { for (let i = 0; i < 40; i++) { try { if ((await fetch(url)).ok) break; } catch { /* aún no */ } await sleep(250); } }
 
@@ -202,7 +204,7 @@ async function desktop() {
 
   current = 'Aislamiento de red del navegador';
   const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/[0-9a-f-]{36}|id-con[\w-]+/g, ':id')))].sort();
-  ok('todas las solicitudes van a 127.0.0.1:4175', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
+  ok('todas las solicitudes van al origen local de la aplicación', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
   ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/reporteid\/:id|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
   const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url) && !r.url.includes('/reporteid/'));
   ok('todos los listados piden view=minimal y páginas de 100 como máximo', lists.length > 0 && lists.every(r => new URL(r.url).searchParams.get('view') === 'minimal' && Number(new URL(r.url).searchParams.get('per_page')) <= 100 && new URL(r.url).searchParams.has('page')), `${lists.length} solicitudes de listado`);
@@ -211,7 +213,7 @@ async function desktop() {
   const adminLists = b.requestLog.filter(r => /\/api\/(users|empresa-usuario|empresa-reporte-usuario)(\?|$)/.test(r.url));
   ok('los listados administrativos leen todas las páginas (máximo 100 por página)', adminLists.length > 0 && adminLists.every(r => Number(new URL(r.url).searchParams.get('per_page')) === 100 && new URL(r.url).searchParams.has('page')), `${adminLists.length} solicitudes`);
   ok('los listados de relaciones piden view=minimal (sin enlaces de Power BI ni datos de creación)', adminLists.filter(r => !/\/api\/users/.test(r.url)).every(r => new URL(r.url).searchParams.get('view') === 'minimal'));
-  ok('ninguna petición lleva credenciales de cookie ni a hosts externos', b.requests.every(u => /^(http:\/\/127\.0\.0\.1:4175|data:|about:)/.test(u)));
+  ok('ninguna petición lleva credenciales de cookie ni a hosts externos', b.requests.every(u => u.startsWith(FRONT) || /^(data:|about:)/.test(u)));
   ok('sin errores de consola (escritorio)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
   await b.close();
 }
@@ -334,6 +336,154 @@ async function adminFlow() {
   await b.close();
 }
 
+/* UX-07B: circuito completo empresa → reporte → asociación → usuario → acceso → retirada, sobre PHP y MySQL sintéticos. */
+async function catalogFlow() {
+  const b = await launch({ port: 9505 });
+  await b.goto(FRONT + '/');
+  const settle = () => b.wait(1200);
+  const clickByText = async (selector, label) => { const done = await b.eval(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(selector)})].find(x => x.textContent.includes(${JSON.stringify(label)})); if (!e) return false; e.click(); return true; })()`); await b.wait(500); return done; };
+  const tableRows = b => b.eval(`[...document.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\\s+/g, ' ').trim())`);
+  // El cierre de sesión de la interfaz revoca la sesión del administrador: cada consulta directa usa un inicio de sesión nuevo.
+  const A = async () => (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
+  const digits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+  const ruc = `20${digits}`;
+  const uuid = crypto.randomUUID(); const group = crypto.randomUUID();
+  const companyName = `Empresa C ${digits.slice(0, 4)}`; const reportName = `Informe Sintético ${digits.slice(0, 4)}`; const username = `operador.${digits.slice(0, 5)}`;
+  const findCompany = async () => (await nodeApi('GET', '/api/empresas?view=minimal&per_page=100', await A())).data.find(c => c.ruc === ruc);
+  const findReport = async () => (await nodeApi('GET', '/api/reportes?view=minimal&per_page=100', await A())).data.find(r => r.reporte_id === uuid);
+
+  current = 'UX-07B · empresas';
+  await login(b, 'admin');
+  await navTo(b, 'Empresas'); await settle();
+  ok('«Nueva empresa» disponible', await clickByText('button', 'Nueva empresa') && await count(b, 'dialog[open]') === 1);
+  ok('el formulario no tiene campos de credenciales de Power BI', await b.eval(`[...document.querySelectorAll('.modal label')].every(l => !/tenant|secret|client|power ?bi/i.test(l.firstChild?.textContent ?? ''))`) && await count(b, '.modal input') === 8);
+  await b.shot(join(shots, '50-empresa-nueva.png'));
+  await b.click('.modal form button[type=submit]');
+  ok('validaciones: nombre, razón social y RUC obligatorios, sin llamar al servidor', (await text(b, '.modal')).includes('Ingrese el nombre.') && (await text(b, '.modal')).includes('11 dígitos') && !b.requestLog.some(r => r.method === 'POST' && r.url.endsWith('/api/empresas')));
+  await b.type('#co-name', companyName); await b.type('#co-legal', `${companyName} S.A.C.`); await b.type('#co-ruc', '00000000001'); // RUC de Empresa A
+  await b.click('.modal form button[type=submit]'); await b.wait(900);
+  ok('RUC duplicado: PHP lo rechaza, el diálogo sigue abierto y no hay éxito falso', (await text(b, '.modal')).includes('El RUC ya está registrado') && await count(b, 'dialog[open]') === 1 && !(await body(b)).includes('creada correctamente') && !(await findCompany()));
+  await b.shot(join(shots, '51-empresa-ruc-duplicado.png'));
+  await b.type('#co-ruc', ruc); await b.type('#co-city', 'Cusco');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('empresa creada: aviso y fila en el listado', (await body(b)).includes(`Empresa «${companyName}» creada correctamente.`) && (await tableRows(b)).some(r => r.includes(companyName) && r.includes('Cusco')));
+  const company = await findCompany();
+  ok('persistió en MySQL con RUC y estado activo', company?.nombre === companyName && company?.activo === 1);
+  await b.shot(join(shots, '52-empresa-creada.png'));
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Editar ${companyName}`)}).click()`); await b.wait(900);
+  ok('editar carga el detalle real (RUC y ciudad)', await b.eval(`document.querySelector('#co-ruc').value === ${JSON.stringify(ruc)} && document.querySelector('#co-city').value === 'Cusco'`));
+  await b.type('#co-city', 'Arequipa'); await b.type('#co-phone', '988 777 666');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('edición confirmada y reflejada en la lista', (await body(b)).includes('actualizada correctamente') && (await tableRows(b)).some(r => r.includes(companyName) && r.includes('Arequipa')));
+  const edited = (await nodeApi('GET', `/api/empresas/${company.id}?view=form`, await A())).data;
+  ok('persistió en MySQL (ciudad y teléfono) sin tocar Power BI', edited.ciudad === 'Arequipa' && edited.telefono === '988 777 666' && !JSON.stringify(edited).match(/powerbi/));
+
+  current = 'UX-07B · reportes';
+  await navTo(b, 'Reportes'); await settle();
+  ok('«Nuevo reporte» disponible', await clickByText('button', 'Nuevo reporte') && await count(b, 'dialog[open]') === 1);
+  ok('el formulario explica los campos técnicos y pide datos sintéticos', (await text(b, '.modal')).includes('solo datos sintéticos') && (await text(b, '.modal')).includes('UUID del informe'));
+  await b.type('#rp-name', reportName); await b.type('#rp-description', 'Informe de prueba UX-07B'); await b.type('#rp-link', 'esto no es una url'); await b.type('#rp-group', 'no-uuid'); await b.type('#rp-uuid', '123');
+  await b.click('.modal form button[type=submit]');
+  ok('validaciones de enlace y UUID antes de enviar', (await text(b, '.modal')).includes('URL válida') && (await text(b, '.modal')).includes('UUID válido') && !b.requestLog.some(r => r.method === 'POST' && r.url.endsWith('/api/reportes')));
+  await b.shot(join(shots, '53-reporte-validaciones.png'));
+  await b.type('#rp-link', 'https://example.invalid/informes/ux07b'); await b.type('#rp-group', group); await b.type('#rp-uuid', '00000000-0000-0000-0000-000000000011'); // UUID de Reporte A
+  await b.click('.modal form button[type=submit]'); await b.wait(900);
+  ok('UUID repetido: PHP lo rechaza y no hay éxito falso', (await text(b, '.modal')).includes('Ya existe un informe con ese ID de Power BI') && await count(b, 'dialog[open]') === 1 && !(await findReport()));
+  await b.type('#rp-uuid', uuid);
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('reporte creado: aviso y fila sin empresa', (await body(b)).includes(`Reporte «${reportName}» creado correctamente`) && (await tableRows(b)).some(r => r.includes(reportName) && r.includes('—')));
+  const report = await findReport();
+  ok('persistió en MySQL con su UUID en minúsculas', report?.nombre === reportName && report?.reporte_id === uuid);
+  await b.select('#ar-status', 'unlinked'); await b.wait(400);
+  ok('el filtro «Sin empresa» lo encuentra', (await tableRows(b)).some(r => r.includes(reportName)));
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Editar ${reportName}`)}).click()`); await b.wait(900);
+  ok('editar carga el enlace y los identificadores reales (solo administrador)', await b.eval(`document.querySelector('#rp-link').value === 'https://example.invalid/informes/ux07b' && document.querySelector('#rp-uuid').value === ${JSON.stringify(uuid)}`));
+  await b.type('#rp-description', 'Descripción editada');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('edición confirmada', (await body(b)).includes('actualizado correctamente') && (await tableRows(b)).some(r => r.includes(reportName) && r.includes('Descripción editada')));
+  const stored = (await nodeApi('GET', `/api/reportes/${report.id}?view=form`, await A())).data;
+  ok('persistió y el editor quedó registrado (updated_by)', stored.descripcion === 'Descripción editada' && (docker('exec', 'cervesur-qa-db', 'sh', '-c', `mysql -N -uroot -p"$MYSQL_ROOT_PASSWORD" fixture -e "SELECT updated_by FROM reporte WHERE id = ${Number(report.id)}" 2>/dev/null`).stdout ?? '').trim().match(/^\d+$/) !== null);
+  await b.shot(join(shots, '54-reporte-editado.png'));
+
+  current = 'UX-07B · asociación empresa ↔ informe';
+  await navTo(b, 'Informes por empresa'); await settle();
+  ok('sin empresa seleccionada se pide elegir una', (await body(b)).includes('Seleccione una empresa'));
+  await b.select('#cr-company', String(company.id)); await b.wait(700);
+  ok('la empresa nueva no tiene informes asociados', (await body(b)).includes('aún no tiene informes asociados'));
+  ok('el informe nuevo figura entre los disponibles', await b.eval(`[...document.querySelectorAll('[aria-label="Informes disponibles"] label')].some(l => l.textContent.includes(${JSON.stringify(reportName)}))`));
+  await b.shot(join(shots, '55-asociacion-disponibles.png'));
+  await b.eval(`[...document.querySelectorAll('[aria-label="Informes disponibles"] label')].find(l => l.textContent.includes(${JSON.stringify(reportName)})).querySelector('input').click()`); await b.wait(300);
+  await clickByText('button', 'Asociar seleccionados'); await b.wait(1200);
+  ok('asociación confirmada: resultado por informe y aparece en «asociados»', (await text(b, '[aria-label="Resultado de la asociación"]')).includes('Asociado') && (await text(b, '[aria-label="Informes asociados"]')).includes(reportName));
+  const links = (await nodeApi('GET', '/api/asignacion?view=minimal&per_page=100', await A())).data.data.filter(a => a.reporte_id === report.id);
+  ok('persistió en MySQL con los ids numéricos (empresa.id y reporte.id)', links.length === 1 && links[0].empresa_id === company.id);
+  const asociar = b.requestLog.filter(r => r.method === 'POST' && r.url.endsWith('/api/asignacion')).at(-1);
+  ok('la petición usa ids numéricos, no el UUID', Boolean(asociar) && JSON.parse(asociar.postData).empresa_id === company.id && JSON.parse(asociar.postData).reporte_id === Number(report.id));
+  await b.shot(join(shots, '56-asociacion-confirmada.png'));
+  await b.select('#cr-company', '1'); await b.wait(700); // Empresa A: informe ajeno ya compartido no se confunde
+  ok('Empresa A conserva sus informes y no recibe el nuevo', !(await text(b, '[aria-label="Informes asociados"]')).includes(reportName));
+  await navTo(b, 'Reportes'); await settle();
+  ok('el listado de reportes muestra el informe con su empresa', (await tableRows(b)).some(r => r.includes(reportName) && r.includes(companyName)));
+
+  current = 'UX-07B · integración con UX-07A';
+  await navTo(b, 'Usuarios'); await settle();
+  await clickByText('button', 'Nuevo usuario');
+  await b.type('#nu-first', 'Operador'); await b.type('#nu-last', 'Catálogo'); await b.type('#nu-username', username); await b.type('#nu-email', `${username}@example.invalid`); await b.type('#nu-password', PASSWORD);
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('usuario sintético creado', (await body(b)).includes('creado correctamente'));
+  await clickLink(b, 'Asignar accesos a Operador Catálogo');
+  await clickByText('button', 'Continuar');
+  await b.eval(`[...document.querySelectorAll('input[name=wz-company]')].find(i => i.closest('label').textContent.includes(${JSON.stringify(companyName)})).click()`); await b.wait(300);
+  await clickByText('button', 'Continuar');
+  ok('el asistente ofrece el informe recién registrado (y solo los de la empresa)', JSON.stringify(await b.eval(`[...document.querySelectorAll('.selection-list input[type=checkbox]')].map(i => i.closest('label').querySelector('strong').textContent)`)) === JSON.stringify([reportName]));
+  await b.eval(`document.querySelector('.selection-list input[type=checkbox]').click()`); await b.wait(300);
+  await clickByText('button', 'Continuar');
+  await clickByText('button', 'Guardar accesos'); await b.wait(1300);
+  ok('acceso concedido', (await text(b, '.success-box')).includes('Accesos guardados'));
+  await b.shot(join(shots, '57-acceso-informe-nuevo.png'));
+  await logout(b);
+  await login(b, username);
+  ok('el usuario entra y ve únicamente el informe asignado', await path(b) === '/reportes' && JSON.stringify(await cards(b)) === JSON.stringify([reportName]), (await cards(b)).join(', '));
+  await b.shot(join(shots, '58-usuario-ve-informe.png'));
+  await go(b, '/reportes/00000000-0000-0000-0000-000000000022'); await settle();
+  ok('un informe ajeno → acceso denegado neutral', (await text(b, '#page-title')) === 'Acceso denegado');
+  await go(b, `/reportes/${uuid}`); await settle();
+  ok('el informe asignado abre en el visor simulado, sin enlace técnico', (await text(b, '#page-title')) === reportName && !(await b.eval('document.documentElement.outerHTML')).includes('example.invalid'));
+  await logout(b);
+
+  current = 'UX-07B · retirada y persistencia';
+  await login(b, 'admin');
+  await go(b, `/admin/accesos?q=${encodeURIComponent('Catálogo')}`); await settle();
+  await clickByText('button', 'Retirar');
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('acceso retirado con confirmación', (await body(b)).includes('retirado') && !(await tableRows(b)).some(r => r.includes('Operador Catálogo')));
+  await logout(b);
+  await login(b, username);
+  ok('el usuario ya no ve el informe', await path(b) === '/reportes' && await count(b, '.report-card') === 0);
+  await go(b, `/reportes/${uuid}`); await settle();
+  ok('y no puede abrirlo', (await text(b, '#page-title')) === 'Acceso denegado');
+  await logout(b);
+  await login(b, 'admin');
+  await go(b, `/admin/asociaciones?company=${company.id}`); await settle();
+  ok('la asociación empresa ↔ informe sigue vigente (retirar el acceso no la rompe)', (await text(b, '[aria-label="Informes asociados"]')).includes(reportName));
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Desvincular ${reportName} de ${companyName}`)}).click()`); await b.wait(500);
+  ok('desvincular pide confirmación e informa del efecto', await count(b, 'dialog[open]') === 1 && (await text(b, '.modal')).includes('dejarán de verlo'));
+  await b.shot(join(shots, '59-desvincular-confirmar.png'));
+  await clickByText('.modal button', 'Cancelar');
+  ok('cancelar no desvincula', (await text(b, '[aria-label="Informes asociados"]')).includes(reportName) && !b.requestLog.some(r => r.method === 'DELETE' && r.url.includes('/api/asignacion/')));
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(`Desvincular ${reportName} de ${companyName}`)}).click()`); await b.wait(500);
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('desvinculado: aviso y el informe vuelve a «disponibles»', (await body(b)).includes('desvinculado de') && !(await text(b, '[aria-label="Informes asociados"]').catch(() => '')).includes(reportName) && await b.eval(`[...document.querySelectorAll('[aria-label="Informes disponibles"] label')].some(l => l.textContent.includes(${JSON.stringify(reportName)}))`));
+  ok('MySQL: la asociación quedó inactiva y el informe no se eliminó', (await nodeApi('GET', '/api/asignacion?view=minimal&per_page=100', await A())).data.data.filter(a => a.reporte_id === report.id).length === 0 && Boolean(await findReport()));
+  await b.send('Page.reload'); await b.wait(1200);
+  await login(b, 'admin');
+  await go(b, `/admin/asociaciones?company=${company.id}`); await settle();
+  ok('tras recargar, la asociación sigue desvinculada y la empresa y el informe siguen existiendo', !(await text(b, '[aria-label="Informes asociados"]').catch(() => '')).includes(reportName) && Boolean(await findCompany()) && Boolean(await findReport()));
+  await b.select('#cr-company', String(company.id));
+  ok('sin errores de consola (UX-07B)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
+  await b.close();
+}
+
 async function expiredJwt() {
   const b = await launch({ port: 9502 });
   await b.goto(FRONT_SHORT + '/');
@@ -382,12 +532,27 @@ async function mobile() {
   await go(b, '/admin/accesos/nueva');
   ok('asistente de accesos en móvil sin desbordamiento horizontal', await count(b, 'input[name=wz-user]') >= 1 && await b.eval(`document.documentElement.scrollWidth <= innerWidth`));
   await b.shot(join(shots, '26-movil-asistente.png'));
+  await go(b, '/admin/empresas');
+  await b.wait(900);
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('Nueva empresa')).click()`); await b.wait(500);
+  ok('formulario de empresa en móvil: cabe en pantalla', await b.eval(`(() => { const r = document.querySelector('dialog[open]').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()`));
+  await b.shot(join(shots, '27-movil-nueva-empresa.png'));
+  await b.eval(`[...document.querySelectorAll('dialog[open] button')].find(x => x.textContent.includes('Cancelar')).click()`); await b.wait(300);
+  await go(b, '/admin/reportes');
+  await b.wait(900);
+  await b.eval(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('Nuevo reporte')).click()`); await b.wait(500);
+  ok('formulario de reporte en móvil: cabe en pantalla', await b.eval(`(() => { const r = document.querySelector('dialog[open]').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth; })()`));
+  await b.eval(`[...document.querySelectorAll('dialog[open] button')].find(x => x.textContent.includes('Cancelar')).click()`); await b.wait(300);
+  await go(b, '/admin/asociaciones?company=1');
+  await b.wait(900);
+  ok('asociaciones en móvil sin desbordamiento horizontal', await count(b, '[aria-label="Informes asociados"]') === 1 && await b.eval(`document.documentElement.scrollWidth <= innerWidth`));
+  await b.shot(join(shots, '28-movil-asociaciones.png'));
   ok('sin errores de consola (móvil)', b.consoleErrors.length === 0, b.consoleErrors.join(' | '));
   await b.close();
 }
 
 try {
-  for (const step of [desktop, adminFlow, expiredJwt, mobile]) { try { await step(); } catch (e) { results.push(['FAIL', `${current} · EXCEPCIÓN`, e.message]); } }
+  for (const step of [desktop, adminFlow, catalogFlow, expiredJwt, mobile]) { try { await step(); } catch (e) { results.push(['FAIL', `${current} · EXCEPCIÓN`, e.message]); } }
 } finally {
   previews.forEach(p => p.kill());
   docker('start', 'cervesur-qa-proxy');

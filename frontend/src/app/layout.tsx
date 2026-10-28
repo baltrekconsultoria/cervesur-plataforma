@@ -21,6 +21,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/usuarios', label: 'Usuarios', icon: '♟' },
   { to: '/admin/empresas', label: 'Empresas', icon: '▤' },
   { to: '/admin/reportes', label: 'Reportes', icon: '▦', active: (p, from) => p.startsWith('/admin/reportes') || (p.startsWith('/reportes/') && Boolean(from?.startsWith('/admin/reportes'))) },
+  { to: '/admin/asociaciones', label: 'Informes por empresa', icon: '▥' },
   { to: '/admin/accesos', label: 'Accesos y asignaciones', icon: '⇄' },
   { section: 'Cuenta' },
   { to: '/perfil', label: 'Mi perfil', icon: '◉' }

@@ -51,7 +51,7 @@ describe('UX-07A · alta de usuarios', () => {
     const { user, login } = setup();
     await login('elena.torres');
     await screen.findByRole('heading', { level: 1, name: 'Inicio administrativo' });
-    await user.click(screen.getByRole('link', { name: /Usuarios/ }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('link', { name: /Usuarios/ }));
     await user.click(await screen.findByRole('button', { name: 'Nuevo usuario' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nuevo usuario' });
 
@@ -82,7 +82,7 @@ describe('UX-07A · alta de usuarios', () => {
   it('el formulario no ofrece rol ni estado: los decide el servidor', async () => {
     const { user, login } = setup('/login');
     await login('elena.torres');
-    await user.click(await screen.findByRole('link', { name: /Usuarios/ }));
+    await user.click(within(await screen.findByRole('navigation', { name: 'Secciones' })).getByRole('link', { name: /Usuarios/ }));
     await user.click(await screen.findByRole('button', { name: 'Nuevo usuario' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nuevo usuario' });
     expect(within(dialog).queryByLabelText(/rol|estado|activo/i)).toBeNull();

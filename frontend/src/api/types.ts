@@ -63,6 +63,49 @@ export interface NewUser {
   password: string;
 }
 
+/** Datos editables de una empresa. No incluye credenciales de Power BI (se gestionarán en otra etapa). */
+export interface CompanyInput {
+  name: string;
+  legalName: string;
+  /** RUC: 11 dígitos. */
+  taxId: string;
+  city: string;
+  country: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+export interface CompanyDetail extends CompanyInput { id: string }
+
+/** Datos técnicos de un informe: el vínculo y los identificadores de Power BI solo los ve un administrador. */
+export interface ReportInput {
+  name: string;
+  description: string;
+  /** Enlace del informe en Power BI. */
+  link: string;
+  /** UUID del grupo (workspace) de Power BI. */
+  groupId: string;
+  /** UUID del informe en Power BI (es el identificador que usa la interfaz). */
+  reportId: string;
+}
+export interface ReportDetail extends ReportInput {
+  /** Id numérico interno (MySQL): necesario para guardar cambios. */
+  internalId: string;
+}
+
+/** Asociación empresa ↔ informe (tabla `empresa_reporte`). `reportId` es el UUID del informe. */
+export interface ReportLink {
+  id: string;
+  companyId: string;
+  reportId: string;
+}
+
+export interface LinkRequest {
+  companyId: string;
+  /** UUID de cada informe a asociar. */
+  reportIds: string[];
+}
+
 export interface GrantRequest {
   userId: string;
   companyId: string;
@@ -132,6 +175,19 @@ export interface ApiClient {
   grantAccess(request: GrantRequest): Promise<GrantResult[]>;
   /** Solo administradores. Retira (baja lógica) un acceso por el id de la relación. */
   revokeAssignment(assignmentId: string): Promise<void>;
+  /** Solo administradores (UX-07B). */
+  getCompanyDetail(id: string): Promise<CompanyDetail>;
+  createCompany(input: CompanyInput): Promise<void>;
+  updateCompany(id: string, input: CompanyInput): Promise<void>;
+  getReportDetail(reportId: string): Promise<ReportDetail>;
+  createReport(input: ReportInput): Promise<void>;
+  updateReport(internalId: string, input: ReportInput): Promise<void>;
+  /** Asociaciones empresa ↔ informe vigentes. */
+  listReportLinks(): Promise<ReportLink[]>;
+  /** Asocia informes a una empresa. Un resultado por informe; nunca figura como asociado algo que el servidor rechazó. */
+  linkReports(request: LinkRequest): Promise<GrantResult[]>;
+  /** Desvincula (baja lógica) una asociación por su id. */
+  unlinkReport(linkId: string): Promise<void>;
 }
 
 /** Almacén del token. La implementación por defecto vive solo en memoria. */

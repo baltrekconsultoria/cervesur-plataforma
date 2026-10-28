@@ -139,3 +139,9 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS \
             cervesur-ci-php:local php tests/isolated/http_admin_access_test.php
+
+          # UX-07B: empresas, informes y asociaciones empresa-informe
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_company_report_test.php

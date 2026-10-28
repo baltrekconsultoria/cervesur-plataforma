@@ -1,6 +1,6 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, GrantRequest, GrantResult, LoginRequest, NewUser, Report, TokenStore, User } from '../types';
-import { composeReportCatalog, toActive, toAssignment, toCompany, toDirectoryUser, toReport, toUser, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyLinkDto, type ReportDto, type UserDto } from './adapters';
+import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User } from '../types';
+import { companyBody, composeReportCatalog, reportBody, toActive, toAssignment, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
 interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock }
@@ -34,6 +34,9 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  *  - `/api/users?status=all` (usuarios), `/api/empresa-usuario` (usuario ↔ empresa) y `/api/empresa-reporte-usuario` (acceso efectivo), con `view=minimal` donde existe.
  *  - POST /api/register (alta; el backend fija rol, estado y versión de sesión), POST /api/empresa-usuario, POST/DELETE /api/empresa-reporte-usuario.
  *  - Las escrituras solo se dan por buenas si el servidor responde `success:true`; un rechazo (HTTP 200 con `success:false`) se informa tal cual.
+ * UX-07B (catálogo): `GET /api/empresas/{id}?view=form` y `GET /api/reportes/reporteid/{uuid}?view=form` (solo administradores) para editar;
+ *  POST/PUT /api/empresas, POST/PUT /api/reportes y POST/DELETE /api/asignacion (asociación empresa ↔ informe con ids numéricos internos).
+ *  El formulario de empresa NO envía ni lee credenciales de Power BI.
  * Fuera de alcance en esta etapa: tokens de inserción de Power BI reales.
  */
 export class HttpApiClient implements ApiClient {
@@ -151,6 +154,74 @@ export class HttpApiClient implements ApiClient {
     return results;
   }
 
+  async getCompanyDetail(id: string): Promise<CompanyDetail> {
+    const numeric = positiveInt(id);
+    if (!numeric) throw new ApiError(400, 'Empresa no válida.');
+    const env = await this.request('GET', `/api/empresas/${numeric}?view=form`);
+    if (!env.data || typeof env.data !== 'object') throw new ApiError(404, 'Empresa no encontrada');
+    return toCompanyDetail(env.data as CompanyFormDto);
+  }
+
+  async createCompany(input: CompanyInput): Promise<void> {
+    await this.mutate('POST', '/api/empresas', companyBody(input, false));
+  }
+
+  async updateCompany(id: string, input: CompanyInput): Promise<void> {
+    const numeric = positiveInt(id);
+    if (!numeric) throw new ApiError(400, 'Empresa no válida.');
+    await this.mutate('PUT', `/api/empresas/${numeric}`, companyBody(input, true));
+  }
+
+  async getReportDetail(reportId: string): Promise<ReportDetail> {
+    const env = await this.request('GET', `/api/reportes/reporteid/${encodeURIComponent(reportId)}?view=form`);
+    if (!env.data || typeof env.data !== 'object') throw new ApiError(404, 'Informe no encontrado');
+    return toReportDetail(env.data as ReportFormDto);
+  }
+
+  async createReport(input: ReportInput): Promise<void> {
+    await this.mutate('POST', '/api/reportes', reportBody(input));
+  }
+
+  async updateReport(internalId: string, input: ReportInput): Promise<void> {
+    const numeric = positiveInt(internalId);
+    if (!numeric) throw new ApiError(400, 'Informe no válido.');
+    await this.mutate('PUT', `/api/reportes/${numeric}`, reportBody(input));
+  }
+
+  async listReportLinks(): Promise<ReportLink[]> {
+    const [reports, relations] = await Promise.all([this.listAll<ReportDto>('/api/reportes'), this.listAll<AssignmentDto>('/api/asignacion')]);
+    const uuidByNumeric = new Map<string, string>();
+    for (const r of reports) if (typeof r.reporte_id === 'string' && r.id !== undefined) uuidByNumeric.set(String(r.id), r.reporte_id);
+    return relations.map(r => toReportLink(r, uuidByNumeric)).filter((l): l is ReportLink => l !== null);
+  }
+
+  async linkReports({ companyId, reportIds }: LinkRequest): Promise<GrantResult[]> {
+    const company = positiveInt(companyId);
+    if (!company) throw new ApiError(400, 'Empresa no válida.');
+    const reports = await this.listAll<ReportDto>('/api/reportes');
+    const numericByUuid = new Map<string, number>();
+    for (const r of reports) if (typeof r.reporte_id === 'string' && r.id !== undefined) { const n = positiveInt(String(r.id)); if (n) numericByUuid.set(r.reporte_id, n); }
+    const results: GrantResult[] = [];
+    for (const reportId of reportIds) {
+      const report = numericByUuid.get(reportId);
+      if (!report) { results.push({ reportId, status: 'failed', message: 'El informe no existe o está inactivo.' }); continue; }
+      try {
+        await this.mutate('POST', '/api/asignacion', { empresa_id: company, reporte_id: report });
+        results.push({ reportId, status: 'granted', message: 'Informe asociado.' });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.kind !== 'validation') throw error;
+        results.push(/ya existe/i.test(error.message) ? { reportId, status: 'already', message: 'El informe ya estaba asociado a la empresa.' } : { reportId, status: 'failed', message: error.message });
+      }
+    }
+    return results;
+  }
+
+  async unlinkReport(linkId: string): Promise<void> {
+    const id = positiveInt(linkId);
+    if (!id) throw new ApiError(400, 'Asociación no válida.');
+    await this.mutate('DELETE', `/api/asignacion/${id}`);
+  }
+
   async revokeAssignment(assignmentId: string): Promise<void> {
     const id = positiveInt(assignmentId);
     if (!id) throw new ApiError(400, 'Acceso no válido.');
@@ -182,7 +253,7 @@ export class HttpApiClient implements ApiClient {
   }
 
   /** Escritura administrativa: solo se da por hecha si el servidor responde `success:true`. */
-  private async mutate(method: 'POST' | 'DELETE', path: string, body?: unknown): Promise<Envelope> {
+  private async mutate(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<Envelope> {
     const env = await this.request(method, path, body);
     if (env.success !== true) throw new ApiError(422, env.message || 'El servicio rechazó la operación.');
     return env;

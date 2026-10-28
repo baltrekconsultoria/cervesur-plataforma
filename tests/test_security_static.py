@@ -99,7 +99,7 @@ class SecurityStaticChecks(unittest.TestCase):
         import re
         for path in sorted((ROOT / "backend").rglob("*.php")):
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if "getMessage()" in line and "error_log(" not in line and "public_error_message" not in line and "lib/errors.php" not in str(path).replace("\\", "/"):
+                if "getMessage()" in line and "error_log(" not in line and "public_error_message" not in line and "domain_error_message" not in line and "lib/errors.php" not in str(path).replace("\\", "/"):
                     self.fail(f"{path.relative_to(ROOT)}:{number} expone getMessage()")
                 self.assertNotIn("'sqlstate'", line)
         self.assertIn("display_errors", source("backend/router/index.php"))

@@ -145,10 +145,10 @@ class AsignacionModel {
     public function create($data) {
         try {
             // Verificar si ya existe la asignación
-            $sqlCheck = "SELECT id FROM empresa_reporte
+            $sqlCheck = "SELECT id, activo FROM empresa_reporte
                         WHERE empresa_id = :empresa_id
                         AND reporte_id = :reporte_id
-                        AND activo = 1";
+                        ORDER BY activo DESC, id DESC LIMIT 1";
 
             $stmtCheck = $this->pdo->prepare($sqlCheck);
             $stmtCheck->execute([
@@ -156,8 +156,15 @@ class AsignacionModel {
                 'reporte_id' => $data['reporte_id']
             ]);
 
-            if ($stmtCheck->fetch()) {
-                throw new Exception("Ya existe una asignación para esta empresa y reporte");
+            $found = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if ($found) {
+                if ((int)$found['activo'] === 1) {
+                    throw new DomainException("Ya existe una asignación para esta empresa y reporte");
+                }
+                // UX-07B: una asignación desvinculada se reactiva en lugar de duplicarse (con clave única, el INSERT fallaría).
+                $reactivate = $this->pdo->prepare('UPDATE empresa_reporte SET activo = 1, updated_by = :by, updated_at = NOW() WHERE id = :id');
+                $reactivate->execute(['by' => $data['created_by'], 'id' => (int)$found['id']]);
+                return (string)$found['id'];
             }
 
             $sql = "INSERT INTO empresa_reporte (empresa_id, reporte_id, notas, created_by, created_at)

@@ -98,7 +98,8 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user, $matches) {
+        [$view, $resource] = require_detail_view($user['role'], 'reporte');
+        run_with_view($view, $resource, function () use ($reporteController, $user, $matches) {
             $reporteController->getById($matches[1], $user['user_id'], $user['role']);
         });
         exit;
@@ -120,7 +121,8 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Verificar autenticación
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
-        run_with_view(require_view(), 'reporte', function () use ($reporteController, $user, $matches) {
+        [$view, $resource] = require_detail_view($user['role'], 'reporte');
+        run_with_view($view, $resource, function () use ($reporteController, $user, $matches) {
             $reporteController->getByReporteId($matches[1], $user['user_id'], $user['role']);
         });
         exit;

@@ -16,17 +16,45 @@ class ReporteController {
      * Crear un nuevo reporte
      * POST /api/reportes
      */
+    /**
+     * Valida y normaliza los datos de un informe (UX-07B). Devuelve [datos, mensaje de error|null].
+     * `reporte_id` y `grupo_id` son UUID de Power BI: se guardan en minúsculas, como los espera la ruta /reporteid/{uuid}.
+     */
+    private function validateReport($data, $excludeId = null) {
+        if (!is_array($data)) {
+            return [null, 'Datos JSON inválidos'];
+        }
+        foreach (['nombre', 'enlace', 'grupo_id', 'reporte_id'] as $field) {
+            if (!isset($data[$field]) || trim((string)$data[$field]) === '') {
+                return [null, "El campo '$field' es obligatorio"];
+            }
+        }
+        $data['nombre'] = trim((string)$data['nombre']);
+        $data['enlace'] = trim((string)$data['enlace']);
+        if (mb_strlen($data['nombre']) > 100) {
+            return [null, 'El nombre no puede superar 100 caracteres'];
+        }
+        if (strlen($data['enlace']) > 255 || !filter_var($data['enlace'], FILTER_VALIDATE_URL)) {
+            return [null, 'El enlace debe ser una URL válida de hasta 255 caracteres'];
+        }
+        foreach (['grupo_id', 'reporte_id'] as $field) {
+            $value = strtolower(trim((string)$data[$field]));
+            if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $value)) {
+                return [null, "El campo '$field' debe ser un UUID válido"];
+            }
+            $data[$field] = $value;
+        }
+        if ($this->reporteModel->reporteIdExists($data['reporte_id'], $excludeId)) {
+            return [null, 'Ya existe un informe con ese ID de Power BI'];
+        }
+        return [$data, null];
+    }
+
     public function create($data, $user_id) {
         try {
-            // Validar campos requeridos
-            $required_fields = ['nombre', 'enlace', 'enlace', 'grupo_id', 'reporte_id'];
-            foreach ($required_fields as $field) {
-                if (empty($data[$field])) {
-                    return [
-                        'success' => false,
-                        'message' => "El campo '$field' es obligatorio"
-                    ];
-                }
+            [$data, $error] = $this->validateReport($data);
+            if ($error !== null) {
+                return ['success' => false, 'message' => $error];
             }
 
             // Agregar created_by
@@ -50,7 +78,19 @@ class ReporteController {
      */
     public function update($id, $data, $user_id) {
         try {
-            $result = $this->reporteModel->update($id, $data, $user_id);
+            if (!ctype_digit((string)$id) || (int)$id < 1) {
+                return ['success' => false, 'message' => 'ID de reporte inválido'];
+            }
+            if (!$this->reporteModel->existsActive((int)$id)) {
+                return ['success' => false, 'message' => 'Reporte no encontrado'];
+            }
+            [$data, $error] = $this->validateReport($data, (int)$id);
+            if ($error !== null) {
+                return ['success' => false, 'message' => $error];
+            }
+            // El modelo exige `updated_by`: sin esto quedaba siempre NULL.
+            $data['updated_by'] = $user_id;
+            $result = $this->reporteModel->update($id, $data);
             return $result;
         } catch (Exception $e) {
             return [
