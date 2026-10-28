@@ -3,3 +3,8 @@ frontend/** text=auto eol=lf
 frontend/**/*.png binary
 frontend/**/*.jpg binary
 frontend/**/*.ico binary
+
+# Instalación por túnel SSH (UX-07D.1B): los scripts y configuraciones se ejecutan en Linux; siempre LF.
+deploy/tunel-ssh/** text eol=lf
+deploy/apache/*.conf text eol=lf
+deploy/apache/*.example text eol=lf

@@ -49,3 +49,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# Paquete de instalación de prueba por túnel SSH (UX-07D.1B): artefacto generado, no se versiona
+dist-paquete/
