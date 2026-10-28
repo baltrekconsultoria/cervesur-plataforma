@@ -1,0 +1,137 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+      - '.gitattributes'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ALCANCE DE ESTA PIPELINE
+#  - Valida el frontend de forma AISLADA: calidad estática, pruebas unitarias y E2E con el proveedor de datos SIMULADO.
+#  - NO ejecuta el backend PHP, no usa servicios productivos, Microsoft ni Power BI.
+#  - NO sustituye a las pruebas de integración con PHP (frontend/qa: contrato y E2E contra PHP real), que hoy se
+#    validan localmente y requieren el backend del PR #4. Un "E2E simulado" verde NO es una prueba de integración.
+jobs:
+  quality:
+    name: Quality (lint, typecheck, unit tests, builds, secret scan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Reproducible install (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Dependency audit (high and critical)
+        run: npm audit --audit-level=high
+
+      - name: ESLint (zero warnings)
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: QA-mode build (HTTP provider code path; creates the git-ignored .env.qa from .env.qa.example)
+        run: npm run build:qa
+
+      - name: Secret and forbidden-artifact scan (publishable files and builds)
+        run: npm run scan:secrets
+
+  e2e-simulated:
+    name: E2E - simulated provider (NOT a PHP integration test)
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Reproducible install (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Production build
+        run: npm run build
+
+      - name: Require a Chromium-compatible browser
+        id: browser
+        run: |
+          path="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$path" ]; then
+            echo "::error title=E2E not executed::No Chrome/Chromium found on this runner. The simulated E2E suite did NOT run; failing instead of reporting success."
+            exit 1
+          fi
+          echo "Using browser: $path"
+          "$path" --version
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Run simulated E2E
+        env:
+          BROWSER_PATH: ${{ steps.browser.outputs.path }}
+        run: npm run test:e2e 2>&1 | tee e2e.log
+
+      - name: Assert the E2E suite really executed and passed
+        run: |
+          # `npm run test:e2e` ya devuelve error si algo falla; esto además exige que el resumen exista y que haya pruebas.
+          summary="$(grep -E '^[0-9]+ PASS / [0-9]+ FAIL$' e2e.log | tail -1 || true)"
+          if [ -z "$summary" ]; then
+            echo "::error title=E2E not executed::No result summary was found in the E2E output."
+            exit 1
+          fi
+          passed="${summary%% *}"
+          failed="$(echo "$summary" | sed -E 's/^[0-9]+ PASS \/ ([0-9]+) FAIL$/\1/')"
+          if [ "$passed" -lt 1 ] || [ "$failed" -ne 0 ]; then
+            echo "::error title=E2E failed::$summary"
+            exit 1
+          fi
+          {
+            echo "### Simulated E2E (mock provider)"
+            echo ""
+            echo "\`$summary\` - this is **not** an integration test against PHP."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-qa/
+coverage/
+.env
+.env.*
+!.env.example
+!.env.qa.example
+e2e/.tmp/
+qa/.runtime/
+*.log
