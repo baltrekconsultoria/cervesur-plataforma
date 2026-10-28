@@ -1,5 +1,6 @@
 import { HttpApiClient } from './http/httpApi';
 import { MockApi } from './mock/mockApi';
+import { createServerServices } from './serverServices';
 import type { ApiClient, TokenStore } from './types';
 
 export interface ApiEnv {
@@ -25,6 +26,9 @@ export function assertIsolatedBackend(baseUrl: string): void {
 }
 
 export function createApiServices(env: ApiEnv, tokens: TokenStore): ApiServices {
+  // Compilación para SERVIDOR (npm run build:production): el valor se sustituye en tiempo de compilación, de modo que el proveedor
+  // simulado queda eliminado del bundle y no hay ningún camino de regreso a él (ni siquiera si PHP falla).
+  if (import.meta.env.VITE_DEPLOY_TARGET === 'server') return createServerServices(env, tokens);
   const provider = env.VITE_API_PROVIDER ?? 'mock';
   if (provider === 'mock') {
     const mock = new MockApi(tokens);

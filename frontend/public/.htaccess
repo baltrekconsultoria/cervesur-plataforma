@@ -1,5 +1,54 @@
-# Reescritura de rutas para despliegue estático en Apache (no se despliega en UX-05.1)
+# Portal React de Cervesur · reglas de Apache para la carpeta publicada del frontend (UX-07D.0)
+# Requiere mod_rewrite y (recomendado) mod_headers, con «AllowOverride FileInfo AuthConfig Indexes Options=Indexes» en el directorio publicado.
+# Las rutas /api NO las atiende este archivo: las enruta el VirtualHost hacia el backend PHP (ver deploy/apache/).
+# No contiene contraseñas, IP privadas ni valores de .env.
+
+Options -Indexes
+
+# --- Reescritura de rutas de React (SPA) -------------------------------------------------------------------------------------
 RewriteEngine On
+RewriteBase /
+# /api jamás se reescribe a index.html (evita que React intercepte las llamadas a PHP y sus 401/403/404 JSON).
+RewriteCond %{REQUEST_URI} !^/api(/|$)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+# Un archivo con extensión que no existe (p. ej. /assets/viejo.js) responde 404 real, no index.html.
+RewriteCond %{REQUEST_URI} !\.[A-Za-z0-9]{1,8}$
 RewriteRule ^ index.html [L]
+
+# --- Archivos ocultos y sensibles ----------------------------------------------------------------------------------------------
+<FilesMatch "^\.(?!well-known)">
+  Require all denied
+</FilesMatch>
+<FilesMatch "\.(env|sql|bak|log|map|md|json)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  # --- Caché ---------------------------------------------------------------------------------------------------------------
+  # index.html (y la reescritura de React) nunca se cachea: así cada versión nueva se ve de inmediato.
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+  # /assets/* lleva el hash del contenido en el nombre: se puede cachear un año.
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  # Imágenes de marca: sin hash en el nombre → caché corta.
+  <If "%{REQUEST_URI} =~ m#^/branding/#">
+    Header set Cache-Control "public, max-age=86400"
+  </If>
+
+  # --- Seguridad -----------------------------------------------------------------------------------------------------------
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "DENY"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  # frame-src: único origen externo permitido = el visor público oficial de Power BI («Publicar en web»).
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://app.powerbi.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+  # HSTS solo cuando la solicitud llegó por HTTPS (sin includeSubDomains: no afecta a otros subdominios, p. ej. el de Flutter).
+  <If "%{HTTPS} == 'on'">
+    Header always set Strict-Transport-Security "max-age=31536000"
+  </If>
+</IfModule>

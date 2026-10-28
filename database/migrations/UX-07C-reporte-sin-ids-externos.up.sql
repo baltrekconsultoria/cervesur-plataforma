@@ -1,13 +1,14 @@
 -- UX-07C · Informes registrados solo por su enlace público (sin identificadores de Power BI)
 -- MIGRACIÓN OPCIONAL Y REVERSIBLE. NO EJECUTAR en producción sin autorización, copia de seguridad y revisión.
 -- Probada únicamente en MySQL sintético (tests/isolated/http_viewer_test.php).
+-- Ejecute ANTES database/schema/UX-07D0-precondiciones-migracion.sql y revise su resultado.
 --
--- 1) `grupo_id` pasa a admitir NULL: un informe de «Publicar en web» no tiene grupo (workspace) de Power BI y NO se inventa uno.
---    Los registros existentes no cambian (todos conservan su grupo).
--- 2) `enlace` se amplía a 1024 caracteres: los enlaces de publicación en web pueden superar los 255 actuales.
---    Los enlaces existentes no cambian. La aplicación consulta el tamaño real de la columna: sin esta migración sigue funcionando,
---    pero rechaza con un mensaje claro los enlaces demasiado largos y los informes sin grupo.
--- `reporte_id` conserva su significado histórico (referencia UUID única y estable del informe, usada en las rutas /reporteid/{uuid});
--- para informes sin identificadores de Power BI contiene una referencia interna de Cervesur (UUID v4) y `grupo_id` queda NULL.
-ALTER TABLE reporte MODIFY grupo_id VARCHAR(36) NULL;
-ALTER TABLE reporte MODIFY enlace VARCHAR(1024) NULL;
+-- UNA SOLA sentencia ALTER: MySQL la aplica de forma atómica (todo o nada). No se usan varias sentencias porque el DDL no es
+-- transaccional y una falla intermedia dejaría el esquema a medias.
+--  1) `grupo_id` pasa a admitir NULL (un informe de «Publicar en web» no tiene grupo y NO se inventa uno).
+--  2) `enlace` pasa a 1024 caracteres (los enlaces públicos pueden superar 255).
+-- Los registros existentes no cambian. Sin esta migración la aplicación sigue funcionando, pero rechaza con un mensaje claro los
+-- informes sin grupo y los enlaces demasiado largos.
+-- `reporte_id` conserva su significado histórico; para informes sin identificadores de Power BI contiene una referencia interna
+-- de Cervesur (UUID v4) y `grupo_id` queda NULL.
+ALTER TABLE reporte MODIFY grupo_id VARCHAR(36) NULL, MODIFY enlace VARCHAR(1024) NULL;

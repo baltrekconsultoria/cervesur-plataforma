@@ -107,7 +107,7 @@ export function Page({ title, crumbs, children }: { title: string; crumbs: Crumb
           <h1 id="page-title" ref={titleRef} tabIndex={-1}>{title}</h1>
         </div>
         <div className="topbar-actions">
-          <DemoControls />
+          {import.meta.env.VITE_DEPLOY_TARGET !== 'server' && <DemoControls />}
           {user && <Link to="/perfil" className="avatar" aria-label={`Mi perfil (${user.displayName})`}>{initials(user.displayName)}</Link>}
         </div>
       </header>

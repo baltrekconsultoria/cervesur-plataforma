@@ -63,6 +63,9 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Server build (HTTP provider only, same origin) and verification that it contains no mock data
+        run: CERVESUR_ALLOWED_HOSTS=ci.example.invalid npm run build:production
+
       - name: QA-mode build (HTTP provider code path; creates the git-ignored .env.qa from .env.qa.example)
         run: npm run build:qa
 
