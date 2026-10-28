@@ -1,6 +1,6 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, GrantRequest, GrantResult, LoginRequest, NewUser, ProfileUpdate, Report, TokenStore, User } from '../types';
+import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User } from '../types';
 import { createSeed, type Seed } from './seed';
 
 export type MockScenario = 'normal' | 'empty' | 'forbidden';
@@ -15,6 +15,9 @@ export class MockApi implements ApiClient {
   readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true };
   private seed: Seed = createSeed();
   private sessions = new Map<string, string>();
+  /** Datos técnicos y de contacto que el modelo normalizado no lleva (solo para los formularios administrativos). */
+  private companyExtra = new Map<string, Partial<CompanyInput>>();
+  private reportMeta = new Map<string, { link: string; groupId: string; reportId: string }>();
   private scenario: MockScenario = 'normal';
 
   constructor(private readonly tokens: TokenStore) {}
@@ -24,7 +27,7 @@ export class MockApi implements ApiClient {
   setScenario(scenario: MockScenario): void { this.scenario = scenario; }
   /** Invalida todas las sesiones: la siguiente petición responde 401. */
   expireSessions(): void { this.sessions.clear(); }
-  reset(): void { this.seed = createSeed(); this.scenario = 'normal'; }
+  reset(): void { this.seed = createSeed(); this.scenario = 'normal'; this.companyExtra.clear(); this.reportMeta.clear(); }
 
   /* --- ApiClient --- */
   async login({ login, password }: LoginRequest): Promise<AuthResponse> {
@@ -91,6 +94,100 @@ export class MockApi implements ApiClient {
       this.seed.assignments.push({ id: `asg-${Math.random().toString(36).slice(2, 8)}`, userId, reportId, companyId });
       return { reportId, status: 'granted', message: 'Acceso concedido.' };
     });
+  }
+
+  async getCompanyDetail(id: string): Promise<CompanyDetail> {
+    this.requireAdmin();
+    const company = this.seed.companies.find(c => c.id === id);
+    if (!company) throw new ApiError(404, 'Empresa no encontrada');
+    const extra = this.companyExtra.get(id) ?? {};
+    return { id, name: company.name, legalName: extra.legalName ?? company.name, taxId: company.taxId, city: company.city, country: extra.country ?? 'Perú', email: extra.email ?? '', phone: extra.phone ?? '', address: extra.address ?? '' };
+  }
+
+  async createCompany(input: CompanyInput): Promise<void> {
+    this.requireAdmin();
+    this.validateCompany(input, null);
+    const id = `emp-${this.seed.companies.length + 1}`;
+    this.seed.companies.push({ id, name: input.name.trim(), city: input.city.trim(), taxId: input.taxId.trim(), active: true });
+    this.companyExtra.set(id, { legalName: input.legalName.trim(), country: input.country.trim(), email: input.email.trim(), phone: input.phone.trim(), address: input.address.trim() });
+  }
+
+  async updateCompany(id: string, input: CompanyInput): Promise<void> {
+    this.requireAdmin();
+    const company = this.seed.companies.find(c => c.id === id);
+    if (!company) throw new ApiError(422, 'Empresa no encontrada');
+    this.validateCompany(input, id);
+    Object.assign(company, { name: input.name.trim(), city: input.city.trim(), taxId: input.taxId.trim() });
+    this.companyExtra.set(id, { legalName: input.legalName.trim(), country: input.country.trim(), email: input.email.trim(), phone: input.phone.trim(), address: input.address.trim() });
+  }
+
+  async getReportDetail(reportId: string): Promise<ReportDetail> {
+    this.requireAdmin();
+    const index = this.seed.reports.findIndex(r => r.id === reportId);
+    const report = this.seed.reports[index];
+    if (!report) throw new ApiError(404, 'Informe no encontrado');
+    const meta = this.reportMeta.get(reportId) ?? { link: `http://localhost`, groupId: '00000000-0000-0000-0000-000000000001', reportId: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}` };
+    return { internalId: report.id, name: report.name, description: report.description, ...meta };
+  }
+
+  async createReport(input: ReportInput): Promise<void> {
+    this.requireAdmin();
+    this.validateReport(input, null);
+    const id = input.reportId.trim().toLowerCase();
+    this.seed.reports.push({ id, name: input.name.trim(), description: input.description.trim(), companyId: '', companyIds: [], group: 'Sin grupo', active: true });
+    this.reportMeta.set(id, { link: input.link.trim(), groupId: input.groupId.trim().toLowerCase(), reportId: id });
+  }
+
+  async updateReport(internalId: string, input: ReportInput): Promise<void> {
+    this.requireAdmin();
+    const report = this.seed.reports.find(r => r.id === internalId);
+    if (!report) throw new ApiError(422, 'Reporte no encontrado');
+    this.validateReport(input, internalId);
+    Object.assign(report, { name: input.name.trim(), description: input.description.trim() });
+    // En el simulador el identificador del informe no cambia (los accesos lo referencian).
+    this.reportMeta.set(internalId, { link: input.link.trim(), groupId: input.groupId.trim().toLowerCase(), reportId: input.reportId.trim().toLowerCase() });
+  }
+
+  async listReportLinks(): Promise<ReportLink[]> {
+    this.requireAdmin();
+    return this.seed.reports.flatMap(r => r.companyIds.map(companyId => ({ id: `${r.id}@${companyId}`, companyId, reportId: r.id })));
+  }
+
+  async linkReports({ companyId, reportIds }: LinkRequest): Promise<GrantResult[]> {
+    this.requireAdmin();
+    const company = this.seed.companies.find(c => c.id === companyId);
+    if (!company?.active) throw new ApiError(422, 'Empresa no encontrada');
+    return reportIds.map((reportId): GrantResult => {
+      const report = this.seed.reports.find(r => r.id === reportId);
+      if (!report?.active) return { reportId, status: 'failed', message: 'El informe no existe o está inactivo.' };
+      if (report.companyIds.includes(companyId)) return { reportId, status: 'already', message: 'El informe ya estaba asociado a la empresa.' };
+      report.companyIds = [...report.companyIds, companyId].sort((a, b) => (this.seed.companies.find(c => c.id === a)?.name ?? '').localeCompare(this.seed.companies.find(c => c.id === b)?.name ?? '', 'es'));
+      report.companyId = report.companyIds[0] ?? '';
+      return { reportId, status: 'granted', message: 'Informe asociado.' };
+    });
+  }
+
+  async unlinkReport(linkId: string): Promise<void> {
+    this.requireAdmin();
+    const [reportId, companyId] = linkId.split('@');
+    const report = this.seed.reports.find(r => r.id === reportId);
+    if (!report || !companyId || !report.companyIds.includes(companyId)) throw new ApiError(422, 'Asignación no encontrada o no se pudo eliminar');
+    report.companyIds = report.companyIds.filter(id => id !== companyId);
+    report.companyId = report.companyIds[0] ?? '';
+  }
+
+  private validateCompany(input: CompanyInput, selfId: string | null): void {
+    if (!input.name.trim() || !input.legalName.trim() || !input.taxId.trim()) throw new ApiError(422, 'Complete nombre, razón social y RUC');
+    if (!/^\d{11}$/.test(input.taxId.trim())) throw new ApiError(422, 'El RUC debe tener 11 dígitos');
+    if (this.seed.companies.some(c => c.taxId === input.taxId.trim() && c.id !== selfId)) throw new ApiError(422, 'El RUC ya está registrado');
+  }
+
+  private validateReport(input: ReportInput, selfId: string | null): void {
+    if (!input.name.trim() || !input.link.trim() || !input.groupId.trim() || !input.reportId.trim()) throw new ApiError(422, 'Complete nombre, vínculo del informe, ID de grupo e ID de informe');
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(input.groupId.trim()) || !uuid.test(input.reportId.trim())) throw new ApiError(422, 'Los identificadores de Power BI deben ser UUID válidos');
+    const target = input.reportId.trim().toLowerCase();
+    if (this.seed.reports.some(r => r.id === target && r.id !== selfId)) throw new ApiError(422, 'Ya existe un informe con ese ID de Power BI');
   }
 
   async revokeAssignment(assignmentId: string): Promise<void> {

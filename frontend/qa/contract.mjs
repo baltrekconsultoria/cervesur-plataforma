@@ -256,6 +256,74 @@ const regrant = await call('POST', '/api/empresa-reporte-usuario', { token: admi
 ok('volver a conceder reactiva la misma relación (sin duplicar filas)', regrant.json?.success === true && Number(regrant.json.InsertedId) === Number(mine.id));
 ok('tras reactivar vuelve a ver Reporte A', JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: fresh.token }))) === JSON.stringify(['Reporte A']));
 
+section = 'Empresas, informes y asociaciones (UX-07B)';
+const rnd = n => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
+const ruc1 = `2${rnd(10)}`; const ruc2 = `2${rnd(10)}`;
+const companyBody = { nombre: `Empresa ${ruc1}`, razon_social: `Empresa ${ruc1} S.A.C.`, ruc: ruc1, ciudad: 'Ciudad X', pais: 'Demo' };
+ok('usuario normal no puede crear empresas (403) ni anónimo (401)', (await call('POST', '/api/empresas', { token: usera.token, body: companyBody })).status === 403 && (await call('POST', '/api/empresas', { body: companyBody })).status === 401);
+ok('RUC inválido → success:false', (await call('POST', '/api/empresas', { token: admin.token, body: { ...companyBody, ruc: '123' } })).json?.success === false);
+const newCompany = await call('POST', '/api/empresas', { token: admin.token, body: companyBody });
+const companyId = Number(newCompany.json?.id);
+ok('administrador crea una empresa y recibe su id', newCompany.json?.success === true && companyId > 0);
+ok('RUC duplicado → success:false', (await call('POST', '/api/empresas', { token: admin.token, body: { ...companyBody, nombre: 'Otra' } })).json?.success === false);
+const form = await call('GET', `/api/empresas/${companyId}?view=form`, { token: admin.token });
+ok('empresa view=form: campos editables sin datos de Power BI', JSON.stringify(Object.keys(form.json?.data ?? {}).sort()) === JSON.stringify(['activo', 'ciudad', 'direccion', 'email', 'id', 'nombre', 'pais', 'razon_social', 'ruc', 'telefono']) && !/powerbi|secret|tenant/i.test(form.raw));
+ok('empresa view=form: usuario normal → 403', (await call('GET', `/api/empresas/${companyId}?view=form`, { token: usera.token })).status === 403);
+ok('editar empresa → success:true y persiste', (await call('PUT', `/api/empresas/${companyId}`, { token: admin.token, body: { ciudad: 'Ciudad Y', telefono: '999 000 222' } })).json?.success === true && (await call('GET', `/api/empresas/${companyId}?view=form`, { token: admin.token })).json?.data?.ciudad === 'Ciudad Y');
+ok('no se puede vaciar el nombre al editar', (await call('PUT', `/api/empresas/${companyId}`, { token: admin.token, body: { nombre: '  ' } })).json?.success === false);
+ok('usuario normal no puede editar empresas (403)', (await call('PUT', `/api/empresas/${companyId}`, { token: usera.token, body: { ciudad: 'X' } })).status === 403);
+ok('editar al RUC de otra empresa → success:false', (await call('PUT', `/api/empresas/${companyId}`, { token: admin.token, body: { ruc: '00000000001' } })).json?.success === false);
+
+const uuidReport = crypto.randomUUID(); const uuidGroup = crypto.randomUUID();
+const reportBody = { nombre: `Informe ${ruc2}`, descripcion: 'Sintético', enlace: `https://example.invalid/${ruc2}`, grupo_id: uuidGroup, reporte_id: uuidReport.toUpperCase() };
+ok('usuario normal no puede crear reportes (403)', (await call('POST', '/api/reportes', { token: usera.token, body: reportBody })).status === 403);
+for (const [field, bad] of [['enlace', 'no-url'], ['grupo_id', 'x'], ['reporte_id', '123'], ['nombre', '']]) {
+  ok(`reporte con ${field} inválido → success:false`, (await call('POST', '/api/reportes', { token: admin.token, body: { ...reportBody, [field]: bad } })).json?.success === false);
+}
+const newReport = await call('POST', '/api/reportes', { token: admin.token, body: reportBody });
+const reportInternalId = Number(newReport.json?.data?.id);
+ok('administrador crea un reporte y recibe su id interno', newReport.json?.success === true && reportInternalId > 0);
+ok('UUID de Power BI repetido → success:false', (await call('POST', '/api/reportes', { token: admin.token, body: { ...reportBody, nombre: 'Copia' } })).json?.success === false);
+const reportForm = await call('GET', `/api/reportes/reporteid/${uuidReport}?view=form`, { token: admin.token });
+ok('el UUID se guarda en minúsculas y el id interno es distinto del UUID', reportForm.json?.data?.reporte_id === uuidReport && Number(reportForm.json?.data?.id) === reportInternalId && JSON.stringify(Object.keys(reportForm.json?.data ?? {}).sort()) === JSON.stringify(['activo', 'descripcion', 'enlace', 'grupo_id', 'id', 'nombre', 'reporte_id']));
+ok('reporte view=form: usuario normal → 403 (el enlace técnico no se entrega)', (await call('GET', `/api/reportes/${reportInternalId}?view=form`, { token: usera.token })).status === 403 && (await call('GET', `/api/reportes/reporteid/${uuidReport}?view=form`, { token: usera.token })).status === 403);
+ok('editar reporte → success:true y persiste', (await call('PUT', `/api/reportes/${reportInternalId}`, { token: admin.token, body: { ...reportBody, reporte_id: uuidReport, descripcion: 'Editado' } })).json?.success === true && (await call('GET', `/api/reportes/${reportInternalId}?view=form`, { token: admin.token })).json?.data?.descripcion === 'Editado');
+ok('edición parcial → success:false con mensaje claro (antes fallaba sin explicación)', (await call('PUT', `/api/reportes/${reportInternalId}`, { token: admin.token, body: { nombre: 'Solo nombre' } })).json?.success === false);
+ok('usuario normal no puede editar reportes (403)', (await call('PUT', `/api/reportes/${reportInternalId}`, { token: usera.token, body: { ...reportBody, reporte_id: uuidReport } })).status === 403);
+
+const linkNew = await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: reportInternalId } });
+const linkId = Number(linkNew.json?.data?.id);
+ok('asociar el reporte a la empresa (ids numéricos) → 201', linkNew.status === 201 && linkNew.json?.success === true && linkId > 0);
+const linkDup = await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: reportInternalId } });
+ok('asociación duplicada → 400 con mensaje específico', linkDup.status === 400 && /Ya existe/.test(linkDup.json?.message ?? ''));
+ok('el UUID no sirve como id de reporte en la asociación', (await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: uuidReport } })).json?.success === false);
+ok('usuario normal no puede asociar (403)', (await call('POST', '/api/asignacion', { token: usera.token, body: { empresa_id: companyId, reporte_id: reportInternalId } })).status === 403);
+const reportOnEmpresaA = (await walkAll('/api/asignacion?view=minimal', admin.token, 100)).rows.find(a => a.empresa_nombre === 'Empresa A');
+const shared = await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: reportOnEmpresaA.empresa_id, reporte_id: reportInternalId } });
+ok('el mismo reporte puede asociarse a una segunda empresa', shared.json?.success === true);
+const allLinks = (await walkAll('/api/asignacion?view=minimal', admin.token, 100)).rows.filter(a => a.reporte_id === reportInternalId);
+ok('el listado de asociaciones muestra las dos empresas con ids de relación distintos', allLinks.length === 2 && new Set(allLinks.map(a => a.id)).size === 2);
+ok('desvincular la segunda empresa → success:true', (await call('DELETE', `/api/asignacion/${shared.json.data.id}`, { token: admin.token })).json?.success === true);
+
+const sfx = rnd(6);
+const opUser = { first_name: 'Operador', last_name: 'C', username: `operador.c.${sfx}`, email: `operador.c.${sfx}@example.invalid`, password: PASSWORD };
+await call('POST', '/api/register', { token: admin.token, body: opUser });
+const opId = (await walkAll('/api/users?status=all', admin.token, 100)).rows.find(u => u.username === opUser.username).id;
+await call('POST', '/api/empresa-usuario', { token: admin.token, body: { user_id: opId, empresa_id: companyId } });
+ok('UX-07A sobre el reporte nuevo: acceso concedido', (await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: opId, empresa_reporte_id: linkId } })).json?.success === true);
+const op = await login(opUser.username);
+ok('el usuario ve solo el reporte nuevo', JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token }))) === JSON.stringify([`Informe ${ruc2}`]));
+ok('el usuario no recibe el enlace técnico', !/example\.invalid|enlace/.test((await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token })).raw));
+ok('desvincular el reporte de la empresa → success:true', (await call('DELETE', `/api/asignacion/${linkId}`, { token: admin.token })).json?.success === true);
+ok('desvincular dos veces → success:false', (await call('DELETE', `/api/asignacion/${linkId}`, { token: admin.token })).json?.success === false);
+ok('tras desvincular, el usuario deja de ver el reporte y no puede abrirlo', (await walkAll('/api/reportes?view=minimal', op.token, 100)).rows.length === 0 && (await call('GET', `/api/reportes/reporteid/${uuidReport}?view=minimal`, { token: op.token })).status === 404);
+const relink = await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: reportInternalId } });
+ok('volver a asociar reactiva la misma relación (sin duplicar) y restituye el acceso', relink.json?.success === true && Number(relink.json?.data?.id) === linkId && JSON.stringify(names(await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token }))) === JSON.stringify([`Informe ${ruc2}`]));
+
+// Limpieza: la empresa y el reporte de prueba se dan de baja (baja lógica) para no alterar los recuentos de otras suites sobre el mismo entorno.
+await call('DELETE', `/api/empresas/${companyId}`, { token: admin.token });
+await call('DELETE', `/api/reportes/${reportInternalId}`, { token: admin.token });
+
 section = 'Errores HTTP';
 ok('ruta inexistente → 404 JSON', (await call('GET', '/api/no-existe', { token: usera.token })).status === 404);
 ok('error sin detalles internos (sin rutas de servidor, SQL ni trazas)', !/\/work\/|PDOException|Stack trace|SQLSTATE|\.php/i.test(all));

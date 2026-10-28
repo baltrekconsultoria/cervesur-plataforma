@@ -8,7 +8,9 @@ import { Button, ButtonLink, DataTable, EmptyState, ErrorState, Highlight, Loadi
 import { norm } from '../../lib/text';
 import { useAsync, type AsyncState } from '../../lib/useAsync';
 import { useUrlFilters } from '../../lib/useUrlFilters';
+import { CompanyDialog } from './CompanyDialog';
 import { NewUserDialog } from './NewUserDialog';
+import { ReportDialog } from './ReportDialog';
 import { RevokeDialog } from './RevokeDialog';
 
 const crumbs = (label: string) => [{ label: 'Administración', to: '/admin' }, { label }];
@@ -149,10 +151,15 @@ export function AdminUsersPage() {
 
 export function AdminCompaniesPage() {
   const data = useAdminData();
-  const { capabilities } = useApp();
+  const { capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', status: 'all' });
+  const [editing, setEditing] = useState<Company | 'new' | null>(null);
+  const [notice, setNotice] = useState('');
   return (
-    <AdminScreen title="Empresas" data={data}>
+    <AdminScreen title="Empresas" data={data} notice={<>
+      {notice && <p className="success-box" role="status">{notice}</p>}
+      {editing && <CompanyDialog company={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(name, created) => { setEditing(null); setNotice(created ? `Empresa «${name}» creada correctamente.` : `Empresa «${name}» actualizada correctamente.`); bump(); }} />}
+    </>}>
       {({ companies, reports, users }) => {
         const { q, status } = filters.values;
         const needle = norm(q);
@@ -162,13 +169,19 @@ export function AdminCompaniesPage() {
           { header: 'Ciudad', cell: c => <Highlight text={c.city} query={q} /> },
           ...(capabilities.reportCompany ? [{ header: 'Informes activos', cls: 'num', cell: (c: Company) => reports.filter(r => r.companyIds.includes(c.id) && r.active).length }] : []),
           ...(capabilities.adminDirectory ? [{ header: 'Usuarios', cls: 'num', cell: (c: Company) => users.filter(u => u.active && u.role === 'user' && u.companyIds.includes(c.id)).length }] : []),
-          { header: 'Estado', cell: c => <StatusTag active={c.active} on="Activa" off="Inactiva" /> }
+          { header: 'Estado', cell: c => <StatusTag active={c.active} on="Activa" off="Inactiva" /> },
+          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (c: Company) => (
+            <>
+              <Button variant="secondary" size="sm" aria-label={`Editar ${c.name}`} onClick={() => { setNotice(''); setEditing(c); }}>Editar</Button>{' '}
+              <Link className="btn btn-secondary btn-sm" to={`/admin/asociaciones?company=${encodeURIComponent(c.id)}`} aria-label={`Informes de ${c.name}`}>Informes</Link>
+            </>) }] : [])
         ];
         return (
           <>
             <div className="toolbar" role="search">
               <SearchField id="ac-q" label="Buscar empresa" placeholder="Nombre, ciudad o RUC" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="ac-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activas', 'Inactivas')} />
+              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nueva empresa</Button>}
             </div>
             <ResultBar shown={rows.length} total={companies.length} noun="empresas" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <DataTable columns={cols} rows={rows} rowKey={c => c.id} rowClass={c => (c.active ? '' : 'is-off')} /> : <NoMatches noun="empresa" onClear={filters.clear} />}
@@ -181,11 +194,16 @@ export function AdminCompaniesPage() {
 
 export function AdminReportsPage() {
   const data = useAdminData();
-  const { capabilities } = useApp();
+  const { capabilities, bump } = useApp();
   const location = useLocation();
   const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'all' });
+  const [editing, setEditing] = useState<Report | 'new' | null>(null);
+  const [notice, setNotice] = useState('');
   return (
-    <AdminScreen title="Reportes" data={data}>
+    <AdminScreen title="Reportes" data={data} notice={<>
+      {notice && <p className="success-box" role="status">{notice}</p>}
+      {editing && <ReportDialog report={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(name, created) => { setEditing(null); setNotice(created ? `Reporte «${name}» creado correctamente. Asócielo a una empresa desde «Informes por empresa».` : `Reporte «${name}» actualizado correctamente.`); bump(); }} />}
+    </>}>
       {({ reports, companies, users, assignments }) => {
         const { q, status } = filters.values;
         const company = capabilities.reportCompany ? filters.values.company : 'all';
@@ -193,7 +211,7 @@ export function AdminReportsPage() {
         const needle = norm(q);
         const access = (r: Report) => assignments.filter(a => a.reportId === r.id && assignmentStatus(a, users, reports, companies).ok).length;
         const rows = reports.filter(r => (company === 'all' || r.companyIds.includes(company)) && (group === 'all' || r.group === group)
-          && (status === 'all' || (status === 'active' && r.active) || (status === 'inactive' && !r.active) || (status === 'unassigned' && capabilities.adminDirectory && r.active && !access(r)))
+          && (status === 'all' || (status === 'active' && r.active) || (status === 'inactive' && !r.active) || (status === 'unassigned' && capabilities.adminDirectory && r.active && !access(r)) || (status === 'unlinked' && r.companyIds.length === 0))
           && (!needle || norm(`${r.name} ${r.description}`).includes(needle)));
         const groups = [...new Set(reports.map(r => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
         const from = `${location.pathname}${location.search}`;
@@ -203,9 +221,13 @@ export function AdminReportsPage() {
           ...(capabilities.reportGroups ? [{ header: 'Grupo', cell: (r: Report) => <Tag>{r.group}</Tag> }] : []),
           ...(capabilities.adminDirectory ? [{ header: 'Usuarios con acceso', cls: 'num', cell: access }] : []),
           { header: 'Estado', cell: r => <StatusTag active={r.active} /> },
-          { header: 'Acciones', cls: 'actions-cell', cell: r => <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link> }
+          { header: 'Acciones', cls: 'actions-cell', cell: r => (
+            <>
+              <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link>
+              {capabilities.adminWrites && <>{' '}<Button variant="secondary" size="sm" aria-label={`Editar ${r.name}`} onClick={() => { setNotice(''); setEditing(r); }}>Editar</Button></>}
+            </>) }
         ];
-        const statusOptions: Array<[string, string]> = [['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : [])];
+        const statusOptions: Array<[string, string]> = [['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : []), ...(capabilities.reportCompany ? [['unlinked', 'Sin empresa'] as [string, string]] : [])];
         return (
           <>
             <div className="toolbar" role="search">
@@ -213,6 +235,7 @@ export function AdminReportsPage() {
               {capabilities.reportCompany && <SelectField id="ar-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />}
               {capabilities.reportGroups && <SelectField id="ar-group" label="Grupo" value={group} onChange={v => filters.set('group', v)} options={[['all', 'Todos'], ...groups.map((g): [string, string] => [g, g])]} />}
               <SelectField id="ar-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={statusOptions} />
+              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nuevo reporte</Button>}
             </div>
             <ResultBar shown={rows.length} total={reports.length} noun="reportes" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <DataTable columns={cols} rows={rows} rowKey={r => r.id} rowClass={r => (r.active ? '' : 'is-off')} /> : <NoMatches noun="reporte" onClear={filters.clear} />}

@@ -65,6 +65,26 @@ class ReporteModel {
         }
     }
 
+    /** ¿Existe un informe activo con ese id interno? */
+    public function existsActive($id) {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM reporte WHERE id = :id AND activo = 1 LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /** ¿Otro informe activo usa ya ese UUID de Power BI? */
+    public function reporteIdExists($uuid, $excludeId = null) {
+        $sql = 'SELECT 1 FROM reporte WHERE reporte_id = :uuid AND activo = 1';
+        $params = ['uuid' => $uuid];
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> :exclude';
+            $params['exclude'] = $excludeId;
+        }
+        $stmt = $this->pdo->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return (bool)$stmt->fetchColumn();
+    }
+
     /**
      * Eliminar un reporte
      * @param int $id ID del reporte

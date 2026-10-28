@@ -74,14 +74,29 @@ Los cambios se guardan en el MySQL sintético y sobreviven a F5 (la sesión no: 
 8. **Verificar en la base** (opcional, solo lectura, base desechable): `docker exec cervesur-qa-db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" fixture -e "SELECT id,username,role,is_active FROM user ORDER BY id DESC LIMIT 3"'`.
 9. **Móvil** (390 px): Usuarios, el diálogo «Nuevo usuario» y el asistente caben sin desplazamiento horizontal.
 
+## 3c. Empresas, reportes y asociaciones (UX-07B) — con `admin`
+
+Todo con datos **sintéticos**. Los cambios se guardan en MySQL y sobreviven a F5 (la sesión no: vuelve a `/login`, es lo esperado).
+
+1. **Nueva empresa** (Empresas → «Nueva empresa»): con el formulario vacío aparecen mensajes junto a Nombre, Razón social y RUC (11 dígitos). No hay campos de Power BI. Pruebe el RUC de otra empresa (`00000000001`): PHP lo rechaza, el diálogo sigue abierto y **no** dice «creada». Cree **Empresa C** con un RUC nuevo de 11 dígitos (p. ej. `20999999991`), ciudad «Cusco» → aviso verde y fila nueva.
+2. **Editar empresa**: «Editar» en su fila → los datos cargan desde el servidor → cambie la ciudad/teléfono → «Guardar cambios». Vaciar el nombre debe dar error.
+3. **Nuevo reporte** (Reportes → «Nuevo reporte»): con datos inválidos (URL «abc», UUID «123») salen mensajes sin llamar al servidor. Datos sintéticos válidos: nombre «Informe C», enlace `https://example.invalid/informes/c`, grupo `11111111-1111-1111-1111-111111111111`, informe `22222222-2222-2222-2222-222222222222`. Repetir el UUID de otro informe → «Ya existe un informe con ese ID de Power BI». Al crearlo aparece sin empresa (filtro Estado → «Sin empresa»).
+4. **Editar reporte**: «Editar» → cargan el enlace y los UUID (solo el administrador los ve) → cambie la descripción → guardar.
+5. **Informes por empresa** (menú lateral): elija **Empresa C** → «aún no tiene informes asociados» → marque **Informe C** en «disponibles» → «Asociar seleccionados» → resultado «Asociado» y pasa a «Informes asociados». Un informe puede asociarse también a otra empresa (verá «Compartido con N más»); uno ya asociado no vuelve a ofrecerse.
+6. **Circuito completo**: Usuarios → «Nuevo usuario» (`operador.c`) → «Asignar accesos» → Empresa C → Informe C → guardar. «Cerrar sesión» → ingrese como `operador.c`: solo ve **Informe C**; abrir `/reportes/00000000-0000-0000-0000-000000000022` da «Acceso denegado».
+7. **Retirar el acceso** (Accesos y asignaciones → «Retirar» → confirmar): `operador.c` ya no ve el informe. La asociación empresa↔informe sigue.
+8. **Desvincular** (Informes por empresa → Empresa C → «Desvincular» → el aviso explica que los usuarios dejarán de verlo; «Cancelar» no cambia nada → confirmar): el informe vuelve a «disponibles»; sigue existiendo en Reportes. Si se vuelve a asociar, PHP **reactiva** la misma relación.
+9. **Persistencia**: F5, ingrese como `admin` y repita las consultas: empresa, reporte y asociaciones tal como las dejó.
+10. **Móvil** (390 px): los formularios de empresa y reporte y «Informes por empresa» caben sin desplazamiento horizontal.
+
 ## 4. Pruebas automáticas
 
 ```powershell
-npm test                   # 101 unitarias y de componentes
-npm run build; npm run test:e2e        # 84 E2E del modo simulado
-npm run test:contract      # 136 comprobaciones de contrato y permisos contra PHP real
-npm run build:qa; npm run test:e2e:qa  # 118 E2E navegador → React → PHP real (incluye el escenario completo de UX-07A)
-npm run qa:backend-ci      # CI del backend (PHP lint, seguridad, HTTP base, paginación, SEC-05A y UX-07A)
+npm test                   # 117 unitarias y de componentes
+npm run build; npm run test:e2e        # 85 E2E del modo simulado
+npm run test:contract      # 172 comprobaciones de contrato y permisos contra PHP real
+npm run build:qa; npm run test:e2e:qa  # 164 E2E navegador → React → PHP real (escenarios UX-07A y UX-07B). Si ya tiene una vista previa en el puerto 4175: `$env:E2E_PORT=4275`
+npm run qa:backend-ci      # CI del backend (PHP lint, seguridad, HTTP base, paginación, SEC-05A, UX-07A y UX-07B)
 ```
 
 ## 5. Apagar y limpiar

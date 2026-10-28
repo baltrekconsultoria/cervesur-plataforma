@@ -275,12 +275,13 @@ describe('administración inicial', () => {
   it('lista usuarios con filtros y sin exponer identificadores técnicos', async () => {
     const { login, user } = setup();
     await login('elena.torres');
-    await user.click(await screen.findByRole('link', { name: /Usuarios/ }));
+    // La tarjeta «Usuarios activos» del panel también enlaza a Usuarios cuando ya cargó: se acota al menú lateral.
+    await user.click(within(await screen.findByRole('navigation', { name: 'Secciones' })).getByRole('link', { name: /Usuarios/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Usuarios' })).toBeInTheDocument();
     // El título aparece mientras carga: se espera a la tabla en lugar de depender del tiempo.
     await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(4));
     await user.selectOptions(screen.getByLabelText('Estado'), 'inactive');
-    expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
+    await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(1));
     expect(document.body.textContent).toContain('Jorge Peña');
     expect(document.body.textContent).not.toMatch(/usr-\d|emp-\d|rep-\d/);
   });

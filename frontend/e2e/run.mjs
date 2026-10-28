@@ -247,7 +247,9 @@ function secrets() {
   const all = textFiles.map(f => readFileSync(f, 'utf8')).join('\n');
   ok('la compilación no contiene JWT', !/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/.test(all));
   ok('la compilación no contiene claves privadas ni secretos de cliente', !/BEGIN [A-Z ]*PRIVATE KEY|clientsecret\s*[:=]/i.test(all));
-  ok('la compilación no referencia enlaces de Power BI', !/app\.powerbi\.com|powerbi_|\benlace\b/.test(all));
+  ok('la compilación no referencia enlaces de Power BI ni credenciales powerbi_*', !/app\.powerbi\.com|powerbi_/.test(all));
+  // UX-07B: el formulario administrativo de informes mapea el campo técnico `enlace` (solo administradores). Se limita a ese mapeo (lectura y escritura).
+  ok('el campo técnico `enlace` solo aparece en el mapeo administrativo del adaptador (máx. 2 apariciones)', (all.match(/\benlace\b/g) ?? []).length <= 2, String((all.match(/\benlace\b/g) ?? []).length));
   ok('la compilación no incluye Flutter/CanvasKit', !/canvaskit|flutter_bootstrap|main\.dart/i.test(all) && !files.some(f => /canvaskit|main\.dart|flutter/i.test(f)));
   const urls = [...new Set(all.match(/https?:\/\/[^\s"'`)\\]+/g) ?? [])];
   ok('URLs absolutas en la compilación: solo cadenas inertes de React, React Router y espacios de nombres W3C', urls.every(u => /^https?:\/\/(react\.dev|reactrouter\.com|www\.w3\.org|github\.com\/ungap|localhost$)/i.test(u)), urls.join(', '));

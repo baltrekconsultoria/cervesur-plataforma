@@ -3,6 +3,7 @@ import { homePath } from '../auth/returnTo';
 import { DeniedState } from '../components/DeniedState';
 import { AdminAccessPage, AdminCompaniesPage, AdminDashboardPage, AdminReportsPage, AdminUsersPage } from '../features/admin/AdminPages';
 import { AccessWizardPage } from '../features/admin/AccessWizard';
+import { CompanyReportsPage } from '../features/admin/CompanyReportsPage';
 import { CompaniesPage } from '../features/companies/CompaniesPage';
 import { LibraryPage } from '../features/library/LibraryPage';
 import { LoginPage } from '../features/login/LoginPage';
@@ -60,6 +61,7 @@ export function App() {
           <Route path="/admin/reportes" element={<AdminReportsPage />} />
           <Route path="/admin/accesos" element={<AdminAccessPage />} />
           <Route path="/admin/accesos/nueva" element={<AccessWizardPage />} />
+          <Route path="/admin/asociaciones" element={<CompanyReportsPage />} />
         </Route>
         <Route path="*" element={<Home />} />
       </Route>

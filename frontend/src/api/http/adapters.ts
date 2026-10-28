@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { Assignment, Company, Report, Role, User } from '../types';
+import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User } from '../types';
 
 /**
  * Adaptadores entre el JSON REAL del backend PHP (verificado contra el código en UX-06A/06B.0, no solo contra
@@ -20,6 +20,11 @@ export interface ReportDto { id?: number | string; reporte_id?: string | null; n
 export interface CompanyDto { id: number | string; nombre: string; ciudad?: string | null; ruc?: string | null; activo?: boolean | number | string | null }
 /** Fila de GET /api/asignacion?view=minimal: relación empresa–informe (`reporte_id` es el id NUMÉRICO del informe). */
 export interface AssignmentDto { id?: number | string; empresa_id: number | string; reporte_id: number | string; activo?: boolean | number | string | null }
+
+/** GET /api/empresas/{id}?view=form (solo administradores): datos editables, sin Power BI. */
+export interface CompanyFormDto { id: number | string; nombre: string; razon_social?: string | null; ruc?: string | null; email?: string | null; telefono?: string | null; direccion?: string | null; ciudad?: string | null; pais?: string | null }
+/** GET /api/reportes/{id}?view=form (solo administradores). */
+export interface ReportFormDto { id: number | string; nombre: string; descripcion?: string | null; enlace?: string | null; grupo_id?: string | null; reporte_id?: string | null }
 
 /** Fila de GET /api/empresa-usuario?view=minimal. */
 export interface CompanyLinkDto { id: number | string; user_id: number | string; empresa_id: number | string }
@@ -88,6 +93,23 @@ export function toAssignment(dto: AccessDto): Assignment | null {
   return { id: String(dto.id), userId: String(dto.user_id), reportId: dto.reporte_id, companyId: String(dto.empresa_id) };
 }
 
+export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
+  if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de empresa incompleta.');
+  return { id: String(dto.id), name: requireText(dto.nombre, 'nombre'), legalName: dto.razon_social ?? '', taxId: dto.ruc ?? '', city: dto.ciudad ?? '', country: dto.pais ?? '', email: dto.email ?? '', phone: dto.telefono ?? '', address: dto.direccion ?? '' };
+}
+
+export function toReportDetail(dto: ReportFormDto): ReportDetail {
+  if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de informe incompleta.');
+  return { internalId: String(dto.id), name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', groupId: dto.grupo_id ?? '', reportId: dto.reporte_id ?? '' };
+}
+
+/** Asociación empresa ↔ informe: `reportNumericId` es `reporte.id`; se traduce al UUID con el catálogo. */
+export function toReportLink(dto: AssignmentDto, uuidByNumericId: Map<string, string>): ReportLink | null {
+  const reportId = uuidByNumericId.get(String(dto.reporte_id));
+  if (dto.id === undefined || !reportId || !toActive(dto.activo)) return null;
+  return { id: String(dto.id), companyId: String(dto.empresa_id), reportId };
+}
+
 /** Informe sin empresa (la relación se compone aparte). Devuelve null si falta `reporte_id` (no se podría abrir). */
 export function toReport(dto: ReportDto): Report | null {
   if (!dto || typeof dto.reporte_id !== 'string' || !dto.reporte_id) return null;
@@ -136,3 +158,13 @@ export function composeReportCatalog(reports: ReportDto[], assignments: Assignme
   }
   return catalog;
 }
+
+/** Cuerpo de empresa: solo datos no sensibles. Al crear se omiten los opcionales vacíos; al editar se envían todos (un campo vacío lo borra). */
+export function companyBody(input: CompanyInput, editing: boolean): Record<string, string> {
+  const body: Record<string, string> = { nombre: input.name.trim(), razon_social: input.legalName.trim(), ruc: input.taxId.trim() };
+  const optional: Record<string, string> = { ciudad: input.city, pais: input.country, email: input.email, telefono: input.phone, direccion: input.address };
+  for (const [key, value] of Object.entries(optional)) if (editing || value.trim()) body[key] = value.trim();
+  return body;
+}
+
+export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim(), grupo_id: input.groupId.trim(), reporte_id: input.reportId.trim() });

@@ -209,6 +209,9 @@ class AsignacionController {
                     'reporte_id' => $data['reporte_id']
                 ]
             ];
+        } catch (DomainException $e) {
+            // Regla de negocio propia (texto controlado por la aplicación, sin detalle de base de datos).
+            return ['success' => false, 'message' => domain_error_message($e)];
         } catch (Exception $e) {
             return [
                 'success' => false,

@@ -144,6 +144,16 @@ class EmpresaController {
      */
     public function update($id, $data, $user_id, $role) {
         try {
+            // UX-07B: los campos obligatorios no pueden quedar vacíos al editar.
+            foreach (['nombre', 'razon_social'] as $field) {
+                if (is_array($data) && array_key_exists($field, $data) && trim((string)$data[$field]) === '') {
+                    return [
+                        'success' => false,
+                        'message' => "El campo '$field' no puede quedar vacío"
+                    ];
+                }
+            }
+
             // Validar RUC si se proporciona
             if (!empty($data['ruc'])) {
                 if (!preg_match('/^\d{11}$/', $data['ruc'])) {
