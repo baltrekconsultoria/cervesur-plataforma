@@ -84,6 +84,18 @@ class ReporteModel {
         }
     }
 
+    /** ¿`reporte.grupo_id` admite NULL en esta base? (true/false; null si no se puede determinar). En producción es NOT NULL (UX-07D.2B). */
+    public function grupoIdNullable() {
+        try {
+            $stmt = $this->pdo->prepare("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reporte' AND COLUMN_NAME = 'grupo_id'");
+            $stmt->execute();
+            $value = $stmt->fetchColumn();
+            return $value === false || $value === null ? null : strtoupper((string)$value) === 'YES';
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+
     /** ¿Existe un informe activo con ese id interno? */
     public function existsActive($id) {
         $stmt = $this->pdo->prepare('SELECT 1 FROM reporte WHERE id = :id AND activo = 1 LIMIT 1');

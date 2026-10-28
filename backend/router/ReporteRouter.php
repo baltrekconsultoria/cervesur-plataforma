@@ -116,6 +116,21 @@ if (strpos($uri, '/api/reportes') === 0) {
         exit;
     }
 
+    // GET /api/reportes/id/{id}/visor - Configuración del visor por ID NUMÉRICO del informe (UX-07D.2B).
+    // Es la ruta que usa React: `reporte_id` histórico de producción no siempre es un UUID de 36 caracteres. Mismo control de acceso que
+    // la ruta por UUID. Solo se aceptan enteros positivos canónicos (sin ceros a la izquierda, signo ni decimales); lo demás cae al 404 genérico.
+    if ($method === 'GET' && preg_match('/^\/api\/reportes\/id\/([1-9][0-9]{0,9})\/visor$/', $uri, $matches)) {
+        $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
+        $user = require_auth($jwt_secret);
+        header('Cache-Control: no-store, no-cache, must-revalidate, private');
+        header('Pragma: no-cache');
+        header('X-Content-Type-Options: nosniff');
+        [$response, $status] = $reporteController->getViewerById($matches[1], $user['user_id'], $user['role']);
+        http_response_code($status);
+        echo json_encode($response);
+        exit;
+    }
+
     // GET /api/reportes/reporteid/{uuid}/visor - Configuración del visor (UX-07C), solo si el servidor autoriza el acceso
     if ($method === 'GET' && preg_match('/^\/api\/reportes\/reporteid\/([a-f0-9\-]{36})\/visor$/', $uri, $matches)) {
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');

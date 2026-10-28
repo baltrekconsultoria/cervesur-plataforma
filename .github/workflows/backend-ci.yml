@@ -67,9 +67,10 @@ jobs:
           network_name="cervesur-ci-net-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           db_name="cervesur-ci-db-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           app_name="cervesur-ci-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          appprod_name="cervesur-ci-appprod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           cleanup() {
-            docker rm --force "$app_name" "$db_name" >/dev/null 2>&1 || true
+            docker rm --force "$app_name" "$appprod_name" "$db_name" >/dev/null 2>&1 || true
             docker network rm "$network_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -151,3 +152,10 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS \
             cervesur-ci-php:local php tests/isolated/http_viewer_test.php
+
+          # UX-07D.2B: esquema e identificadores PRODUCTIVOS sintéticos (reporte_id de hasta 50 caracteres no UUID, grupo_id NOT NULL,
+          # enlace VARCHAR(500)) en una base aparte (`fixture_prod`) servida por una segunda instancia del backend.
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/seed_productive.php
+          docker run --detach --name "$appprod_name" --network "$network_name" --network-alias appprod             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_USER=root --env DB_PASS             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          sleep 1
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_productive_ids_test.php

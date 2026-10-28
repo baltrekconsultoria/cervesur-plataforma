@@ -2,7 +2,7 @@
 # SOLO para probar scripts/instalar.sh, verificar.sh y revertir.sh en local (deploy/tunel-ssh/ensayo-docker.mjs). No es el servidor real.
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends apache2 libapache2-mod-php8.3 php8.3-cli php8.3-mysql mysql-server curl openssl socat iproute2 ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends apache2 libapache2-mod-php8.3 php8.3-cli php8.3-mysql php8.3-mbstring mysql-server curl openssl socat iproute2 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 # Estado declarado del servidor real: módulos alias, php y rewrite activos; headers NO habilitado.
 RUN a2enmod rewrite alias >/dev/null && a2dismod headers >/dev/null 2>&1 || true

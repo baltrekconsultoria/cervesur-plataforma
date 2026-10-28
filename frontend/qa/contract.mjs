@@ -363,15 +363,28 @@ const emb = await viewerOf(embId, op.token);
 ok('inserción autenticada: modo «privado», sin enlace ni tokens (requiere configuración de Microsoft)', emb.status === 200 && emb.json?.data?.modo === 'privado' && !('url' in (emb.json?.data ?? {})) && !/powerbi\.com/.test(emb.raw));
 const legacyViewer = await viewerOf('00000000-0000-0000-0000-000000000044', admin.token);
 ok('un dato antiguo con enlace no compatible → «no_compatible» y su enlace no se devuelve', legacyViewer.json?.data?.modo === 'no_compatible' && !/example\.invalid/.test(legacyViewer.raw));
+// UX-07D.2B: visor por id NUMÉRICO (la ruta que usa React; en producción reporte_id no es un UUID). La ruta por UUID anterior sigue intacta.
+const viewerById = (id, token) => call('GET', `/api/reportes/id/${id}/visor`, { token });
+const vn = await viewerById(pubId, op.token);
+ok('visor por id numérico: el usuario autorizado recibe el modo público, el id y la referencia histórica', vn.status === 200 && vn.json?.data?.id === pubId && vn.json?.data?.reporte_id === pubRef && vn.json?.data?.modo === 'publico' && vn.json?.data?.url === publicLink(tok1));
+ok('visor por id numérico: sin credenciales, secretos ni tokens generales', !/secret|tenant|client|access_token|password|powerbi_/i.test(vn.raw));
+const deadN = await viewerById(4000000000, usera.token);
+const deniedN = await viewerById(pubId, usera.token);
+ok('visor por id numérico: sin acceso → respuesta idéntica a la de un informe inexistente', deniedN.status === 404 && deniedN.raw === deadN.raw && !/powerbi/.test(deniedN.raw));
+ok('visor por id numérico: sin autenticación → 401', (await viewerById(pubId)).status === 401);
+ok('visor por id numérico: ids malformados o fuera de rango → siempre 404 sin datos', (await Promise.all(['0', '-1', 'abc', '1.5', '007', '99999999999', '4294967296', '1e3'].map(id => viewerById(id, admin.token)))).every(r => r.status === 404 && r.json?.success === false && !/powerbi/.test(r.raw)));
+const embN = await viewerById(Number(embCreated.json.data.id), op.token);
+ok('visor por id numérico: inserción autenticada → modo «privado» sin enlace', embN.status === 200 && embN.json?.data?.modo === 'privado' && !('url' in (embN.json?.data ?? {})));
 const catalog = await call('GET', '/api/reportes?view=minimal&per_page=100', { token: op.token });
 ok('el catálogo normal (vista mínima) no entrega ningún enlace', !/powerbi\.com|"enlace"/.test(catalog.raw));
 
 await call('DELETE', `/api/empresa-reporte-usuario/${grantPub}`, { token: admin.token });
 ok('un acceso retirado bloquea nuevas solicitudes del visor', (await viewerOf(pubRef, op.token)).status === 404);
+ok('un acceso retirado también bloquea el acceso directo por id numérico (el servidor, no la interfaz)', (await viewerById(pubId, op.token)).status === 404);
 await call('POST', '/api/empresa-reporte-usuario', { token: admin.token, body: { user_id: opId, empresa_reporte_id: pubLink } });
-ok('al volver a conceder el acceso, el visor responde de nuevo', (await viewerOf(pubRef, op.token)).status === 200);
+ok('al volver a conceder el acceso, el visor responde de nuevo', (await viewerOf(pubRef, op.token)).status === 200 && (await viewerById(pubId, op.token)).status === 200);
 await call('DELETE', `/api/asignacion/${pubLink}`, { token: admin.token });
-ok('una asociación empresa ↔ informe desactivada también lo bloquea', (await viewerOf(pubRef, op.token)).status === 404);
+ok('una asociación empresa ↔ informe desactivada también lo bloquea (por UUID y por id numérico)', (await viewerOf(pubRef, op.token)).status === 404 && (await viewerById(pubId, op.token)).status === 404);
 await call('POST', '/api/asignacion', { token: admin.token, body: { empresa_id: companyId, reporte_id: pubId } });
 
 const edited = await call('PUT', `/api/reportes/${pubId}`, { token: admin.token, body: { nombre: `Público ${ruc1}`, descripcion: 'Editado', enlace: publicLink(tok2) } });
@@ -379,7 +392,7 @@ const afterEdit = (await call('GET', `/api/reportes/${pubId}?view=form`, { token
 ok('editar el enlace conserva el id interno, la referencia y las asociaciones, e invalida el enlace anterior', edited.json?.success === true && afterEdit?.reporte_id === pubRef && Number(afterEdit?.id) === pubId && (await viewerOf(pubRef, op.token)).json?.data?.url === publicLink(tok2));
 ok('el historial de rutas por UUID sigue funcionando', (await call('GET', `/api/reportes/reporteid/${pubRef}?view=minimal`, { token: admin.token })).json?.data?.reporte_id === pubRef);
 await call('DELETE', `/api/reportes/${pubId}`, { token: admin.token });
-ok('un informe dado de baja no se puede abrir ni por su administrador', (await viewerOf(pubRef, admin.token)).status === 404);
+ok('un informe dado de baja no se puede abrir ni por su administrador (por UUID ni por id numérico)', (await viewerOf(pubRef, admin.token)).status === 404 && (await viewerById(pubId, admin.token)).status === 404);
 await call('DELETE', `/api/reportes/${Number(embCreated.json.data.id)}`, { token: admin.token });
 
 // Limpieza: la empresa y el reporte de prueba se dan de baja (baja lógica) para no alterar los recuentos de otras suites sobre el mismo entorno.

@@ -29,9 +29,16 @@ export interface Company {
   active: boolean;
 }
 
-/** Informe del catálogo. No incluye el vínculo de visualización del backend: la visualización real usará un token de inserción limitado. */
+/**
+ * Informe del catálogo. No incluye el vínculo de visualización del backend.
+ * IDENTIDAD (UX-07D.2B): `id` es la identidad operativa y estable del informe. En el proveedor HTTP es `reporte.id` (entero positivo de MySQL,
+ * como cadena); se usa en rutas, selección, permisos y llamadas al visor. `ref` es la referencia histórica `reporte_id` de la base (en
+ * producción NO es un UUID: puede tener hasta 50 caracteres y otros formatos): solo informativa, nunca se usa para enrutar ni para unir datos.
+ */
 export interface Report {
   id: string;
+  /** Referencia histórica (`reporte_id`). Ausente si el servidor no la envía; jamás se inventa. */
+  ref?: string;
   name: string;
   description: string;
   /** Primera empresa (compatibilidad). Un informe puede pertenecer a varias: usar `companyIds`. */
@@ -47,7 +54,7 @@ export interface Assignment {
   /** Id de la relación en el servidor (necesario para retirarla). Ausente en datos que no lo traen. */
   id?: string;
   userId: string;
-  /** Id del informe en el modelo del frontend (UUID de Power BI en el proveedor HTTP). */
+  /** Id del informe en el modelo del frontend (`Report.id`; en el proveedor HTTP, el `reporte.id` numérico). */
   reportId: string;
   /** Empresa a través de la cual se concede el acceso. */
   companyId?: string;
@@ -88,9 +95,9 @@ export interface ReportInput {
   link: string;
 }
 export interface ReportDetail extends ReportInput {
-  /** Id numérico interno (MySQL): identidad estable del informe, necesaria para guardar cambios. */
+  /** Id numérico interno (MySQL): identidad estable del informe (igual a `Report.id` en el proveedor HTTP), necesaria para guardar cambios. */
   internalId: string;
-  /** Referencia UUID estable (la que usan las rutas y la interfaz). Puede ser una referencia interna de Cervesur y no un id de Power BI. */
+  /** Referencia histórica `reporte_id` (puede no ser UUID ni tener 36 caracteres). Solo informativa; editar el informe no la modifica. */
   ref: string;
 }
 
@@ -106,7 +113,10 @@ export interface ViewerConfig {
   url?: string;
 }
 
-/** Asociación empresa ↔ informe (tabla `empresa_reporte`). `reportId` es el UUID del informe. */
+/**
+ * Asociación empresa ↔ informe (tabla `empresa_reporte`). `id` es el id de LA RELACIÓN (no el del informe);
+ * `reportId` es `Report.id` (el `reporte.id` numérico en el proveedor HTTP).
+ */
 export interface ReportLink {
   id: string;
   companyId: string;
@@ -115,7 +125,7 @@ export interface ReportLink {
 
 export interface LinkRequest {
   companyId: string;
-  /** UUID de cada informe a asociar. */
+  /** `Report.id` de cada informe a asociar. */
   reportIds: string[];
 }
 

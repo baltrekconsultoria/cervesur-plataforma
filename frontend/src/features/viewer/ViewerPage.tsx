@@ -32,7 +32,7 @@ function ViewerContent({ reportId }: { reportId: string }) {
       capabilities.reportCompany ? api.listCompanies() : Promise.resolve([]),
       capabilities.reportCompany ? api.listReports() : Promise.resolve([])
     ]);
-    // La empresa(s) del informe sale del catálogo compuesto (el detalle por UUID no la incluye).
+    // La empresa(s) del informe sale del catálogo compuesto (el detalle por id no la incluye).
     const known = reports.find(r => r.id === report.id)?.companyIds ?? report.companyIds;
     const owned = companies.filter(c => known.includes(c.id));
     return {

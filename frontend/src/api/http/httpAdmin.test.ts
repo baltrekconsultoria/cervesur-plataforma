@@ -11,7 +11,7 @@ interface Call { method: string; path: string; query: URLSearchParams; body: Rec
 function server(state: { links: Array<{ id: number; user_id: number; empresa_id: number }>; rejectGrant?: (body: Record<string, unknown>) => string | null; users?: unknown[] }) {
   const calls: Call[] = [];
   const REPORTS = [{ id: 11, reporte_id: 'uuid-a', nombre: 'Reporte A', activo: 1 }, { id: 12, reporte_id: 'uuid-b', nombre: 'Reporte B', activo: 1 }, { id: 13, reporte_id: 'uuid-c', nombre: 'Reporte C', activo: 1 }];
-  // id de relación empresa_reporte (7, 8, 9) deliberadamente distinto del id del informe (11, 12, 13) y de su UUID.
+  // id de relación empresa_reporte (7, 8, 9) deliberadamente distinto del id del informe (11, 12, 13) y de su referencia histórica.
   const RELATIONS = [{ id: 7, empresa_id: 1, reporte_id: 11, activo: 1 }, { id: 8, empresa_id: 1, reporte_id: 12, activo: 1 }, { id: 9, empresa_id: 2, reporte_id: 13, activo: 1 }];
   const fetchImpl = ((url: string, init: RequestInit) => {
     const u = new URL(url); const method = init.method ?? 'GET';
@@ -24,7 +24,7 @@ function server(state: { links: Array<{ id: number; user_id: number; empresa_id:
       if (u.pathname === '/api/reportes') return Promise.resolve(list(REPORTS));
       if (u.pathname === '/api/asignacion') return Promise.resolve(list(RELATIONS, 'data', true));
       if (u.pathname === '/api/empresa-usuario') return Promise.resolve(list(state.links));
-      if (u.pathname === '/api/empresa-reporte-usuario') return Promise.resolve(list([{ id: 40, user_id: 5, empresa_id: 1, empresa_reporte_id: 7, reporte_id: 'uuid-a', activo: true }, { id: 41, user_id: 5, empresa_id: 1, empresa_reporte_id: 8, reporte_id: null, activo: true }]));
+      if (u.pathname === '/api/empresa-reporte-usuario') return Promise.resolve(list([{ id: 40, user_id: 5, empresa_id: 1, empresa_reporte_id: 7, reporte_id: 'uuid-a', activo: true }, { id: 41, user_id: 5, empresa_id: 1, empresa_reporte_id: 8, reporte_id: 'uuid-a', activo: true }, { id: 42, user_id: 5, empresa_id: 1, empresa_reporte_id: 999, reporte_id: 'uuid-z', activo: true }]));
     }
     if (method === 'POST' && u.pathname === '/api/empresa-usuario') { state.links.push({ id: 99, user_id: Number(body?.user_id), empresa_id: Number(body?.empresa_id) }); return Promise.resolve(json(200, { success: true, InsertedId: 99 })); }
     if (method === 'POST' && u.pathname === '/api/empresa-reporte-usuario') {
@@ -90,14 +90,18 @@ describe('administración HTTP · usuarios', () => {
 });
 
 describe('administración HTTP · accesos', () => {
-  it('lista accesos con los tres identificadores separados y descarta filas sin UUID', async () => {
+  it('lista accesos con los identificadores separados: el informe se resuelve por la relación empresa–informe, no por el reporte_id histórico', async () => {
     const { client } = server({ links: [] });
-    expect(await client.listAssignments()).toEqual([{ id: '40', userId: '5', reportId: 'uuid-a', companyId: '1' }]);
+    // Las filas 40 y 41 traen la MISMA referencia histórica ('uuid-a'): por eso no sirve para unir. La 42 apunta a una relación que no está vigente.
+    expect(await client.listAssignments()).toEqual([
+      { id: '40', userId: '5', reportId: '11', companyId: '1' },
+      { id: '41', userId: '5', reportId: '12', companyId: '1' }
+    ]);
   });
 
-  it('concede acceso: crea la relación con la empresa si falta y usa el id empresa_reporte (no el id ni el UUID del informe)', async () => {
+  it('concede acceso: crea la relación con la empresa si falta y usa el id empresa_reporte (no el id del informe ni su referencia histórica)', async () => {
     const { client, calls } = server({ links: [] });
-    const results = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-a', 'uuid-b'] });
+    const results = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['11', '12'] });
     expect(results.map(r => r.status)).toEqual(['granted', 'granted']);
     const writes = calls.filter(c => c.method === 'POST').map(c => [c.path, c.body]);
     expect(writes).toEqual([
@@ -109,20 +113,27 @@ describe('administración HTTP · accesos', () => {
 
   it('no duplica la relación con la empresa si ya existe', async () => {
     const { client, calls } = server({ links: [{ id: 1, user_id: 5, empresa_id: 1 }] });
-    await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-a'] });
+    await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['11'] });
     expect(calls.filter(c => c.method === 'POST' && c.path === '/api/empresa-usuario')).toHaveLength(0);
   });
 
   it('un informe que no pertenece a la empresa no se envía al servidor', async () => {
     const { client, calls } = server({ links: [{ id: 1, user_id: 5, empresa_id: 1 }] });
-    const [result] = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-c'] }); // uuid-c es de la empresa 2
-    expect(result).toMatchObject({ reportId: 'uuid-c', status: 'failed' });
+    const [result] = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['13'] }); // el informe 13 es de la empresa 2
+    expect(result).toMatchObject({ reportId: '13', status: 'failed' });
+    expect(calls.filter(c => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('un id de informe que no es numérico canónico (p. ej. una referencia histórica) no se envía nunca', async () => {
+    const { client, calls } = server({ links: [{ id: 1, user_id: 5, empresa_id: 1 }] });
+    const results = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-a', '011', '11 ', '1e1'] });
+    expect(results.map(r => r.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
     expect(calls.filter(c => c.method === 'POST')).toHaveLength(0);
   });
 
   it('distingue concedido, ya existente y rechazado por PHP; un rechazo nunca figura como guardado', async () => {
     const { client } = server({ links: [{ id: 1, user_id: 5, empresa_id: 1 }], rejectGrant: body => (body.empresa_reporte_id === 7 ? 'La relación (user_id, empresa_reporte_id) ya existe' : body.empresa_reporte_id === 8 ? 'El usuario no está asignado a la empresa de este informe' : null) });
-    const results = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-a', 'uuid-b'] });
+    const results = await client.grantAccess({ userId: '5', companyId: '1', reportIds: ['11', '12'] });
     expect(results.map(r => r.status)).toEqual(['already', 'failed']);
     expect(results[1]?.message).toContain('no está asignado');
   });
@@ -134,7 +145,7 @@ describe('administración HTTP · accesos', () => {
       if (init.method === 'POST') { posts.push(u.pathname); return Promise.resolve(json(200, { success: false, message: 'La empresa o el usuario especificado no existe o está inactivo' })); }
       return Promise.resolve(json(200, { success: true, data: [], pagination: meta(1, 0) }));
     }) as unknown as typeof fetch;
-    await expect(new HttpApiClient({ baseUrl: 'http://127.0.0.1:9', tokens, fetchImpl }).grantAccess({ userId: '5', companyId: '1', reportIds: ['uuid-a'] })).rejects.toMatchObject({ message: expect.stringContaining('inactivo') as string });
+    await expect(new HttpApiClient({ baseUrl: 'http://127.0.0.1:9', tokens, fetchImpl }).grantAccess({ userId: '5', companyId: '1', reportIds: ['11'] })).rejects.toMatchObject({ message: expect.stringContaining('inactivo') as string });
     expect(posts).toEqual(['/api/empresa-usuario']);
   });
 

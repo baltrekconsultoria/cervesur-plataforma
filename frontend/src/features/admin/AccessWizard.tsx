@@ -16,7 +16,7 @@ export const assignable = (u: User) => u.active && u.role === 'user' && !u.login
 
 /**
  * Asistente de 4 pasos (usuario → empresa → informes → confirmar) y resultado.
- * Los identificadores se mantienen separados: usuario y empresa por su id; el informe por su UUID de Power BI en la interfaz.
+ * Los identificadores se mantienen separados: usuario y empresa por su id; el informe por su `reporte.id` numérico (`Report.id`); la referencia histórica `reporte_id` no interviene.
  * El cliente HTTP traduce a la relación empresa↔informe (`empresa_reporte`) y a las tres tablas de acceso.
  */
 export function AccessWizardPage() {

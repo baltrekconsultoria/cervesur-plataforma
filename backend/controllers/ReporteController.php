@@ -71,6 +71,12 @@ class ReporteController {
             $ref = $link['report_id'];
             $grupo = $link['group_id'] ?? $explicit['grupo_id'];
         }
+        // Esquema real (UX-07D.2B): si `reporte.grupo_id` es NOT NULL y el enlace «Publicar en web» no trae grupo, NO se inventa uno ni se guarda
+        // una cadena vacía: se rechaza con un mensaje claro. Las ediciones de informes existentes conservan su grupo_id actual y no se ven afectadas.
+        if ($grupo === null && $this->reporteModel->grupoIdNullable() === false) {
+            return [null, 'Esta base de datos exige el ID del grupo del informe y el enlace «Publicar en web» no lo incluye. No se inventan identificadores: '
+                . 'aplique la migración UX-07C (pendiente de autorización) o registre el informe con un enlace que incluya el grupo.'];
+        }
         if ($this->reporteModel->reporteIdExists($ref, $excludeId)) {
             return [null, 'Ya existe un informe con ese ID de Power BI'];
         }
@@ -161,24 +167,58 @@ class ReporteController {
             if (empty($found['success']) || empty($found['data'])) {
                 return [['success' => false, 'message' => 'Reporte no encontrado'], 404];
             }
-            $row = $found['data'];
-            $link = classify_powerbi_link($row['enlace'] ?? null);
-            $data = [
-                'reporte_id' => $row['reporte_id'],
-                'nombre' => $row['nombre'],
-                'descripcion' => $row['descripcion'] ?? '',
-                'modo' => 'no_compatible',
-            ];
-            if ($link['ok'] && $link['kind'] === 'public') {
-                $data['modo'] = 'publico';
-                $data['url'] = trim((string)$row['enlace']);
-            } elseif ($link['ok']) {
-                $data['modo'] = 'privado'; // inserción autenticada: requiere configuración de Microsoft (no disponible); no se entrega el enlace
-            }
-            return [['success' => true, 'data' => $data], 200];
+            return [['success' => true, 'data' => $this->viewerData($found['data'], false)], 200];
         } catch (Exception $e) {
             return [['success' => false, 'message' => public_error_message('Error al obtener el visor', $e)], 500];
         }
+    }
+
+    /**
+     * Configuración del visor por ID NUMÉRICO del informe (UX-07D.2B): `GET /api/reportes/id/{id}/visor`.
+     * Misma autorización que la ruta por UUID (ReporteModel::getById aplica authorizedReportSql: informe activo, empresa activa,
+     * usuario↔empresa activo, empresa↔informe activo y asignación individual activa; el administrador ve los informes activos).
+     * Un id malformado, fuera de rango (INT UNSIGNED), inexistente o no autorizado responde exactamente igual: 404 «Reporte no encontrado».
+     * @param string $id identificador tal como llegó en la URL
+     * @return array [respuesta, código HTTP]
+     */
+    public function getViewerById($id, $user_id, $role) {
+        try {
+            if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,9}$/', $id) || (int)$id > 4294967295) {
+                return [['success' => false, 'message' => 'Reporte no encontrado'], 404];
+            }
+            $found = $this->reporteModel->getById((int)$id, $user_id, $role);
+            if (empty($found['success']) || empty($found['data'])) {
+                return [['success' => false, 'message' => 'Reporte no encontrado'], 404];
+            }
+            return [['success' => true, 'data' => $this->viewerData($found['data'], true)], 200];
+        } catch (Exception $e) {
+            return [['success' => false, 'message' => public_error_message('Error al obtener el visor', $e)], 500];
+        }
+    }
+
+    /**
+     * Respuesta del visor a partir de una fila YA AUTORIZADA. El enlace solo se entrega para publicaciones web; nunca credenciales ni tokens.
+     * `reporte_id` es la referencia histórica (puede no ser UUID ni tener 36 caracteres); `id` (solo en la ruta numérica) es la identidad estable.
+     */
+    private function viewerData(array $row, $withId) {
+        $link = classify_powerbi_link($row['enlace'] ?? null);
+        $data = [];
+        if ($withId) {
+            $data['id'] = (int)$row['id'];
+        }
+        $data += [
+            'reporte_id' => $row['reporte_id'],
+            'nombre' => $row['nombre'],
+            'descripcion' => $row['descripcion'] ?? '',
+            'modo' => 'no_compatible',
+        ];
+        if ($link['ok'] && $link['kind'] === 'public') {
+            $data['modo'] = 'publico';
+            $data['url'] = trim((string)$row['enlace']);
+        } elseif ($link['ok']) {
+            $data['modo'] = 'privado'; // inserción autenticada: requiere configuración de Microsoft (no disponible); no se entrega el enlace
+        }
+        return $data;
     }
 
     /**
