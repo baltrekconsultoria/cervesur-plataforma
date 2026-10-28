@@ -2,6 +2,8 @@
 
 Estado: **preparado, NO desplegado**. Nada se instaló, publicó ni ejecutó contra producción ni MySQL real.
 
+> **Actualización UX-07D.1B (sin dominio ni HTTPS):** el primer despliegue de prueba **ya se instaló y validó** en el servidor de pruebas por túnel SSH a `127.0.0.1:8088` (VPN + SSH), accesible en Windows como `http://localhost:18089`. Sigue sin ser producción. El procedimiento, los scripts, el ensayo en Docker y la reversión están en [INSTALACION-REACT-TUNEL-SSH.md](INSTALACION-REACT-TUNEL-SSH.md). Las secciones de este documento que mencionan un subdominio HTTPS siguen siendo la referencia para un despliegue posterior con certificado.
+
 ## 1. Problemas de despliegue encontrados
 
 | # | Problema | Resolución |
