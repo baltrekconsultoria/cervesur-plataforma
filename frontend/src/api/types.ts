@@ -89,6 +89,8 @@ export interface CompanyInput {
   email: string;
   phone: string;
   address: string;
+  /** Versión de la fila que leyó el formulario (bloqueo optimista). Solo viaja en ediciones; si cambió, el servidor responde 409. */
+  version?: string;
 }
 export interface CompanyDetail extends CompanyInput { id: string }
 
@@ -101,6 +103,8 @@ export interface ReportInput {
   description: string;
   /** Enlace de Power BI (publicación web, inserción o enlace normal). Solo lo ve un administrador. */
   link: string;
+  /** Versión de la fila que leyó el formulario (bloqueo optimista). Solo viaja en ediciones; si cambió, el servidor responde 409. */
+  version?: string;
 }
 export interface ReportDetail extends ReportInput {
   /** Id numérico interno (MySQL): identidad estable del informe (igual a `Report.id` en el proveedor HTTP), necesaria para guardar cambios. */

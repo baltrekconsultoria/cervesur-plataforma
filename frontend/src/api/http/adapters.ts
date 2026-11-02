@@ -23,9 +23,9 @@ export interface CompanyDto { id: number | string; nombre: string; ciudad?: stri
 export interface AssignmentDto { id?: number | string; empresa_id: number | string; reporte_id: number | string; activo?: boolean | number | string | null }
 
 /** GET /api/empresas/{id}?view=form (solo administradores): datos editables, sin Power BI. */
-export interface CompanyFormDto { id: number | string; nombre: string; razon_social?: string | null; ruc?: string | null; email?: string | null; telefono?: string | null; direccion?: string | null; ciudad?: string | null; pais?: string | null }
+export interface CompanyFormDto { id: number | string; version?: string | null; nombre: string; razon_social?: string | null; ruc?: string | null; email?: string | null; telefono?: string | null; direccion?: string | null; ciudad?: string | null; pais?: string | null }
 /** GET /api/reportes/{id}?view=form (solo administradores). `reporte_id` es la referencia histórica (hasta 50 caracteres, no necesariamente UUID). */
-export interface ReportFormDto { id: number | string; nombre: string; descripcion?: string | null; enlace?: string | null; grupo_id?: string | null; reporte_id?: string | null }
+export interface ReportFormDto { id: number | string; version?: string | null; nombre: string; descripcion?: string | null; enlace?: string | null; grupo_id?: string | null; reporte_id?: string | null }
 
 /** Fila de GET /api/empresa-usuario?view=minimal. */
 export interface CompanyLinkDto { id: number | string; user_id: number | string; empresa_id: number | string }
@@ -109,14 +109,14 @@ export function toAssignment(dto: AccessDto, reportIdByRelation: Map<string, str
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
   if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de empresa incompleta.');
-  return { id: String(dto.id), name: requireText(dto.nombre, 'nombre'), legalName: dto.razon_social ?? '', taxId: dto.ruc ?? '', city: dto.ciudad ?? '', country: dto.pais ?? '', email: dto.email ?? '', phone: dto.telefono ?? '', address: dto.direccion ?? '' };
+  return { id: String(dto.id), name: requireText(dto.nombre, 'nombre'), legalName: dto.razon_social ?? '', taxId: dto.ruc ?? '', city: dto.ciudad ?? '', country: dto.pais ?? '', email: dto.email ?? '', phone: dto.telefono ?? '', address: dto.direccion ?? '', ...(dto.version ? { version: dto.version } : {}) };
 }
 
 export function toReportDetail(dto: ReportFormDto): ReportDetail {
   if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de informe incompleta.');
   const internalId = numericId(dto.id);
   if (!internalId) throw invalid('Respuesta de informe con identificador no válido.');
-  return { internalId, name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', ref: dto.reporte_id ?? '' };
+  return { internalId, name: requireText(dto.nombre, 'nombre'), description: dto.descripcion ?? '', link: dto.enlace ?? '', ref: dto.reporte_id ?? '', ...(dto.version ? { version: dto.version } : {}) };
 }
 
 /** Asociación empresa ↔ informe vigente. `reporte_id` de /api/asignacion ya es el `reporte.id` NUMÉRICO: no hace falta ninguna tabla de conversión. */
@@ -185,10 +185,11 @@ export function companyBody(input: CompanyInput, editing: boolean): Record<strin
   const body: Record<string, string> = { nombre: input.name.trim(), razon_social: input.legalName.trim(), ruc: input.taxId.trim() };
   const optional: Record<string, string> = { ciudad: input.city, pais: input.country, email: input.email, telefono: input.phone, direccion: input.address };
   for (const [key, value] of Object.entries(optional)) if (editing || value.trim()) body[key] = value.trim();
+  if (editing && input.version) body.version = input.version;
   return body;
 }
 
-export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim() });
+export const reportBody = (input: ReportInput): Record<string, string> => ({ nombre: input.name.trim(), descripcion: input.description.trim(), enlace: input.link.trim(), ...(input.version ? { version: input.version } : {}) });
 
 /** GET /api/reportes/id/{id}/visor: configuración autorizada del visor (por el id numérico del informe). */
 export interface ViewerDto { modo?: unknown; url?: unknown }

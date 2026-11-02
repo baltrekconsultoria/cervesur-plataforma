@@ -34,7 +34,7 @@ export function ReportDialog({ report, onClose, onSaved }: { report: Report | nu
     <Dialog title={report ? 'Editar reporte' : 'Nuevo reporte'} labelId="rp-title" onClose={onClose}>
       {detail.status === 'loading' && <div className="modal-body"><LoadingState label="Cargando datos del reporte…" /></div>}
       {detail.status === 'error' && <div className="modal-body"><ErrorState onRetry={() => setAttempt(a => a + 1)} /><div className="modal-foot"><Button variant="secondary" onClick={onClose}>Cerrar</Button></div></div>}
-      {detail.status === 'ready' && <ReportForm key={attempt} internalId={detail.data?.internalId ?? null} initial={detail.data ? { name: detail.data.name, description: detail.data.description, link: detail.data.link } : EMPTY} onClose={onClose} onSaved={onSaved} />}
+      {detail.status === 'ready' && <ReportForm key={attempt} internalId={detail.data?.internalId ?? null} initial={detail.data ? { name: detail.data.name, description: detail.data.description, link: detail.data.link, ...(detail.data.version ? { version: detail.data.version } : {}) } : EMPTY} onClose={onClose} onSaved={onSaved} />}
     </Dialog>
   );
 }

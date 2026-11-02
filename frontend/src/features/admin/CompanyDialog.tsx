@@ -40,7 +40,7 @@ export function CompanyDialog({ company, onClose, onSaved }: { company: Company 
     <Dialog title={title} labelId="co-title" onClose={onClose}>
       {detail.status === 'loading' && <div className="modal-body"><LoadingState label="Cargando datos de la empresa…" /></div>}
       {detail.status === 'error' && <div className="modal-body"><ErrorState onRetry={() => setAttempt(a => a + 1)} /><div className="modal-foot"><Button variant="secondary" onClick={onClose}>Cerrar</Button></div></div>}
-      {detail.status === 'ready' && <CompanyForm key={attempt} id={company?.id ?? null} initial={detail.data ? { name: detail.data.name, legalName: detail.data.legalName, taxId: detail.data.taxId, city: detail.data.city, country: detail.data.country, email: detail.data.email, phone: detail.data.phone, address: detail.data.address } : EMPTY} onClose={onClose} onSaved={onSaved} />}
+      {detail.status === 'ready' && <CompanyForm key={attempt} id={company?.id ?? null} initial={detail.data ? { name: detail.data.name, legalName: detail.data.legalName, taxId: detail.data.taxId, city: detail.data.city, country: detail.data.country, email: detail.data.email, phone: detail.data.phone, address: detail.data.address, ...(detail.data.version ? { version: detail.data.version } : {}) } : EMPTY} onClose={onClose} onSaved={onSaved} />}
     </Dialog>
   );
 }
