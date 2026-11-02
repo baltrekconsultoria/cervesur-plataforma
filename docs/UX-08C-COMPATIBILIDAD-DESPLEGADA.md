@@ -83,3 +83,47 @@ Requiere autorización expresa, ventana acordada y, si exige reiniciar servicios
 | **Exposición inherente de «Publicar en la web»** | Nada: cualquiera con la URL de publicación puede ver el informe sin iniciar sesión, aunque el portal lo bloquee. Aprobar DB031 en el piloto **no cambia esto** | — |
 
 No se generan ni se autorizan enlaces públicos nuevos, ni se toca Power BI Service.
+
+## 7. Actualización UX-08B.3: nueva evidencia y comandos focalizados
+
+### Lo nuevo (CONFIRMADO por PuTTY)
+- El piloto administrativo usa, además de los archivos de §1, `lib/estado_piloto.php` y `lib/mode.php`.
+- En `cervesur_react_estado_admin` existen `auditoria.reporte_id` y `usuarios_piloto.activo`. **No demuestra dónde está la lista de aprobación de informes**: la consulta solo buscó esos nombres de columna.
+- Las cuentas `cervesur_ro_auth_adm`, `cervesur_ro_catalogo_adm` y `cervesur_ro_visor` sugieren (INFERIDO) que el piloto **lee** el catálogo y el visor con cuentas de solo lectura y mantiene su **estado** (sesión, usuarios del piloto, auditoría) en su propia base.
+
+### Consecuencia para DB031
+Si el visor administrativo decide con datos del propio piloto (por ejemplo, una tabla de informes aprobados en la base de estado), añadir DB031 **no** requeriría tocar `cervesur_portalbi` ni la variable `ADMIN_VIEWER_ALLOWED_REPORT_IDS`: se haría por el procedimiento del propio piloto. Eso corresponde a las opciones A/B/C de §3 y no se puede decidir sin leer el código.
+
+### Comandos de solo lectura, acotados a las cinco preguntas
+Los enlaces de Power BI se enmascaran; no se imprime ningún valor de datos, solo estructura y líneas de código coincidentes.
+
+```bash
+cd /opt/cervesur-react-admin/backend
+
+# 1) ¿Qué función decide el 403 del visor? (nombres de función y líneas con 403)
+grep -n -E "function |403|http_response_code" router/ReporteRouter.php router/PilotoRouter.php router/AdminRouter.php \
+  | sed -E 's#https?://[^" ]+#<url-oculta>#g' | cut -c1-170
+
+# 2) ¿De dónde sale la autorización? (qué archivos incluye y qué estructuras consulta)
+grep -n -E "require|include|FROM |JOIN |\$_SESSION|file_get_contents|json_decode" lib/piloto_catalogo.php lib/estado_piloto.php lib/admin_catalogo.php lib/mode.php lib/pilot_sesion.php \
+  | sed -E 's#https?://[^" ]+#<url-oculta>#g' | cut -c1-170
+
+# 3) ¿Cómo se lee el estado del informe? (activo / inactivo)
+grep -n -E "activo|is_active|estado" lib/piloto_catalogo.php lib/admin_catalogo.php router/ReporteRouter.php | cut -c1-150
+
+# 4) ¿Existe una consulta de aprobación? (palabras clave; sin valores)
+grep -n -i -E "aprob|autoriz|permit|allow|habilit|piloto" lib/piloto_catalogo.php lib/estado_piloto.php lib/admin_catalogo.php router/ReporteRouter.php \
+  | sed -E 's#https?://[^" ]+#<url-oculta>#g' | cut -c1-170
+
+# 5) ¿Cómo se entrega el enlace al visor? (solo cómo se decide; no el valor)
+grep -n -E "function |enlace|url|modo" lib/powerbi_link.php router/ReporteRouter.php | sed -E 's#https?://[^" ]+#<url-oculta>#g' | cut -c1-150
+
+# Estructura (no datos) de la base de estado del administrador
+sudo mysql -N -e "SELECT table_name, column_name, column_type FROM information_schema.columns WHERE table_schema = 'cervesur_react_estado_admin' ORDER BY table_name, ordinal_position"
+```
+
+### Plan de integración (sin ejecutar)
+1. Con la salida de arriba, clasificar el mecanismo en A–E (§3).
+2. **No** sustituir ni desactivar la protección desplegada. La lista local (`ADMIN_VIEWER_ALLOWED_REPORT_IDS`) queda como segunda capa **opcional**, nunca como reemplazo.
+3. Añadir solo el id 72 por la vía propia del piloto; verificar 72 → 200, otro informe → 403 sin enlace, inactivo denegado, trabajadores y Flutter sin cambios.
+4. Reversión: quitar la entrada 72 (o restaurar el respaldo del archivo/fila tocados).

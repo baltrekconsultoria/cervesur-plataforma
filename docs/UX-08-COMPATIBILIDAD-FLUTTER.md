@@ -11,6 +11,55 @@
 
 No se ha modificado ningún backend productivo ni se ha cambiado la autenticación.
 
+## 0. Actualización UX-08B.3 (tercera ronda de evidencia)
+
+### Nuevo y CONFIRMADO
+
+| # | Hallazgo | Fuente |
+|---|---|---|
+| O4b | El JWT original contiene `user_id`, `username`, `email`, `role`, `session_version` y `exp`. La condición de login observada es `!$user \|\| !password_verify($password, $user['password'])` (sin `is_active` en ese fragmento). Se actualiza `last_login` | Código instalado (PuTTY) |
+| O7b | `cervesur_portalbi_admin`@localhost tiene `ALL PRIVILEGES` sobre `cervesur_portalbi.*` (permisos excesivos para una aplicación basada en bajas lógicas). `cervesur_react_estado`@127.0.0.1 y `cervesur_react_estado_adm`@127.0.0.1: SELECT/INSERT/UPDATE/DELETE sobre sus bases de estado aisladas | `mysql.db` / `SHOW GRANTS` |
+| O11 | Existen además las cuentas `cervesur_react`, `cervesur_react_compat`, `cervesur_ro_auth`, `cervesur_ro_auth_adm`, `cervesur_ro_catalogo`, `cervesur_ro_catalogo_adm`, `cervesur_ro_diag`, `cervesur_ro_visor` (con hosts específicos) | `mysql.user` |
+| O12 | El piloto administrativo desplegado tiene componentes que no están en este repositorio: `lib/piloto_catalogo.php`, `lib/estado_piloto.php`, `lib/admin_catalogo.php`, `lib/mode.php`, `lib/pilot_sesion.php`, `lib/powerbi_link.php`, `router/AdminRouter.php`, `router/PilotoRouter.php`, `router/ReporteRouter.php` | Listado de archivos |
+| O13 | En `cervesur_react_estado_admin` existen `auditoria.reporte_id` y `usuarios_piloto.activo`. **Esto no demuestra dónde está la lista de aprobación de informes**: la consulta solo buscó esos nombres de columna | Consulta a `information_schema` |
+
+### INFERIDO a partir de lo anterior (no observado directamente)
+
+| # | Inferencia | Por qué | Consecuencia |
+|---|---|---|---|
+| I-A | **El piloto desplegado es de lectura sobre `cervesur_portalbi` y guarda su propio estado aparte** | Cuentas `cervesur_ro_*` (solo lectura por función: auth, catálogo, visor) más una base de estado propia con `auditoria` y `usuarios_piloto` | Las escrituras de UX-08B (usuarios, empresas, informes, accesos) **no tienen hoy un camino de escritura hacia `cervesur_portalbi` en el piloto**. Requieren una decisión de arquitectura (ver `UX-08E-PRIVILEGIOS-MINIMOS.md` §4) |
+| I-B | **La sesión del piloto probablemente no vive en `user.session_version`** | Con cuentas de solo lectura, un logout no puede ejecutar `UPDATE user SET session_version…` | R4 (logout cruzado) hoy **no** afectaría a Flutter desde el piloto; reaparecería si React pasara a una cuenta con escritura sobre `user` |
+| I-C | El piloto tiene su propio historial (`auditoria`) | Nombre de tabla en la base de estado | `audit_log` de UX-08B sería un segundo mecanismo: decidir si convive o se reutiliza |
+
+### Lo que REALMENTE queda pendiente (nada de lo ya confirmado se repite)
+
+| # | Pendiente | Tipo |
+|---|---|---|
+| P1 | ¿La consulta que usa el login (`UserModel`) filtra `is_active`? (la condición de `AuthController` no lo hace; el efecto final depende de esa consulta) | Inspección |
+| P2 | Valor real de `exp` de los JWT originales | Inspección |
+| P5/P6 | ¿Existe en el original algún alta, edición o activación/desactivación de usuarios? ¿Una edición invalida sesiones? | Inspección |
+| P7 | ¿El original usa transacciones? | Inspección |
+| P8 | Cuenta que usa cada conexión PHP (solo `DB_USER`/`DB_NAME`) y `SHOW GRANTS` de las cuentas efectivas, incluidas las `ro_*` | Inspección |
+| Q1 | Comportamiento funcional de Flutter con `grupo_id NULL`, rol `user`, sesiones cruzadas | QA sobre copia |
+
+Bloque único de PuTTY (solo lectura; no repite el mapa del servidor; ningún comando imprime `.env`, contraseñas ni hashes):
+
+```bash
+cd /var/www/cervesur/backend
+# P1: consultas de usuario por login (solo líneas con is_active/WHERE/FROM user)
+grep -n -E "function |is_active|WHERE|FROM user" models/UserModel.php | cut -c1-150
+# P2: vigencia del JWT (se omiten líneas que mencionen "secret")
+grep -n -i -E "exp|ttl|lifetime|time\(" controllers/AuthController.php lib/*.php | grep -v -i secret | cut -c1-150
+# P5/P6: rutas y escrituras de usuario en el original
+grep -rn -E "INSERT INTO user|UPDATE user|is_active *=|session_version" --include=*.php . | cut -c1-150
+grep -rn -E "\$uri *(===|==) *'/api" router/ | cut -c1-120
+# P7: transacciones
+grep -rn -c "beginTransaction" --include=*.php . | grep -v ":0"
+# P8: cuenta y base de cada backend (solo nombres) y sus privilegios
+for d in /var/www/cervesur/backend /opt/cervesur-react-usuarios/backend /opt/cervesur-react-admin/backend; do echo "== $d"; sudo grep -E '^DB_(USER|NAME|HOST)=' "$d/.env"; done
+sudo mysql -N -e "SELECT CONCAT('SHOW GRANTS FOR ', QUOTE(user), '@', QUOTE(host), ';') FROM mysql.user WHERE user LIKE 'cervesur%'" | sudo mysql -N
+```
+
 ## 1. Dónde está cada cosa (CONFIRMADO)
 
 | Componente | Ubicación |

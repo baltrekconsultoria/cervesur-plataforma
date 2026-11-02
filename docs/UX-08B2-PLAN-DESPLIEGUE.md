@@ -50,3 +50,20 @@ Las cuentas conocidas hoy (`cervesur_react_estado*`) tienen `DELETE` a nivel de 
 ## 4. Criterios de aceptación de la ventana
 
 Flutter en `http://192.168.200.12` responde igual que antes; DB031 sigue funcionando para trabajadores; el administrador ve DB031 y recibe 403 en cualquier otro informe no aprobado; todas las escrituras de prueba generan una fila de auditoría con la misma correlación que la respuesta; los usuarios normales reciben 403 en cualquier ruta administrativa.
+
+## 5. Actualización UX-08B.3: liberación por fases (propuesta; nada se ejecuta sin autorización)
+
+Cada fase tiene respaldo previo, verificación y reversión. Una fase no empieza hasta cerrar la anterior ni sin su puerta.
+
+| Fase | Contenido | Puerta previa | Respaldo | Verificación | Reversión |
+|---|---|---|---|---|---|
+| **0 · Evidencia** | Ejecutar los bloques de PuTTY de `UX-08-COMPATIBILIDAD-FLUTTER.md` §0 y `UX-08C-COMPATIBILIDAD-DESPLEGADA.md` §7 | — | — | Matriz completa; mecanismo de DB031 clasificado (A–E) | — |
+| **1 · Piloto aislado de solo código** | Desplegar el backend y el frontend nuevos en la instancia administrativa **sin** variables nuevas (auditoría `off`, estrictas `off`, usuarios `off`) | Fase 0; G4–G5 | Copia del directorio y del `.env` | Humo: login, listados, DB031 en trabajadores; Flutter intacto | Restaurar la copia |
+| **2 · Auditoría** | Migraciones `UX-08B-audit-log` y `…-immutable` en la **base piloto**; `AUDIT_LOG_MODE=required` | Fase 1; decisión D2 | `mysqldump` de la base piloto | Una escritura de prueba deja una fila con la misma correlación; `UPDATE`/`DELETE` sobre `audit_log` fallan | `…-immutable.down` → `…audit-log.down`; quitar la variable |
+| **3 · Escritura** | Decisión D1; cuenta de la plantilla UX-08E (sin `DELETE`); apuntar el `.env` de la instancia a esa cuenta; activar `adminWrites` | Fase 2; `SHOW GRANTS` actuales | Respaldo de la base | Alta/edición/baja/reactivación de registros de prueba; `SHOW GRANTS` sin `DELETE` | Restaurar el `.env`; `DROP USER` de la cuenta nueva |
+| **4 · Vistas estrictas** | `REACT_STRICT_VIEWS=1` solo en las instancias React | Revisar que ningún cliente use campos completos | `.env` | Contrato modo estricto; E2E de React | Quitar la línea |
+| **5 · DB031** | Añadir el 72 por la vía del piloto (según A–E) | Fase 0 | Archivo/fila tocados | 72 → 200; otro informe → 403 sin enlace | Quitar la entrada |
+| **6 · Usuarios** | `USER_ADMIN_WRITES=1` en la instancia administrativa | Fases 0 y 3; QA de sesiones sobre una **copia** (casos 1–10 de `UX-08-COMPATIBILIDAD-FLUTTER.md` §5.2); decisión D3 | Respaldo de la base | Ciclo alta/edición/baja/reactivación/rol con un usuario de prueba; último administrador protegido | Quitar la variable (las rutas vuelven a 404) |
+| **7 · Informes sin grupo** | Migración `UX-08B3-reporte-grupo-nullable` | QA de Flutter con `grupo_id` nulo en un entorno de prueba | `mysqldump` de `reporte` | Informes existentes idénticos (huella); alta sin grupo funciona | `…down.sql` (se rechaza si ya hay informes sin grupo: hay que resolverlos antes) |
+
+Orden recomendado: 0 → 1 → 2 → 3 → 4 → 5; las fases 6 y 7 son independientes y solo se abren con su QA de Flutter.
