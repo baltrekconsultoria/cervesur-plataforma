@@ -1,0 +1,13 @@
+-- UX-08B3 · `reporte.grupo_id` admite NULL (informes registrados solo por su enlace «Publicar en la web»)
+-- MIGRACIÓN MÍNIMA Y REVERSIBLE. NO SE APLICA AUTOMÁTICAMENTE: requiere autorización expresa, copia de seguridad previa y revisión.
+-- Aprobada solo para desarrollo local; NO ejecutar en producción sin esa autorización.
+--
+-- Qué cambia: ÚNICAMENTE `grupo_id` pasa de VARCHAR(50) NOT NULL a VARCHAR(50) NULL (misma longitud; sin CHARACTER SET/COLLATE
+-- explícitos, así que conserva los de la tabla: utf8mb4 / utf8mb4_unicode_ci). No toca `enlace`, `reporte_id`, índices ni claves.
+-- Un enlace «Publicar en la web» no trae grupo: NO se inventa ni se informa un grupo de Power BI; `grupo_id` queda NULL y
+-- `reporte_id` recibe una referencia interna de Cervesur (UUID v4). Los informes existentes no cambian.
+--
+-- Precondiciones (revisar antes): SHOW CREATE TABLE reporte;  -- grupo_id debe ser VARCHAR(50) y con el mismo collation que la tabla.
+-- Sentencia única: MySQL la aplica de forma atómica. Es idempotente: reaplicarla con la columna ya NULL no cambia nada.
+-- Reversión: UX-08B3-reporte-grupo-nullable.down.sql (se niega a ejecutarse si existe algún informe con grupo_id NULL).
+ALTER TABLE reporte MODIFY grupo_id VARCHAR(50) NULL;
