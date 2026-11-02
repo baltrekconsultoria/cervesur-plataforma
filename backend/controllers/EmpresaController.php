@@ -21,10 +21,10 @@ class EmpresaController {
      * @param string $role Rol del usuario
      * @return array Respuesta JSON
      */
-    public function getAll($user_id, $role, $pagination = null) {
+    public function getAll($user_id, $role, $pagination = null, $status = 'active') {
         try {
             $total = null;
-            $empresas = $this->empresaModel->getAll($user_id, $role, $pagination, $total);
+            $empresas = $this->empresaModel->getAll($user_id, $role, $pagination, $total, $status);
 
             return [
                 'success' => true,

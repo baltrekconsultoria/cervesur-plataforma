@@ -15,9 +15,9 @@ class AsignacionController {
     /**
      * Obtener todas las asignaciones
      */
-    public function getAll($userId, $role, $pagination = null) {
+    public function getAll($userId, $role, $pagination = null, $status = 'active') {
         try {
-            $asignaciones = $this->model->getAll($userId, $role, $pagination);
+            $asignaciones = $this->model->getAll($userId, $role, $pagination, $status);
 
             return [
                 'success' => true,

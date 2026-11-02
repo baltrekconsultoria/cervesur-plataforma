@@ -18,9 +18,9 @@ class EmpresaReporteUsuarioController {
      *
      * @return array Listado de relaciones encontradas o mensaje de error
      */
-    public function getAll($user_id, $role, $pagination = null) {
+    public function getAll($user_id, $role, $pagination = null, $status = 'active') {
         try {
-            return $this->model->getAll($user_id, $role, $pagination);
+            return $this->model->getAll($user_id, $role, $pagination, $status);
         } catch (Exception $e) {
             return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }

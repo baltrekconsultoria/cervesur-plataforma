@@ -147,10 +147,14 @@ class EmpresaReporteUsuarioModel {
      *   - message (string): Mensaje descriptivo del resultado.
      *   - InsertedId (int, opcional): ID autoincremental del nuevo registro si fue exitoso.
      */
-    public function getAll($user_id, $role, $pagination = null) {
+    public function getAll($user_id, $role, $pagination = null, $status = 'active') {
         try {
             $params = [];
             $scope = $this->visibleScope($user_id, $role, $params);
+            // Vigente = acceso, relación, empresa e informe activos y usuario relacionado con la empresa.
+            // `inactive` es su complemento; `all` no filtra. Solo administradores llegan aquí con un valor distinto de `active`.
+            $vigente = 'eru.activo = 1' . $scope;
+            $statusSql = $status === 'all' ? '1 = 1' : ($status === 'inactive' ? "NOT ($vigente)" : $vigente);
 
             $sql = "SELECT
 					eru.id,
@@ -179,7 +183,7 @@ class EmpresaReporteUsuarioModel {
 				INNER JOIN user u ON u.id = eru.user_id
 				LEFT JOIN user uc ON uc.id = eru.created_by
 				LEFT JOIN user uu ON uu.id = eru.updated_by
-                WHERE eru.activo = 1 $scope";
+                WHERE $statusSql";
 
             [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'eru.created_at DESC, eru.id DESC', $pagination);
             foreach ($rows as &$row) {

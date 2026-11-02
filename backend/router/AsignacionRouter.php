@@ -8,6 +8,7 @@
 // Incluir dependencias necesarias
 require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/status_filter.php';
 require_once __DIR__ . '/../controllers/AsignacionController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -25,7 +26,7 @@ $controller = new AsignacionController($pdo);
 if ($method === 'GET' && $uri === '/api/asignacion') {
     $user = require_auth($jwt_secret);
     $view = require_view();
-    $result = $controller->getAll($user['user_id'], $user['role'], require_pagination());
+    $result = $controller->getAll($user['user_id'], $user['role'], require_pagination(), require_status_filter($user['role']));
 
     http_response_code($result['success'] ? 200 : 400);
     echo json_encode(apply_view($result, $view, 'asignacion'));

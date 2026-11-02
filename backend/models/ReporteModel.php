@@ -5,6 +5,7 @@
  * Maneja operaciones CRUD en la tabla reporte
  */
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/status_filter.php';
 
 class ReporteModel {
     private $pdo;
@@ -223,20 +224,20 @@ class ReporteModel {
         )";
     }
 
-    private function reportBaseSql() {
+    private function reportBaseSql($status = 'active') {
         return "SELECT r.*, u.username as created_by_username
                 FROM reporte r
                 LEFT JOIN user u ON r.created_by = u.id
-                WHERE r.activo = 1";
+                WHERE " . status_sql('r.activo', $status);
     }
 
     /**
      * Obtener todos los reportes autorizados.
      */
-    public function getAll($user_id, $role, $pagination = null) {
+    public function getAll($user_id, $role, $pagination = null, $status = 'active') {
         try {
             $params = [];
-            $sql = $this->reportBaseSql()
+            $sql = $this->reportBaseSql($status)
                 . $this->authorizedReportSql($user_id, $role, $params);
 
             [$reportes, $total] = paginated_rows($this->pdo, $sql, $params, 'r.created_at DESC, r.id DESC', $pagination);

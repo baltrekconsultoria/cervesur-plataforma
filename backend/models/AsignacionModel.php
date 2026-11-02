@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/status_filter.php';
 
 /**
  * Modelo para la tabla empresa_reporte
@@ -29,10 +30,13 @@ class AsignacionModel {
     /**
      * Obtener todas las asignaciones activas
      */
-    public function getAll($userId, $role, $pagination = null) {
+    public function getAll($userId, $role, $pagination = null, $status = 'active') {
         try {
             $params = [];
             $scope = $this->visibleScope($userId, $role, $params);
+            // Vigente = relación, empresa e informe activos. `inactive` es su complemento; `all` no filtra.
+            $vigente = 'er.activo = 1 AND e.activo = 1 AND r.activo = 1';
+            $statusSql = $status === 'all' ? '1 = 1' : ($status === 'inactive' ? "NOT ($vigente)" : $vigente);
             $sql = "SELECT
                         er.id,
                         er.empresa_id,
@@ -50,7 +54,7 @@ class AsignacionModel {
                     INNER JOIN reporte r ON r.id = er.reporte_id
                     LEFT JOIN user uc ON uc.id = er.created_by
                     LEFT JOIN user uu ON uu.id = er.updated_by
-                    WHERE er.activo = 1 AND e.activo = 1 AND r.activo = 1 $scope";
+                    WHERE $statusSql $scope";
 
             [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'er.created_at DESC, er.id DESC', $pagination);
             foreach ($rows as &$row) {

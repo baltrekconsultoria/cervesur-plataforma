@@ -225,9 +225,9 @@ class ReporteController {
      * Obtener todos los reportes
      * GET /api/reportes
      */
-    public function getAll($user_id, $role, $pagination = null) {
+    public function getAll($user_id, $role, $pagination = null, $status = 'active') {
         try {
-            $result = $this->reporteModel->getAll($user_id, $role, $pagination);
+            $result = $this->reporteModel->getAll($user_id, $role, $pagination, $status);
 
             if ($result['success']) {
                 http_response_code(200);

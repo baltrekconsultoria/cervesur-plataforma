@@ -8,6 +8,7 @@
 // Incluir dependencias
 require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/status_filter.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 require_once __DIR__ . '/../controllers/ReporteController.php';
 
@@ -77,7 +78,7 @@ if (strpos($uri, '/api/reportes') === 0) {
         $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
         $user = require_auth($jwt_secret);
         run_with_view(require_view(), 'reporte', function () use ($reporteController, $user) {
-            $reporteController->getAll($user['user_id'], $user['role'], require_pagination());
+            $reporteController->getAll($user['user_id'], $user['role'], require_pagination(), require_status_filter($user['role']));
         });
         exit;
     }

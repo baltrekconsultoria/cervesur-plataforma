@@ -153,6 +153,12 @@ jobs:
             --env TEST_DB_PASS \
             cervesur-ci-php:local php tests/isolated/http_viewer_test.php
 
+          # UX-08A: filtro de estado active|inactive|all en los listados administrativos.
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_status_filter_test.php
+
           # UX-07D.2B: esquema e identificadores PRODUCTIVOS sintéticos (reporte_id de hasta 50 caracteres no UUID, grupo_id NOT NULL,
           # enlace VARCHAR(500)) en una base aparte (`fixture_prod`) servida por una segunda instancia del backend.
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/seed_productive.php

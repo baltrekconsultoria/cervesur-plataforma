@@ -7,6 +7,7 @@
 
 require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/status_filter.php';
 require_once __DIR__ . '/../controllers/EmpresaController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -23,7 +24,7 @@ if (preg_match('#^/api/empresas$#', $uri)) {
         $user_data = require_auth($jwt_secret);
         $user_id = $user_data['user_id'];
         $role = $user_data['role'];
-        $response = $empresaController->getAll($user_id, $role, require_pagination());
+        $response = $empresaController->getAll($user_id, $role, require_pagination(), require_status_filter($role));
         echo json_encode(apply_view($response, require_view(), 'empresa'));
         exit;
     } elseif ($method === 'POST') {
