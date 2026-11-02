@@ -1,83 +1,146 @@
-# UX-08 · Compatibilidad con el backend original (Flutter) y sesiones
+# UX-08 · Compatibilidad entre el backend original (Flutter) y los backends React
 
-**Estado: INCOMPLETO por falta de acceso autorizado al servidor.** La columna «Backend original» está **sin verificar**: no se ha leído `/var/www/cervesur/backend`. Este documento fija lo que sí consta (código del repositorio y DDL productivo aportado por el responsable) y los comandos de solo lectura que cierran el resto. **No se habilita la desactivación de usuarios en producción hasta completar la columna original.**
+**Estado: auditoría parcial con evidencia real.** El responsable inspeccionó el servidor por PuTTY (solo lectura) y aportó los hallazgos de §2. Este documento los clasifica en cuatro niveles de certeza y no mezcla hechos con deducciones:
 
-## 1. DDL productivo confirmado (`cervesur_portalbi`, MySQL 8.0.46, InnoDB, utf8mb4_unicode_ci)
+| Etiqueta | Significado |
+|---|---|
+| **CONFIRMADO** | Observado en el código instalado o en la base (evidencia aportada por el operador) |
+| **INFERIDO** | Se deduce de lo confirmado; no se ha observado directamente |
+| **PENDIENTE INSPECCIÓN** | Hay que leer más código del servidor (comandos en §6) |
+| **PENDIENTE QA** | Solo se sabe probándolo funcionalmente contra una copia, nunca en producción |
 
-Aportado por el responsable (`SHOW CREATE TABLE`, solo lectura). Implicaciones para escribir desde React:
+No se ha modificado ningún backend productivo ni se ha cambiado la autenticación.
 
-| Tabla | Restricciones | Consecuencia para las escrituras |
+## 1. Dónde está cada cosa (CONFIRMADO)
+
+| Componente | Ubicación |
+|---|---|
+| Flutter (puerto 80) | VirtualHost `/etc/apache2/sites-enabled/cervesur.conf`, `DocumentRoot /var/www/cervesur` |
+| Backend PHP original | `/var/www/cervesur/backend` (`lib/auth_middleware.php`, `controllers/AuthController.php`, `controllers/UserController.php`, `models/UserModel.php`, `router/auth.php`) |
+| React trabajadores | `/opt/cervesur-react-usuarios/backend` |
+| React administrador | `/opt/cervesur-react-admin/backend` |
+| Código Dart de Flutter | No encontrado en los directorios inspeccionados |
+
+## 2. Qué hace el backend original (evidencia de PuTTY)
+
+| # | Hallazgo | Nivel |
 |---|---|---|
-| `user` | PK `id` INT UNSIGNED; `username` VARCHAR(50) **UNIQUE**; `email` VARCHAR(100) **UNIQUE**; `role` VARCHAR(30); `is_active` TINYINT(1) DEFAULT 1; `session_version` INT UNSIGNED NOT NULL DEFAULT 1 | Alta/edición deben validar longitud y mapear el error 1062 a «ya existe» (409), no a un error interno |
-| `empresa` | `ruc` VARCHAR(20) **UNIQUE**; `created_by`/`updated_by` FK → `user`; contiene `powerbi_clientsecret` | RUC duplicado = 1062. El secreto jamás se lee, devuelve ni registra |
-| `reporte` | `enlace` VARCHAR(500) NOT NULL **UNIQUE**; `reporte_id` VARCHAR(50) NOT NULL **UNIQUE**; `grupo_id` VARCHAR(50) NOT NULL | Enlace repetido = 1062; `grupo_id` obligatorio (la migración UX-07C que lo relaja **no está aplicada** en producción) |
-| `empresa_usuario` | **UNIQUE**(`empresa_id`,`user_id`); FK `ON DELETE CASCADE` | Reactivar la fila inactiva en lugar de insertar otra |
-| `empresa_reporte` | **UNIQUE**(`empresa_id`,`reporte_id`); FK `ON DELETE CASCADE` | Ídem |
-| `user_empresa_reporte` | **UNIQUE**(`user_id`,`empresa_reporte_id`); FK `ON DELETE CASCADE` | Ídem |
+| O1 | El middleware consulta `session_version` e `is_active` de `user` en **cada** petición y **rechaza** si `is_active != 1` | CONFIRMADO |
+| O2 | Compara `session_version` del JWT con la de la base **solo si el JWT la trae**; un JWT sin ese campo **continúa** (compatibilidad) | CONFIRMADO |
+| O3 | El **rol que usa el middleware sale del payload del JWT**, no de la base | CONFIRMADO |
+| O4 | Login: `password_verify`; **en la condición observada no aparece una comprobación de `is_active`**; incluye `session_version` en los JWT nuevos; el rol del token sale del registro; actualiza `last_login` | CONFIRMADO |
+| O5 | Logout: `UPDATE user SET session_version = session_version + 1 WHERE id = :id` | CONFIRMADO |
+| O6 | El modelo valida roles `admin` y `user`; los datos productivos contienen además `usuario` (62 de 76) | CONFIRMADO |
+| O7 | Cuentas MySQL (`mysql.db`): `cervesur_portalbi_admin`@localhost → `cervesur_portalbi`; `cervesur_react_estado`@127.0.0.1 → `cervesur_react_estado`; `cervesur_react_estado_adm`@127.0.0.1 → `cervesur_react_estado_admin`; las tres con SELECT/INSERT/UPDATE/DELETE | CONFIRMADO (nivel base de datos) |
+| O8 | Cuál es la cuenta efectiva que usa Flutter y cuáles las de React; privilegios globales, por tabla y roles | PENDIENTE INSPECCIÓN |
 
-Dos hechos cambian lo que decía la auditoría inicial («FK y UNIQUE por confirmar»):
+DDL productivo (UNIQUE, FK con `ON DELETE CASCADE`, `grupo_id NOT NULL`, `session_version` INT UNSIGNED NOT NULL DEFAULT 1): ver `UX-08B-ESCRITURAS-Y-AUDITORIA.md` §2; sigue vigente.
 
-1. **Sí hay UNIQUE reales**: el backend ya reactiva en vez de duplicar (`EmpresaUsuarioModel.php:63`, `EmpresaReporteUsuarioModel.php:82`, `AsignacionModel.php:148`), de modo que no choca con ellos. Una carrera entre dos administradores sí produciría un 1062 que hoy llega como error genérico.
-2. **`ON DELETE CASCADE`**: un `DELETE` físico de `user`, `empresa` o `reporte` borra en cascada todas sus relaciones. React solo hace bajas lógicas (`activo = 0`, verificado en los 5 modelos) y **nunca debe recibir privilegio `DELETE`** sobre estas tablas.
+## 3. Qué hacen los backends React (código de este repositorio, CONFIRMADO)
 
-## 2. Matriz de compatibilidad
+| Aspecto | Comportamiento | Evidencia |
+|---|---|---|
+| Token | El JWT **exige** `session_version` entera ≥ 1 (si falta, se rechaza) | `backend/lib/jwt.php` |
+| Cada petición | Consulta `session_version`, `is_active` y `role` en MySQL; rechaza si `is_active != 1`, si la versión no coincide o si el rol no es reconocido | `backend/lib/auth_middleware.php` |
+| Rol | Se toma **de la base en cada petición**, no del token | ídem |
+| Login | Rechaza inactivo, versión inválida o rol no reconocido; respuesta uniforme «Credenciales inválidas» | `AuthController.php` |
+| Logout | `session_version + 1` (igual que el original) | `router/auth.php` |
+| Campos sensibles | `role`, `is_active`, `session_version`, `id` se rechazan en el cuerpo de cualquier edición de perfil | `router/auth.php` |
 
-«Backend React» = código de este repositorio (con evidencia). «Backend original» = pendiente (ver §3). «Compatible» solo se marca cuando ambas columnas constan.
+## 4. Matriz Flutter / React
 
-| Operación | Backend original | Backend React (evidencia) | Compatible | Riesgo |
+Leyenda de compatibilidad: ✔ compatible · ⚠ distinto, con efecto cruzado · ? no determinable todavía.
+
+| Operación | Backend original | Backend React | ¿Compatible? | Riesgo | Impacto | Recomendación |
+|---|---|---|---|---|---|---|
+| **Login** | `password_verify`; token con `session_version` (O4) | `password_verify` + exige `is_active`, versión y rol válidos | ⚠ | R2 | Un usuario inactivo podría recibir token del original (si ninguna otra capa lo impide) y actualizar `last_login`; el token no sirve en el API (O1) | Verificar el flujo completo (P1). No cambiar el original; React ya es estricto |
+| **Logout** | `session_version + 1` (O5) | Igual | ⚠ | R4 | Con la **misma tabla `user`**, un logout en una app invalida los tokens con versión de la otra (la invalidación la decide la base, no el secreto JWT) | Mientras React use bases propias no ocurre. **No apuntar React a `cervesur_portalbi` sin QA de sesiones (§5)** |
+| **Usuario inactivo** | Rechazado en cada petición (O1) | Rechazado en cada petición y en el login | ✔ | Bajo | Desactivar a un usuario corta su acceso en ambos, con cualquier token, incluso uno sin versión | Se puede diseñar la desactivación sobre `is_active` con confianza **para el API**; la sesión ya abierta en pantalla de Flutter dejará de funcionar en su siguiente llamada |
+| **Revocación de sesión** | Por `session_version`, **solo** si el token la trae (O2) | Por `session_version`, obligatoria | ⚠ | **R1** | Un token heredado **sin** `session_version` no se revoca con logout ni con incremento de versión; vive hasta su caducidad (no observada todavía: P2) | Medir la vigencia real de los JWT (P2). Mitigación futura en el original (acortar vida, exigir versión) requiere autorización y QA; no se toca aquí |
+| **Cambio de rol** | El rol efectivo es el del token (O3): un cambio en MySQL **no** afecta a tokens ya emitidos | El rol se lee de la base en cada petición: el cambio es inmediato | ⚠ | **R3** | Un administrador degradado desde React o MySQL **conserva poder de administrador en Flutter** hasta que caduque su token. Un administrador promovido no lo tiene hasta volver a iniciar sesión | Para degradar/desactivar: hacerlo con **`is_active = 0` + `session_version + 1`** (O1 lo hace efectivo de inmediato). Documentar que un cambio de rol no es inmediato en Flutter |
+| **Valores de rol** | Valida `admin` y `user` (O6); hay datos `usuario` | React normaliza `usuario → user` al leer; al crear escribe `user` | ✔ (con reserva) | Medio | El valor `user` lo admite la validación del original (O6); si la **pantalla** de Flutter reconoce `user` es PENDIENTE QA | No normalizar ni reescribir roles existentes. Al crear desde React, decidir `user` o `usuario` tras la QA |
+| **Creación de usuario** | PENDIENTE INSPECCIÓN (P5) | `POST /api/register` (admin): rol `user`, `is_active=1`, `session_version=1`; 1062 de `username`/`email` ya se mapea a «duplicado» | ? | Medio | Hash de contraseña: ambos usan `password_hash/verify` de PHP (O4); falta confirmar el algoritmo de hash del original | Inspeccionar P5; no crear cuentas reales hasta QA |
+| **Desactivación** | PENDIENTE INSPECCIÓN: no consta endpoint (P6) | No existe aún (diseñada en `UX-08H-USUARIOS-DISENO.md`) | ? | Alto si es incorrecta | Debe cumplir O1 (`is_active`) y la regla del último administrador | Implementar solo en local; habilitar tras QA sobre copia |
+| **Asignaciones** | PENDIENTE INSPECCIÓN (P6) | Transaccionales y auditadas en local (UX-08B.2); reactivan en vez de duplicar | ? | Medio | Respetan los `UNIQUE` productivos; el original podría crear duplicados lógicos | Confirmar qué escribe el original sobre las tres relaciones |
+| **Transacciones** | PENDIENTE INSPECCIÓN (P7) | `db_tx` en Empresas, Reportes y Accesos | ? | Bajo | — | — |
+| **Cuenta MySQL y privilegios** | O7/O8 | O7/O8 | ? | **Alto** | Las tres cuentas conocidas tienen `DELETE` a nivel de base; con `ON DELETE CASCADE`, un `DELETE` físico borraría relaciones | No dar nuevas escrituras productivas; cuenta dedicada con privilegios mínimos (ver `UX-08B-DISENO.md` §5) |
+
+### Riesgos, ordenados
+
+| Id | Riesgo | Nivel de certeza | Gravedad | Dónde ocurre |
 |---|---|---|---|---|
-| Login | **Sin verificar** | `AuthController.php:35-65`: `password_verify`, exige `is_active = 1`, `session_version` ≥ 1 y rol reconocido; respuesta 200 `success:false` si falla; emite JWT con `session_version`; actualiza `last_login` (`:91`) | No determinado | JWT de React exige `session_version` (`lib/jwt.php:97`); un token sin ese campo se rechaza |
-| Logout | **Sin verificar** | `router/auth.php:124-138`: `UPDATE user SET session_version = session_version + 1` — revoca **todas** las sesiones del usuario | **Riesgo probable** | Si Flutter y React comparten `cervesur_portalbi` y Flutter valida `session_version`, un logout en React cierra la sesión de Flutter (y viceversa si Flutter incrementa). Hoy no ocurre porque React usa bases aisladas |
-| Usuario inactivo | **Sin verificar** | `lib/auth_middleware.php:107`: cada petición consulta `is_active`; si es 0 → 401. Login lo rechaza (`UserModel.php:217`). Probado: `http_auth_hardening_test.php:129-133` | No determinado | Si Flutter **no** consulta `is_active` por petición, un usuario desactivado desde React seguiría operando en Flutter hasta que expire su token |
-| Revocación de sesión | **Sin verificar** | `session_version` en JWT y en cada petición (`auth_middleware.php:114`). Probado (`:134-140`) | No determinado | Desactivar un usuario sin incrementar `session_version` no revoca en un backend que solo mire `session_version` |
-| Cambio de rol | **Sin verificar** | `PUT /api/user/{id}/role` (`UserRouter.php:291`), solo admin; el rol se lee de MySQL en **cada** petición (`auth_middleware.php:124`) y un rol no reconocido da 401 (probado `:120-124`) | No determinado | Productivo mezcla `usuario` (62), `user` (10), `admin` (4). React normaliza `usuario`→`user` al leer, pero **un rol escrito por React como `user` puede no ser reconocido por Flutter** (`docs/COMPATIBILIDAD-ROLES-SEC-05A.md:24` lo declara inconcluso) |
-| Creación de usuario | **Sin verificar** | `RegisterController.php:77`: solo admin; rol `user`, `is_active = 1`, `session_version = 1`; **sin transacción** | No determinado | Rol `user` frente a `usuario` (ver arriba); 1062 en `username`/`email` hoy llega como error genérico |
-| Desactivación | **Sin verificar** | **No existe** endpoint que ponga `is_active = 0` | N/A | Hay que construirlo; su compatibilidad depende de las dos filas anteriores |
-| Asignaciones | **Sin verificar** | `POST/PUT/DELETE` en `empresa-usuario`, `asignacion`, `empresa-reporte-usuario`; baja lógica; reactivan filas inactivas; el alta valida usuario/empresa activos (`EmpresaReporteUsuarioModel.php:68`, `EmpresaUsuarioModel.php:56`); **no usan transacciones** (grep sin resultados en `models/` y `controllers/`) | No determinado | Alta de usuario + empresa + informe son 3 escrituras no atómicas: un fallo intermedio deja una relación parcial |
+| R1 | Tokens heredados sin `session_version` no se revocan | CONFIRMADO el mecanismo (O2); su alcance depende de la vigencia (P2) | Alta | Original (Flutter) |
+| R3 | Rol del token no refleja cambios de rol hechos después | CONFIRMADO el mecanismo (O3); efecto INFERIDO | Alta | Original (Flutter) |
+| R2 | Login del original podría emitir token a un usuario inactivo | CONFIRMADO que la condición observada no lo excluye; efecto final PENDIENTE (P1) | Media (el token no sirve: O1) | Original (Flutter) |
+| R4 | Logout cruzado por `session_version` compartido | INFERIDO | Media | Al unificar la base |
+| R5 | `DELETE` físico con cascada si se concede el privilegio | CONFIRMADO privilegio (O7) / sin uso en código React | Alta | Cuentas MySQL |
 
-**Conclusión provisional:** con la evidencia disponible, **no es seguro** habilitar la desactivación de usuarios en producción. Lo que se puede afirmar es qué debe cumplir React (`is_active` y `session_version` se verifican en cada petición) y qué hay que averiguar del original.
+## 5. Pruebas negativas
 
-## 3. Comandos de solo lectura para el operador (PuTTY)
+### 5.1 Contra el backend React, en local (Docker; no tocan servidores)
+Implementadas en `tests/isolated/http_session_matrix_test.php` (resultados en `UX-08B2-INFORME.md`):
 
-Ninguno modifica archivos, servicios ni datos, y ninguno imprime credenciales. Revise la salida antes de pegarla; si aparece algún secreto, bórrelo.
+| # | Caso | Resultado esperado |
+|---|---|---|
+| 1 | Usuario inactivo intenta iniciar sesión | Rechazado |
+| 2 | Usuario activo inicia sesión | Sesión |
+| 3 | Usuario desactivado reutiliza su token | 401 |
+| 4 | Token con `session_version` antigua (tras logout) | 401 |
+| 5 | Token heredado **sin** `session_version` | 401 (a diferencia del original, O2) |
+| 6 | Cambio de rol en MySQL con el token anterior | El poder cambia **de inmediato** |
+| 7 | Rol inesperado | 401 |
+| 8 | Firma o rol del token manipulados / `alg:none` | 401 |
+| 9 | Logout y reutilización | 401 |
+| 10 | Rutas administrativas con token de trabajador / sin token | 403 / 401 |
+
+### 5.2 Contra el original (solo sobre una **copia** aislada, nunca producción) — PENDIENTE QA
+Mismos casos 1–10. Los que se espera que **difieran** y deben medirse: 5 (se esperaría 200), 6 (rol del token, sin cambio), 1 (¿emite token?). Y el caso cruzado: *login en Flutter → logout en React → ¿sigue operando Flutter?* (solo con tabla `user` compartida).
+
+## 6. Comandos de PuTTY, solo lectura, fragmentos mínimos
+
+Ejecutar desde `/var/www/cervesur/backend`. Ninguno imprime `.env`, contraseñas, hashes ni claves; cada uno limita las líneas mostradas. Revise antes de pegar.
 
 ```bash
-# 1) Qué backend sirve cada puerto (Apache)
-sudo apachectl -S 2>&1 | head -40
-sudo grep -rn -E "ServerName|DocumentRoot|Listen|Alias|ProxyPass|<VirtualHost|SetEnv" /etc/apache2/sites-enabled/ /etc/apache2/ports.conf | sed -E 's/(SetEnv +[A-Za-z_]+ +).*/\1<oculto>/'
+# P1 — ¿el login excluye usuarios inactivos? Muestra solo las consultas SQL de usuario por login
+grep -n -E "is_active|WHERE|FROM user" models/UserModel.php | cut -c1-160
 
-# 2) Claves (NO valores) de la configuración de cada backend
+# P2 — vigencia del token (líneas con 'exp'; se omiten las que mencionan 'secret')
+grep -n -i -E "exp|ttl|lifetime" controllers/AuthController.php lib/*.php | grep -v -i secret | cut -c1-160
+
+# P3 — dónde se usa el rol (solo lugares)
+grep -rn "\['role'\]" lib/auth_middleware.php router/ controllers/ | cut -c1-140 | head -60
+
+# P4 — cambio de rol: valores aceptados y efecto sobre la sesión
+grep -n -E "function updateUserRole|allowed|admin|user'|session_version|UPDATE user" controllers/UserController.php models/UserModel.php | cut -c1-160
+
+# P5 — alta de usuarios en el original (¿existe?, ¿con qué columnas?)
+grep -rn -E "INSERT INTO user|password_hash|register" router/ controllers/ models/ | cut -c1-160
+
+# P6 — rutas que expone el original (sin cuerpos)
+grep -rn -E "\\\$uri *(===|==) *'/api|preg_match\('#?\^?/api" router/ | cut -c1-140
+
+# P7 — uso de transacciones
+grep -rn -c "beginTransaction" . --include=*.php | grep -v ":0"
+
+# O8 — cuenta y base que usa cada backend (solo nombres; sin contraseña) y sus privilegios reales
 for d in /var/www/cervesur/backend /opt/cervesur-react-usuarios/backend /opt/cervesur-react-admin/backend; do
-  echo "== $d"; sudo sed -E 's/^([A-Za-z_]+)=.*/\1=<oculto>/' "$d/.env" 2>/dev/null | grep -v '^#' | grep -v '^$'
+  echo "== $d"; sudo grep -E '^DB_(USER|NAME|HOST)=' "$d/.env"
 done
-
-# 3) Base y cuenta que usa cada backend (solo nombres, sin contraseña)
-for d in /var/www/cervesur/backend /opt/cervesur-react-usuarios/backend /opt/cervesur-react-admin/backend; do
-  echo "== $d"; sudo grep -E '^DB_(HOST|NAME|USER)=' "$d/.env" 2>/dev/null
-done
-
-# 4) Privilegios REALES de esas cuentas (sustituya CUENTA y HOST con lo obtenido en el paso 3)
-sudo mysql -e "SELECT user, host FROM mysql.user ORDER BY user;"
-sudo mysql -e "SHOW GRANTS FOR 'CUENTA'@'HOST';"
-
-# 5) Código de sesión del backend ORIGINAL (líneas, no archivos completos)
-cd /var/www/cervesur/backend
-grep -n -E "session_version|is_active|last_login|password_verify|beginTransaction|rollBack|UPDATE user|INSERT INTO user" \
-  lib/auth_middleware.php controllers/AuthController.php controllers/UserController.php router/auth.php models/UserModel.php
-
-# 6) Qué rutas expone el original
-grep -rn -E "\$uri *(===|==) *'/api|preg_match\('#?\^?/api" router/ | cut -c1-140
-
-# 7) Huella de los archivos, para compararlos con este repositorio
-sha256sum lib/*.php controllers/*.php models/*.php router/*.php
+sudo mysql -N -e "SELECT CONCAT('SHOW GRANTS FOR ', QUOTE(user), '@', QUOTE(host), ';') FROM mysql.user WHERE user LIKE 'cervesur%'" | sudo mysql -N
 ```
 
-Los pasos 5 y 6 responden las filas «Backend original». Si prefiere, puede enviar los archivos `lib/auth_middleware.php`, `controllers/AuthController.php`, `controllers/UserController.php`, `router/auth.php` y `models/UserModel.php` **excluyendo** `.env`.
+También sirve `deploy/auditoria/auditoria-solo-lectura.sh` (ver `UX-08-AUDITORIA-SERVIDOR.md`).
 
-## 4. Requisitos para habilitar la desactivación (cuando haya evidencia)
+## 7. Qué se puede hacer ya y qué no
 
-1. Confirmar que el original consulta `is_active` en cada petición **o** que expira por JWT en un plazo aceptable.
-2. Desactivar en una sola transacción: `is_active = 0` **y** `session_version = session_version + 1` (revoca en ambos backends si ambos validan versión).
-3. Decidir el valor de rol que React escribe (`usuario` o `user`) según lo que reconozca Flutter.
-4. Impedir que un administrador se desactive o se quite el rol a sí mismo, y que se desactive al último administrador activo.
-5. Probar contra una copia de la base productiva, nunca contra la productiva.
+| Se puede (local) | Condición |
+|---|---|
+| Diseñar la desactivación de usuarios sobre `is_active` + `session_version` en una transacción | O1 la hace efectiva en ambos backends para el API |
+| Implementarla y probarla en Docker con protección del último administrador | Ver `UX-08H-USUARIOS-DISENO.md` |
+
+| No se hace | Motivo |
+|---|---|
+| Habilitar desactivación o edición de usuarios en producción | P1, P2, P5, P6 y la QA de §5.2 sin resolver |
+| Normalizar o reescribir roles (`usuario`/`user`) | O6: el original mezcla ambos; pantalla de Flutter sin verificar |
+| Cambiar la autenticación del original o sus JWT | Fuera de alcance; requiere QA y autorización |
+| Dar `UPDATE/INSERT` nuevos o crear cuentas MySQL | Sin `SHOW GRANTS` completo (O8) |
