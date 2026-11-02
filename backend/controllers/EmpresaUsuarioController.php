@@ -48,8 +48,8 @@ class EmpresaUsuarioController {
             }
 
             // Validar que empresa_id sea un número entero positivo
-            $empresa_id = filter_var($data['empresa_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            if ($empresa_id === false) {
+            $empresa_id = positive_int($data['empresa_id']);
+            if ($empresa_id === null) {
                 return [
                     'success' => false,
                     'message' => 'empresa_id debe ser un número entero positivo'
@@ -57,8 +57,8 @@ class EmpresaUsuarioController {
             }
 
             // Validar que user_id sea un número entero positivo
-            $user_id = filter_var($data['user_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-            if ($user_id === false) {
+            $user_id = positive_int($data['user_id']);
+            if ($user_id === null) {
                 return [
                     'success' => false,
                     'message' => 'user_id debe ser un número entero positivo'
@@ -277,6 +277,23 @@ class EmpresaUsuarioController {
             return [
                 'success' => false,
                 'message' => public_error_message('Error al eliminar relación empresa-usuario', $e)
+            ];
+        }
+    }
+
+    /**
+     * Reactiva una relación empresa-usuario retirada (UX-08A)
+     * @param int $relacionId
+     * @param int $authUserId
+     * @return array
+     */
+    public function reactivate($relacionId, $authUserId) {
+        try {
+            return $this->empresaUsuarioModel->reactivate($relacionId, $authUserId);
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => public_error_message('Error al reactivar relación empresa-usuario', $e)
             ];
         }
     }

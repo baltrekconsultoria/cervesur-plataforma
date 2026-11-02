@@ -49,6 +49,9 @@ require_once __DIR__ . '/EmpresaReporteUsuarioRouter.php';
 // Incluir rutas de asignaciones
 require_once __DIR__ . '/AsignacionRouter.php';
 
+// Incluir rutas del historial de cambios administrativos
+require_once __DIR__ . '/AuditoriaRouter.php';
+
 // Incluir rutas de Power BI
 require_once __DIR__ . '/PowerBIRouter.php';
 

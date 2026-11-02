@@ -150,4 +150,19 @@ class EmpresaReporteUsuarioController {
             return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
+
+    /**
+     * Reactiva un acceso usuario ↔ empresa_reporte retirado (UX-08A).
+     *
+     * @param int $id ID de la relación.
+     * @param int $authUserId ID del administrador autenticado (auditoría).
+     * @return array Resultado del proceso.
+     */
+    public function reactivate($id, $authUserId) {
+        try {
+            return $this->model->reactivate($id, $authUserId);
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
+        }
+    }
 }

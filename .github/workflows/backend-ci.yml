@@ -166,12 +166,21 @@ jobs:
           sleep 1
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_admin_viewer_allowlist_test.php
 
+          # UX-08B.2: bitácora de solo inserción (triggers) aplicada y revertida sobre una base propia.
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/audit_immutability_test.php
+
           # UX-08B: capa transaccional de escrituras, auditoría, conflictos 409, concurrencia y vistas estrictas.
           # Base aparte (`fixture_w`) con los UNIQUE productivos; la instancia exige auditoría (AUDIT_LOG_MODE=required).
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/seed_writes.php
           docker run --detach --name "$appw_name" --network "$network_name" --network-alias appw             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_w --env DB_USER=root --env DB_PASS             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             --env AUDIT_LOG_MODE=required --env REACT_STRICT_VIEWS=1             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
           sleep 1
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_writes_test.php
+
+          # UX-08B.2: escrituras transaccionales y auditadas de las tres relaciones, historial y concurrencia.
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_access_writes_test.php
+
+          # UX-08B.2: matriz de sesiones y tokens (necesita el secreto de la instancia para forjar tokens inválidos).
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env JWT_SECRET             cervesur-ci-php:local php tests/isolated/http_session_matrix_test.php
 
           # UX-07D.2B: esquema e identificadores PRODUCTIVOS sintéticos (reporte_id de hasta 50 caracteres no UUID, grupo_id NOT NULL,
           # enlace VARCHAR(500)) en una base aparte (`fixture_prod`) servida por una segunda instancia del backend.

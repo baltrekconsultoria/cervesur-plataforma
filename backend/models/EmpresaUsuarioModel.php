@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../lib/pagination.php';
+require_once __DIR__ . '/../lib/write_support.php';
 
 
 class EmpresaUsuarioModel {
@@ -18,113 +19,108 @@ class EmpresaUsuarioModel {
     }
 
     /**
-     * Crea una nueva relación empresa-usuario.
+     * Otorga a un usuario la pertenencia a una empresa (UX-08A).
      *
-     * @param array $data Datos de la relación:
-     *   - empresa_id (int, requerido): ID de la empresa.
-     *   - user_id (int, requerido): ID del usuario.
-     *   - notas (string, opcional): Notas adicionales sobre la relación.
-     *   - created_by (int, opcional): ID del usuario que realiza la acción.
-     * @return array Resultado de la operación:
-     *   - success (bool): Indica si la operación fue exitosa.
-     *   - message (string): Mensaje descriptivo del resultado.
-     *   - InsertedId (int, opcional): ID autoincremental del nuevo registro si fue exitoso.
+     * Transaccional y auditada: usuario y empresa deben existir y estar activos (se bloquean con FOR UPDATE en orden
+     * canónico user -> empresa); una relación vigente no se duplica (409 `duplicate`) y una retirada se REACTIVA (misma fila).
+     *
+     * @param array $data empresa_id, user_id (obligatorios), notas (opcional), created_by (actor).
+     * @return array success, message, InsertedId; en fallo, `conflict` (duplicate | state | notfound | internal).
      */
     public function create($data) {
-        $response = [
-            'success' => false,
-            'message' => ''
-        ];
+        $response = ['success' => false, 'message' => ''];
 
-        // Validación básica de entrada
         if (!isset($data['empresa_id']) || !isset($data['user_id'])) {
             $response['message'] = 'Los campos empresa_id y user_id son obligatorios';
             return $response;
         }
-
-        // Convertir a enteros y validar que sean positivos
-        $empresa_id = filter_var($data['empresa_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        $user_id = filter_var($data['user_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-
-        if ($empresa_id === false || $user_id === false) {
+        $empresa_id = positive_int($data['empresa_id']);
+        $user_id = positive_int($data['user_id']);
+        if ($empresa_id === null || $user_id === null) {
             $response['message'] = 'empresa_id y user_id deben ser números enteros positivos';
             return $response;
         }
-
-        try {
-            // UX-07A: solo empresas y usuarios activos; una relación ya vigente no se duplica y una retirada se reactiva.
-            $valid = $this->pdo->prepare('SELECT (SELECT COUNT(*) FROM empresa WHERE id = :e AND activo = 1) AS empresa_ok, (SELECT COUNT(*) FROM user WHERE id = :u AND is_active = 1) AS user_ok');
-            $valid->execute([':e' => $empresa_id, ':u' => $user_id]);
-            $check = $valid->fetch(PDO::FETCH_ASSOC);
-            if (!$check || (int)$check['empresa_ok'] !== 1 || (int)$check['user_ok'] !== 1) {
-                $response['message'] = 'La empresa o el usuario especificado no existe o está inactivo';
-                return $response;
-            }
-            $existing = $this->pdo->prepare('SELECT id, activo FROM empresa_usuario WHERE empresa_id = :e AND user_id = :u ORDER BY activo DESC, id DESC LIMIT 1');
-            $existing->execute([':e' => $empresa_id, ':u' => $user_id]);
-            $found = $existing->fetch(PDO::FETCH_ASSOC);
-            if ($found) {
-                if ((int)$found['activo'] === 1) {
-                    $response['message'] = 'Esta relación ya existe';
-                    return $response;
-                }
-                $reactivate = $this->pdo->prepare('UPDATE empresa_usuario SET activo = 1, updated_by = :by WHERE id = :id');
-                $reactivate->execute([':by' => $data['created_by'] ?? null, ':id' => (int)$found['id']]);
-                $response['success'] = true;
-                $response['InsertedId'] = (int)$found['id'];
-                $response['message'] = 'Usuario asignado a la empresa exitosamente';
-                return $response;
-            }
-
-            $sql = "INSERT INTO empresa_usuario (empresa_id, user_id, notas, created_by)
-                    VALUES (:empresa_id, :user_id, :notas, :created_by)";
-
-            $stmt = $this->pdo->prepare($sql);
-
-            // Preparar los datos con valores por defecto
-            $params = [
-                ':empresa_id' => $empresa_id,
-                ':user_id' => $user_id,
-                ':notas' => $data['notas'] ?? null,
-                ':created_by' => $data['created_by'] ?? null
-            ];
-
-            $result = $stmt->execute($params);
-
-            if ($result) {
-                $response['success'] = true;
-                $response['InsertedId'] = $this->pdo->lastInsertId();
-                $response['message'] = 'Usuario asignado a la empresa exitosamente';
-            } else {
-                $response['success'] = false;
-                $response['message'] = 'Error al asignar el usuario a la empresa';
-            }
-        } catch (PDOException $e) {
-            // Para MySQL, el código de error específico está en errorInfo[1]
-            $driverErrorCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : null;
-            $response['success'] = false;
-
-            switch ($driverErrorCode) {
-                case 1452:
-                    $response['message'] = 'La empresa o el usuario especificado no existe';
-                    break;
-                case 1062:
-                    $response['message'] = 'Esta relación ya existe';
-                    break;
-                case 1048:
-                    $response['message'] = 'Faltan campos requeridos';
-                    break;
-                case 1366:
-                    $response['message'] = 'Datos inválidos para el campo';
-                    break;
-                default:
-                    // SQLSTATE y código del driver solo van al log interno, nunca a la respuesta
-                    $response['message'] = public_error_message('Error interno al asignar el usuario a la empresa', $e);
-                    break;
-            }
+        $notas = $data['notas'] ?? null;
+        if ($notas !== null && !is_scalar($notas)) {
+            $response['message'] = 'notas debe ser texto';
+            return $response;
         }
-        return $response;
+        $actor = positive_int($data['created_by'] ?? null);
+
+        return run_write(function () use ($empresa_id, $user_id, $notas, $actor) {
+            return db_tx($this->pdo, function () use ($empresa_id, $user_id, $notas, $actor) {
+                $this->lockParents($user_id, $empresa_id);
+                $existing = $this->pdo->prepare('SELECT id, activo FROM empresa_usuario WHERE empresa_id = :e AND user_id = :u ORDER BY activo DESC, id DESC LIMIT 1');
+                $existing->execute([':e' => $empresa_id, ':u' => $user_id]);
+                $found = $existing->fetch(PDO::FETCH_ASSOC);
+                if ($found) {
+                    $before = relation_lock($this->pdo, 'empresa_usuario', (int)$found['id']);
+                    if ($before && (int)$before['activo'] === 1) {
+                        throw new WriteConflict('duplicate', 'Esta relación ya existe');
+                    }
+                    $this->pdo->prepare('UPDATE empresa_usuario SET activo = 1, updated_by = :by WHERE id = :id')->execute([':by' => $actor, ':id' => (int)$found['id']]);
+                    audit_record($this->pdo, $actor, 'empresa_usuario.reactivate', 'empresa_usuario', (int)$found['id'],
+                        audit_snapshot('empresa_usuario', $before), audit_snapshot('empresa_usuario', relation_lock($this->pdo, 'empresa_usuario', (int)$found['id'])));
+                    return ['success' => true, 'message' => 'Usuario asignado a la empresa exitosamente', 'InsertedId' => (int)$found['id']];
+                }
+                try {
+                    $this->pdo->prepare('INSERT INTO empresa_usuario (empresa_id, user_id, notas, created_by) VALUES (:e, :u, :n, :by)')
+                        ->execute([':e' => $empresa_id, ':u' => $user_id, ':n' => $notas === null ? null : (string)$notas, ':by' => $actor]);
+                } catch (PDOException $e) {
+                    if (is_duplicate_key($e)) {
+                        throw new WriteConflict('duplicate', 'Esta relación ya existe');
+                    }
+                    throw $e;
+                }
+                $id = (int)$this->pdo->lastInsertId();
+                audit_record($this->pdo, $actor, 'empresa_usuario.create', 'empresa_usuario', $id, null,
+                    audit_snapshot('empresa_usuario', relation_lock($this->pdo, 'empresa_usuario', $id)));
+                return ['success' => true, 'message' => 'Usuario asignado a la empresa exitosamente', 'InsertedId' => $id];
+            });
+        }, 'Error al asignar el usuario a la empresa');
     }
+
+    /** Bloquea usuario y empresa (orden canónico) y exige que existan y estén activos. */
+    private function lockParents($userId, $empresaId) {
+        relation_require_active($this->pdo, 'user', $userId, ['Usuario no encontrado', 'El usuario está inactivo']);
+        relation_require_active($this->pdo, 'empresa', $empresaId, ['Empresa no encontrada', 'La empresa está inactiva']);
+    }
+
+    /** Reactiva una relación retirada. Exige que usuario y empresa estén activos; una relación ya activa es un conflicto de estado. */
+    public function reactivate($relacion_id, $actor) {
+        $id = positive_int($relacion_id);
+        if ($id === null) {
+            return ['success' => false, 'message' => 'ID de relación inválido'];
+        }
+        $actor = positive_int($actor);
+        return run_write(function () use ($id, $actor) {
+            // Lectura previa SIN bloqueo solo para conocer los padres y bloquearlos antes que la fila (orden canónico).
+            $pre = $this->pdo->prepare('SELECT user_id, empresa_id FROM empresa_usuario WHERE id = :id');
+            $pre->execute([':id' => $id]);
+            $ids = $pre->fetch(PDO::FETCH_ASSOC);
+            if (!$ids) {
+                throw new WriteNotFound('Relación empresa-usuario no encontrada');
+            }
+            return db_tx($this->pdo, function () use ($id, $actor, $ids) {
+                $this->lockParents((int)$ids['user_id'], (int)$ids['empresa_id']);
+                $before = relation_lock($this->pdo, 'empresa_usuario', $id);
+                if (!$before) {
+                    throw new WriteNotFound('Relación empresa-usuario no encontrada');
+                }
+                if ((int)$before['user_id'] !== (int)$ids['user_id'] || (int)$before['empresa_id'] !== (int)$ids['empresa_id']) {
+                    throw new WriteConflict('stale', 'La relación cambió mientras se procesaba. Recargue e intente de nuevo.');
+                }
+                if ((int)$before['activo'] === 1) {
+                    throw new WriteConflict('state', 'La relación ya está activa');
+                }
+                $this->pdo->prepare('UPDATE empresa_usuario SET activo = 1, updated_by = :by WHERE id = :id')->execute([':by' => $actor, ':id' => $id]);
+                audit_record($this->pdo, $actor, 'empresa_usuario.reactivate', 'empresa_usuario', $id,
+                    audit_snapshot('empresa_usuario', $before), audit_snapshot('empresa_usuario', relation_lock($this->pdo, 'empresa_usuario', $id)));
+                return ['success' => true, 'message' => 'Relación empresa-usuario reactivada correctamente'];
+            });
+        }, 'Error al reactivar la relación empresa-usuario');
+    }
+
 
     /**
      * Obtiene todas las relaciones de la tabla empresa_usuario.
@@ -366,175 +362,114 @@ class EmpresaUsuarioModel {
     }
 
     /**
-     * Actualiza una relación empresa-usuario existente.
-     * Permite modificar campos como empresa_id, user_id, notas y updated_by.
-     * Nota: updated_at se actualiza automáticamente por el campo ON UPDATE CURRENT_TIMESTAMP de la BD.
+     * Actualiza una relación empresa-usuario vigente (notas y/o extremos). Transaccional y auditada.
+     * Solo se aceptan `empresa_id`, `user_id` y `notas`; cualquier otro campo se ignora. Si cambia un extremo, el nuevo
+     * usuario/empresa deben existir y estar activos.
      *
      * @param int $relacion_id ID de la relación a actualizar
-     * @param array $data Datos actualizados: empresa_id, user_id, notas, updated_by
-     * @return array Resultado de la operación:
-     *   - success (bool): Indica si la operación fue exitosa.
-     *   - message (string): Mensaje descriptivo del resultado.
+     * @param array $data empresa_id, user_id, notas; `updated_by` lo fija el controlador con el usuario autenticado
      */
     public function update($relacion_id, $data) {
-        $response = [
-            'success' => false,
-            'message' => ''
-        ];
-
-        // Validación más estricta: convertir y validar que sea un entero positivo
-        $relacion_id = filter_var($relacion_id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-
-        if ($relacion_id === false) {
+        $response = ['success' => false, 'message' => ''];
+        $relacion_id = positive_int($relacion_id);
+        if ($relacion_id === null) {
             $response['message'] = 'ID de relación inválido';
             return $response;
         }
-
-        // Validar que al menos uno de los campos esté presente
-        $campos_modificables = ['empresa_id', 'user_id', 'notas', 'updated_by'];
-        $updateFields = [];
-        $params = [];
-
-        // Procesar cada campo modificable con validación de tipos
-        foreach ($campos_modificables as $campo) {
+        $fields = [];
+        foreach (['empresa_id', 'user_id'] as $campo) {
             if (isset($data[$campo])) {
-                $valor = $data[$campo];
-
-                // Validar campos que deben ser enteros positivos
-                if (in_array($campo, ['empresa_id', 'user_id', 'updated_by'])) {
-                    $valor_validado = filter_var($valor, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-                    if ($valor_validado === false) {
-                        $response['message'] = "$campo debe ser un número entero positivo";
-                        return $response;
-                    }
-                    $updateFields[$campo] = $valor_validado;
-                } else {
-                    // Para notas, permitir null o string
-                    $updateFields[$campo] = $valor;
+                $valor = positive_int($data[$campo]);
+                if ($valor === null) {
+                    $response['message'] = "$campo debe ser un número entero positivo";
+                    return $response;
                 }
+                $fields[$campo] = $valor;
             }
         }
-
-        if (empty($updateFields)) {
+        if (isset($data['notas'])) {
+            if (!is_scalar($data['notas'])) {
+                $response['message'] = 'notas debe ser texto';
+                return $response;
+            }
+            $fields['notas'] = (string)$data['notas'];
+        }
+        if (empty($fields)) {
             $response['message'] = 'No hay campos para actualizar';
             return $response;
         }
+        $actor = positive_int($data['updated_by'] ?? null);
 
-        try {
-            // Verificar si la relación existe y está activa
-            $sql_check = "SELECT id FROM empresa_usuario WHERE id = :id AND activo = 1";
-            $stmt_check = $this->pdo->prepare($sql_check);
-            $stmt_check->execute(['id' => $relacion_id]);
-            $exists = $stmt_check->fetch(PDO::FETCH_ASSOC);
-
-            if (!$exists) {
-                $response['message'] = 'Relación empresa-usuario no encontrada o ya inactiva';
-                return $response;
+        return run_write(function () use ($relacion_id, $fields, $actor) {
+            $pre = $this->pdo->prepare('SELECT user_id, empresa_id FROM empresa_usuario WHERE id = :id');
+            $pre->execute([':id' => $relacion_id]);
+            $ids = $pre->fetch(PDO::FETCH_ASSOC);
+            if (!$ids) {
+                throw new WriteNotFound('Relación empresa-usuario no encontrada o ya inactiva');
             }
-
-            // Construir set dinámico
-            $setParts = [];
-            foreach ($updateFields as $campo => $valor) {
-                $setParts[] = "$campo = :$campo";
-                $params[$campo] = $valor;
-            }
-
-            // No es necesario actualizar updated_at explícitamente, la BD lo hace automáticamente
-            $sql = "UPDATE empresa_usuario SET " . implode(', ', $setParts) . " WHERE id = :id";
-            $params['id'] = $relacion_id;
-
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-
-            $response['success'] = true;
-            $response['message'] = 'Relación empresa-usuario actualizada correctamente';
-        } catch (PDOException $e) {
-            // Manejo de errores específicos de MySQL
-            $driverErrorCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : null;
-            switch ($driverErrorCode) {
-                case 1452:
-                    $response['message'] = 'La empresa o el usuario especificado no existe';
-                    break;
-                case 1062:
-                    $response['message'] = 'Ya existe una relación con estos datos';
-                    break;
-                case 1048:
-                    $response['message'] = 'Faltan campos requeridos';
-                    break;
-                case 1366:
-                    $response['message'] = 'Datos inválidos para el campo';
-                    break;
-                default:
-                    $response['message'] = public_error_message('Error al actualizar la relación empresa-usuario', $e);
-                    break;
-            }
-        }
-
-        return $response;
+            return db_tx($this->pdo, function () use ($relacion_id, $fields, $actor, $ids) {
+                $newUser = $fields['user_id'] ?? (int)$ids['user_id'];
+                $newEmpresa = $fields['empresa_id'] ?? (int)$ids['empresa_id'];
+                $moved = $newUser !== (int)$ids['user_id'] || $newEmpresa !== (int)$ids['empresa_id'];
+                if ($moved) {
+                    $this->lockParents($newUser, $newEmpresa);
+                }
+                $before = relation_lock($this->pdo, 'empresa_usuario', $relacion_id);
+                if (!$before || (int)$before['activo'] !== 1) {
+                    throw new WriteNotFound('Relación empresa-usuario no encontrada o ya inactiva');
+                }
+                if ((int)$before['user_id'] !== (int)$ids['user_id'] || (int)$before['empresa_id'] !== (int)$ids['empresa_id']) {
+                    throw new WriteConflict('stale', 'La relación cambió mientras se procesaba. Recargue e intente de nuevo.');
+                }
+                $set = [];
+                $params = ['id' => $relacion_id, 'by' => $actor];
+                foreach ($fields as $campo => $valor) {
+                    $set[] = "$campo = :$campo";
+                    $params[$campo] = $valor;
+                }
+                $set[] = 'updated_by = :by';
+                try {
+                    $this->pdo->prepare('UPDATE empresa_usuario SET ' . implode(', ', $set) . ' WHERE id = :id')->execute($params);
+                } catch (PDOException $e) {
+                    if (is_duplicate_key($e)) {
+                        throw new WriteConflict('duplicate', 'Ya existe una relación con estos datos');
+                    }
+                    throw $e;
+                }
+                audit_record($this->pdo, $actor, 'empresa_usuario.update', 'empresa_usuario', $relacion_id,
+                    audit_snapshot('empresa_usuario', $before), audit_snapshot('empresa_usuario', relation_lock($this->pdo, 'empresa_usuario', $relacion_id)));
+                return ['success' => true, 'message' => 'Relación empresa-usuario actualizada correctamente'];
+            });
+        }, 'Error al actualizar la relación empresa-usuario');
     }
 
     /**
-     * Elimina (desactiva) una relación empresa-usuario por ID mediante soft delete.
-     * Realiza un UPDATE para marcar el registro como inactivo sin eliminarlo físicamente.
-     *
-     * @param int $relacion_id ID de la relación en empresa_usuario
-     * @param int|null $updated_by ID del usuario que realiza la acción (opcional)
-     * @return array Resultado de la operación:
-     *   - success (bool): Indica si la operación fue exitosa.
-     *   - message (string): Mensaje descriptivo del resultado.
+     * Retira (baja lógica, `activo = 0`) una relación empresa-usuario. Nunca borra la fila ni toca otras tablas.
+     * Transaccional y auditada (`empresa_usuario.revoke`). Una relación inexistente o ya retirada es `notfound`.
      */
     public function delete($relacion_id, $updated_by = null) {
-        $response = [
-            'success' => false,
-            'message' => ''
-        ];
-
-        // Validación consistente con otras funciones del modelo
-        $relacion_id = filter_var($relacion_id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-
-        if ($relacion_id === false) {
-            $response['message'] = 'ID de relación inválido';
-            return $response;
+        $relacion_id = positive_int($relacion_id);
+        if ($relacion_id === null) {
+            return ['success' => false, 'message' => 'ID de relación inválido'];
         }
-
-        try {
-            // Construir SQL dinámicamente según si updated_by está presente
-            if ($updated_by !== null) {
-                // Validar que updated_by sea un entero positivo
-                $updated_by = filter_var($updated_by, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-                if ($updated_by === false) {
-                    $response['message'] = 'ID de usuario inválido';
-                    return $response;
+        $actor = null;
+        if ($updated_by !== null) {
+            $actor = positive_int($updated_by);
+            if ($actor === null) {
+                return ['success' => false, 'message' => 'ID de usuario inválido'];
+            }
+        }
+        return run_write(function () use ($relacion_id, $actor) {
+            return db_tx($this->pdo, function () use ($relacion_id, $actor) {
+                $before = relation_lock($this->pdo, 'empresa_usuario', $relacion_id);
+                if (!$before || (int)$before['activo'] !== 1) {
+                    throw new WriteNotFound('Relación empresa-usuario no encontrada o ya inactiva');
                 }
-
-                $sql = "UPDATE empresa_usuario SET activo = 0, updated_by = :updated_by
-                        WHERE id = :id AND activo = 1";
-                $params = [
-                    'id' => $relacion_id,
-                    'updated_by' => $updated_by
-                ];
-            } else {
-                $sql = "UPDATE empresa_usuario SET activo = 0
-                        WHERE id = :id AND activo = 1";
-                $params = [
-                    'id' => $relacion_id
-                ];
-            }
-
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-
-            // Verificar si se afectó alguna fila (optimización: una sola consulta)
-            if ($stmt->rowCount() > 0) {
-                $response['success'] = true;
-                $response['message'] = 'Relación empresa-usuario eliminada correctamente';
-            } else {
-                $response['message'] = 'Relación empresa-usuario no encontrada o ya inactiva';
-            }
-        } catch (PDOException $e) {
-            $response['message'] = public_error_message('Error al eliminar relación empresa-usuario', $e);
-        }
-
-        return $response;
+                $this->pdo->prepare('UPDATE empresa_usuario SET activo = 0, updated_by = :by WHERE id = :id')->execute([':by' => $actor, ':id' => $relacion_id]);
+                audit_record($this->pdo, $actor, 'empresa_usuario.revoke', 'empresa_usuario', $relacion_id,
+                    audit_snapshot('empresa_usuario', $before), audit_snapshot('empresa_usuario', relation_lock($this->pdo, 'empresa_usuario', $relacion_id)));
+                return ['success' => true, 'message' => 'Relación empresa-usuario eliminada correctamente'];
+            });
+        }, 'Error al eliminar relación empresa-usuario');
     }
 }

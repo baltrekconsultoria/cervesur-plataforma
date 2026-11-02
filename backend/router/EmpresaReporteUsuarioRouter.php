@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/status_filter.php';
 require_once __DIR__ . '/../lib/views.php';
+require_once __DIR__ . '/../lib/write_support.php';
 require_once __DIR__ . '/../controllers/EmpresaReporteUsuarioController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -36,9 +37,21 @@ if (preg_match('#^/api/empresa-reporte-usuario$#', $uri)) {
         $auth_user_id = $user_data['user_id'];
         $data = json_decode(file_get_contents('php://input'), true);
         $response = $empresaReporteUsuarioController->create($data, $auth_user_id);
-        echo json_encode($response);
+        write_respond($response);
         exit;
     }
+}
+
+// POST /api/empresa-reporte-usuario/{id}/reactivate - Reactivar un acceso retirado (solo administradores)
+if ($method === 'POST' && preg_match('#^/api/empresa-reporte-usuario/(\d+)/reactivate$#', $uri, $matches)) {
+    $user_data = require_auth($jwt_secret);
+    if (strtolower((string)$user_data['role']) !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+        exit;
+    }
+    write_respond($empresaReporteUsuarioController->reactivate((int)$matches[1], $user_data['user_id']));
+    exit;
 }
 
 // GET /api/empresa-reporte-usuario/{id}
@@ -61,7 +74,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/(\d+)$#', $uri, $matches)) {
         $auth_user_id = $user_data['user_id'];
         $data = json_decode(file_get_contents('php://input'), true);
         $response = $empresaReporteUsuarioController->update($relacion_id, $data, $auth_user_id);
-        echo json_encode($response);
+        write_respond($response);
         exit;
     } elseif ($method === 'DELETE') {
         $user_data = require_auth($jwt_secret);
@@ -72,7 +85,7 @@ if (preg_match('#^/api/empresa-reporte-usuario/(\d+)$#', $uri, $matches)) {
         }
         $auth_user_id = $user_data['user_id'];
         $response = $empresaReporteUsuarioController->delete($relacion_id, $auth_user_id);
-        echo json_encode($response);
+        write_respond($response);
         exit;
     }
 }

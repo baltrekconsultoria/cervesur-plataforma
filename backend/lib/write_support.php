@@ -22,14 +22,24 @@ const FORM_VERSION_FIELDS = [
 /** Conflicto de negocio o de concurrencia. `kind`: duplicate | stale | state. */
 class WriteConflict extends RuntimeException {
     public $kind;
+    /** Mensaje redactado en el código para el usuario. Es lo único que puede llegar a una respuesta HTTP (nunca el mensaje interno de la excepción). */
+    public $clientMessage;
     public function __construct($kind, $message) {
         parent::__construct($message);
         $this->kind = $kind;
+        $this->clientMessage = $message;
     }
 }
 
 /** Recurso inexistente. */
-class WriteNotFound extends RuntimeException {}
+class WriteNotFound extends RuntimeException {
+    /** Mensaje redactado en el código para el usuario (ver WriteConflict). */
+    public $clientMessage;
+    public function __construct($message) {
+        parent::__construct($message);
+        $this->clientMessage = $message;
+    }
+}
 
 /** ¿El cliente pidió el contrato 2 (códigos HTTP estrictos)? */
 function strict_contract() {
@@ -92,6 +102,9 @@ function assert_version($expected, array $lockedRow, array $fields) {
 
 /* ------------------------------------------------------------------ auditoría */
 
+/** Entidades de relación cuyos identificadores se guardan como enteros en la bitácora. */
+const AUDIT_INT_ENTITIES = ['empresa_usuario' => true, 'empresa_reporte' => true, 'user_empresa_reporte' => true];
+
 /** `required`: toda escritura exige poder registrar la auditoría (falla cerrada). `off` (por defecto): no se registra. */
 function audit_mode() {
     $mode = getenv('AUDIT_LOG_MODE');
@@ -109,11 +122,16 @@ function audit_snapshot($entity, $row) {
     $allowed = [
         'empresa' => ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais', 'contacto_principal', 'activo'],
         'reporte' => ['nombre', 'descripcion', 'grupo_id', 'reporte_id', 'activo'],
+        // Relaciones de acceso (UX-08A): solo identificadores y estado; nunca notas ni datos de personas.
+        'empresa_usuario' => ['user_id', 'empresa_id', 'activo'],
+        'empresa_reporte' => ['empresa_id', 'reporte_id', 'activo'],
+        'user_empresa_reporte' => ['user_id', 'empresa_reporte_id', 'activo'],
     ][$entity] ?? [];
     $out = [];
     foreach ($allowed as $field) {
         if (array_key_exists($field, $row)) {
-            $out[$field] = $row[$field] === null ? null : (is_numeric($row[$field]) && $field === 'activo' ? (int)$row[$field] : (string)$row[$field]);
+            $out[$field] = $row[$field] === null ? null
+                : (is_numeric($row[$field]) && ($field === 'activo' || substr($field, -3) === '_id' && isset(AUDIT_INT_ENTITIES[$entity])) ? (int)$row[$field] : (string)$row[$field]);
         }
     }
     if ($entity === 'reporte' && array_key_exists('enlace', $row)) {
@@ -160,10 +178,13 @@ function audit_record(PDO $pdo, $actorId, $action, $entity, $entityId, $before, 
  * Éxito: 200. Los fallos llevan `conflict`: stale | state (condiciones nuevas) -> siempre 409; duplicate | notfound | internal |
  * sin tipo (validación) -> formato heredado (200 + success:false) salvo que el cliente pida el contrato 2 (409 / 404 / 500 / 400).
  */
-function write_respond(array $response) {
+function write_respond(array $response, $legacyFailureStatus = 200, $successStatus = 200) {
     header('X-Correlation-Id: ' . request_correlation_id());
     if (!empty($response['success'])) {
         $response['correlation_id'] = request_correlation_id();
+        if ($successStatus !== 200) {
+            http_response_code($successStatus);
+        }
         echo json_encode($response);
         return;
     }
@@ -173,6 +194,9 @@ function write_respond(array $response) {
         http_response_code(409);
     } elseif (strict_contract()) {
         http_response_code(['duplicate' => 409, 'notfound' => 404, 'internal' => 500][$kind] ?? 400);
+    } elseif ($legacyFailureStatus !== 200) {
+        // Rutas heredadas que ya respondían 400 ante un fallo (p. ej. /api/asignacion) lo conservan sin el contrato 2.
+        http_response_code($legacyFailureStatus);
     }
     echo json_encode($response);
 }
@@ -193,9 +217,9 @@ function run_write(callable $fn, $failureMessage) {
             throw $e;
         }
     } catch (WriteConflict $e) {
-        return ['success' => false, 'message' => $e->getMessage(), 'conflict' => $e->kind];
+        return ['success' => false, 'message' => $e->clientMessage, 'conflict' => $e->kind];
     } catch (WriteNotFound $e) {
-        return ['success' => false, 'message' => $e->getMessage(), 'conflict' => 'notfound'];
+        return ['success' => false, 'message' => $e->clientMessage, 'conflict' => 'notfound'];
     } catch (PDOException $e) {
         if (is_duplicate_key($e)) {
             return ['success' => false, 'message' => 'Ya existe un registro con esos datos', 'conflict' => 'duplicate'];
@@ -206,4 +230,56 @@ function run_write(callable $fn, $failureMessage) {
         error_log($failureMessage . ': ' . $e->getMessage());
         return ['success' => false, 'message' => $failureMessage, 'conflict' => 'internal'];
     }
+}
+
+/* ------------------------------------------------------------------ relaciones de acceso (UX-08A) */
+
+/** Columnas mínimas que se bloquean de cada tabla (lista blanca: el nombre de tabla nunca viene del cliente). */
+const RELATION_LOCK_COLUMNS = [
+    'user' => 'id, is_active',
+    'empresa' => 'id, activo',
+    'reporte' => 'id, activo',
+    'empresa_reporte' => 'id, empresa_id, reporte_id, activo',
+    'empresa_usuario' => 'id, empresa_id, user_id, activo',
+    'user_empresa_reporte' => 'id, user_id, empresa_reporte_id, activo',
+];
+
+/** Fila bloqueada (`FOR UPDATE`) por id dentro de la transacción en curso, o null si no existe. */
+function relation_lock(PDO $pdo, $table, $id) {
+    if (!isset(RELATION_LOCK_COLUMNS[$table])) {
+        throw new LogicException('Tabla no permitida');
+    }
+    $stmt = $pdo->prepare('SELECT ' . RELATION_LOCK_COLUMNS[$table] . ' FROM `' . $table . '` WHERE id = :id FOR UPDATE');
+    $stmt->execute(['id' => (int)$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+/** ¿La fila está vigente? (`user` usa `is_active`; el resto, `activo`). */
+function relation_is_active($table, array $row) {
+    return (int)($table === 'user' ? ($row['is_active'] ?? 0) : ($row['activo'] ?? 0)) === 1;
+}
+
+/**
+ * Bloquea un padre y exige que exista y esté activo. Inexistente -> WriteNotFound; inactivo -> WriteConflict('state').
+ * `$labels` = [mensaje de inexistente, mensaje de inactivo].
+ */
+function relation_require_active(PDO $pdo, $table, $id, array $labels) {
+    $row = relation_lock($pdo, $table, $id);
+    if (!$row) {
+        throw new WriteNotFound($labels[0]);
+    }
+    if (!relation_is_active($table, $row)) {
+        throw new WriteConflict('state', $labels[1]);
+    }
+    return $row;
+}
+
+/** Id positivo estricto (entero o cadena de dígitos) o null. */
+function positive_int($value) {
+    if (is_bool($value) || is_array($value) || $value === null) {
+        return null;
+    }
+    $v = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    return $v === false ? null : $v;
 }

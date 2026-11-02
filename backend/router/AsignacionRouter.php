@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../lib/views.php';
 require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/status_filter.php';
+require_once __DIR__ . '/../lib/write_support.php';
 require_once __DIR__ . '/../controllers/AsignacionController.php';
 require_once __DIR__ . '/../lib/auth_middleware.php';
 
@@ -92,8 +93,8 @@ if ($method === 'POST' && $uri === '/api/asignacion') {
 
     $result = $controller->create($input, $user['user_id']);
 
-    http_response_code($result['success'] ? 201 : 400);
-    echo json_encode($result);
+    // Éxito 201 y fallo 400 como siempre; los conflictos de estado son 409 y el contrato 2 usa 404/409/500 (write_respond).
+    write_respond($result, 400, 201);
     exit;
 }
 
@@ -121,8 +122,7 @@ if ($method === 'PUT' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $match
 
     $result = $controller->update($id, $input, $user['user_id']);
 
-    http_response_code($result['success'] ? 200 : 400);
-    echo json_encode($result);
+    write_respond($result, 400);
     exit;
 }
 
@@ -137,7 +137,18 @@ if ($method === 'DELETE' && preg_match('/^\/api\/asignacion\/(\d+)$/', $uri, $ma
     $id = (int)$matches[1];
     $result = $controller->delete($id, $user['user_id']);
 
-    http_response_code($result['success'] ? 200 : 400);
-    echo json_encode($result);
+    write_respond($result, 400);
+    exit;
+}
+
+// POST /api/asignacion/{id}/reactivate - Reactivar una asociación desvinculada (solo administradores)
+if ($method === 'POST' && preg_match('/^\/api\/asignacion\/(\d+)\/reactivate$/', $uri, $matches)) {
+    $user = require_auth($jwt_secret);
+    if (strtolower((string)$user['role']) !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+        exit;
+    }
+    write_respond($controller->reactivate((int)$matches[1], $user['user_id']), 400);
     exit;
 }

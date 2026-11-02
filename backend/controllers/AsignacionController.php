@@ -147,71 +147,53 @@ class AsignacionController {
     }
 
     /**
-     * Crear nueva asignación
+     * Valida empresa_id / reporte_id de un cuerpo de solicitud. Devuelve [empresa_id, reporte_id] o un arreglo de fallo.
+     */
+    private function parseIds($data) {
+        if (!is_array($data) || empty($data['empresa_id']) || empty($data['reporte_id'])) {
+            return ['error' => ['success' => false, 'message' => 'empresa_id y reporte_id son campos requeridos']];
+        }
+        $empresaId = positive_int($data['empresa_id']);
+        if ($empresaId === null) {
+            return ['error' => ['success' => false, 'message' => 'empresa_id debe ser un número válido']];
+        }
+        $reporteId = positive_int($data['reporte_id']);
+        if ($reporteId === null) {
+            return ['error' => ['success' => false, 'message' => 'reporte_id debe ser un número válido']];
+        }
+        return [$empresaId, $reporteId];
+    }
+
+    /**
+     * Crear nueva asignación (o reactivar la desvinculada de la misma pareja). La existencia y el estado de empresa e informe
+     * se comprueban dentro de la transacción del modelo.
      */
     public function create($data, $user_id) {
         try {
-            // Validar campos requeridos
-            if (empty($data['empresa_id']) || empty($data['reporte_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'empresa_id y reporte_id son campos requeridos'
-                ];
+            $ids = $this->parseIds($data);
+            if (isset($ids['error'])) {
+                return $ids['error'];
             }
+            [$empresaId, $reporteId] = $ids;
 
-            // Validar tipos de datos
-            if (!is_numeric($data['empresa_id']) || $data['empresa_id'] <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'empresa_id debe ser un número válido'
-                ];
-            }
-
-            if (!is_numeric($data['reporte_id']) || $data['reporte_id'] <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'reporte_id debe ser un número válido'
-                ];
-            }
-
-            // Verificar si existe la empresa
-            if (!$this->model->empresaExists($data['empresa_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Empresa no encontrada'
-                ];
-            }
-
-            // Verificar si existe el reporte
-            if (!$this->model->reporteExists($data['reporte_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Reporte no encontrado'
-                ];
-            }
-
-            // Preparar datos para crear
-            $asignacionData = [
-                'empresa_id' => $data['empresa_id'],
-                'reporte_id' => $data['reporte_id'],
+            $result = $this->model->create([
+                'empresa_id' => $empresaId,
+                'reporte_id' => $reporteId,
                 'notas' => $data['notas'] ?? '',
                 'created_by' => $user_id
-            ];
-
-            $id = $this->model->create($asignacionData);
-
+            ]);
+            if (empty($result['success'])) {
+                return $result;
+            }
             return [
                 'success' => true,
-                'message' => 'Asignación creada exitosamente',
+                'message' => $result['message'],
                 'data' => [
-                    'id' => $id,
+                    'id' => $result['id'],
                     'empresa_id' => $data['empresa_id'],
                     'reporte_id' => $data['reporte_id']
                 ]
             ];
-        } catch (DomainException $e) {
-            // Regla de negocio propia (texto controlado por la aplicación, sin detalle de base de datos).
-            return ['success' => false, 'message' => domain_error_message($e)];
         } catch (Exception $e) {
             return [
                 'success' => false,
@@ -225,74 +207,21 @@ class AsignacionController {
      */
     public function update($id, $data, $user_id) {
         try {
-            // Validar ID
-            if (!is_numeric($id) || $id <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'ID de asignación inválido'
-                ];
+            if (positive_int($id) === null) {
+                return ['success' => false, 'message' => 'ID de asignación inválido'];
             }
-
-            // Validar campos requeridos
-            if (empty($data['empresa_id']) || empty($data['reporte_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'empresa_id y reporte_id son campos requeridos'
-                ];
+            $ids = $this->parseIds($data);
+            if (isset($ids['error'])) {
+                return $ids['error'];
             }
+            [$empresaId, $reporteId] = $ids;
 
-            // Validar tipos de datos
-            if (!is_numeric($data['empresa_id']) || $data['empresa_id'] <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'empresa_id debe ser un número válido'
-                ];
-            }
-
-            if (!is_numeric($data['reporte_id']) || $data['reporte_id'] <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'reporte_id debe ser un número válido'
-                ];
-            }
-
-            // Verificar si existe la empresa
-            if (!$this->model->empresaExists($data['empresa_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Empresa no encontrada'
-                ];
-            }
-
-            // Verificar si existe el reporte
-            if (!$this->model->reporteExists($data['reporte_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Reporte no encontrado'
-                ];
-            }
-
-            // Preparar datos para actualizar
-            $asignacionData = [
-                'empresa_id' => $data['empresa_id'],
-                'reporte_id' => $data['reporte_id'],
+            return $this->model->update($id, [
+                'empresa_id' => $empresaId,
+                'reporte_id' => $reporteId,
                 'notas' => $data['notas'] ?? '',
                 'updated_by' => $user_id
-            ];
-
-            $updated = $this->model->update($id, $asignacionData);
-
-            if (!$updated) {
-                return [
-                    'success' => false,
-                    'message' => 'Asignación no encontrada o no se pudo actualizar'
-                ];
-            }
-
-            return [
-                'success' => true,
-                'message' => 'Asignación actualizada exitosamente'
-            ];
+            ]);
         } catch (Exception $e) {
             return [
                 'success' => false,
@@ -302,31 +231,28 @@ class AsignacionController {
     }
 
     /**
-     * Eliminar asignación
+     * Eliminar (desvincular) asignación
      */
     public function delete($id, $user_id) {
         try {
-            // Validar ID
-            if (!is_numeric($id) || $id <= 0) {
-                return [
-                    'success' => false,
-                    'message' => 'ID de asignación inválido'
-                ];
+            if (positive_int($id) === null) {
+                return ['success' => false, 'message' => 'ID de asignación inválido'];
             }
-
-            $deleted = $this->model->delete($id, $user_id);
-
-            if (!$deleted) {
-                return [
-                    'success' => false,
-                    'message' => 'Asignación no encontrada o no se pudo eliminar'
-                ];
-            }
-
+            return $this->model->delete($id, $user_id);
+        } catch (Exception $e) {
             return [
-                'success' => true,
-                'message' => 'Asignación eliminada exitosamente'
+                'success' => false,
+                'message' => public_error_message('Error al procesar la solicitud', $e)
             ];
+        }
+    }
+
+    /**
+     * Reactivar una asignación desvinculada (UX-08A)
+     */
+    public function reactivate($id, $user_id) {
+        try {
+            return $this->model->reactivate($id, $user_id);
         } catch (Exception $e) {
             return [
                 'success' => false,
