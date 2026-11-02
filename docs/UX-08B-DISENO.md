@@ -1,5 +1,7 @@
 # UX-08B · Diseño de la administración operativa
 
+> **Actualización:** empresas y reportes ya tienen transacciones, 409, reactivación, bloqueo optimista y auditoría implementados en local; ver `UX-08B-ESCRITURAS-Y-AUDITORIA.md`. Este documento conserva el diseño completo (accesos y usuarios siguen pendientes).
+
 **Estado: diseño y preparación. No hay escrituras nuevas implementadas ni activadas en producción.** Depende de `docs/UX-08-COMPATIBILIDAD-FLUTTER.md` (bloqueante para desactivar usuarios).
 
 Principio: **una sola fuente de verdad**. Se escribe en las seis tablas existentes; no se crean tablas de negocio paralelas.

@@ -1,5 +1,7 @@
 # UX-08A · Cierre de los 4 hallazgos del contrato
 
+> **Actualización UX-08B:** H2 y H3 tienen ahora una mitigación de servidor sin romper Flutter (`REACT_STRICT_VIEWS=1` en las instancias React); ver `UX-08B-ESCRITURAS-Y-AUDITORIA.md` §4.
+
 `npm run test:contract` (frontend/qa/contract.mjs) termina con **206 PASS / 0 FAIL / 4 HALLAZGOS**. Un hallazgo no falla la suite: documenta un riesgo conocido del contrato.
 
 ## Verificación de origen

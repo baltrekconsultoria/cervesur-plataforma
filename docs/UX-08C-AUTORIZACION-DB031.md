@@ -1,5 +1,7 @@
 # UX-08C · Autorización individual de informes en el visor administrativo (DB031)
 
+> **Actualización:** la auditoría del servidor sigue pendiente (`UX-08-AUDITORIA-SERVIDOR.md`); hasta conocer el mecanismo desplegado no se aplica la variable a ninguna instancia real.
+
 **Autorización recibida:** DB031 (`reporte.id` = 72) para visualización en el piloto administrativo. No es aprobación para volver público ningún informe, ni para aprobar otros.
 
 ## 1. Qué hace el código del repositorio
