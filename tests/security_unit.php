@@ -6,6 +6,7 @@ require_once __DIR__ . '/../backend/lib/jwt.php';
 require_once __DIR__ . '/../backend/lib/roles.php';
 require_once __DIR__ . '/../backend/lib/errors.php';
 require_once __DIR__ . '/../backend/lib/powerbi_link.php';
+require_once __DIR__ . '/../backend/lib/admin_viewer_allowlist.php';
 
 function check($condition, $name) {
     if (!$condition) { fwrite(STDERR, "FAIL: $name\n"); exit(1); }
@@ -108,3 +109,21 @@ foreach ($vectors as $case) {
 check(classify_powerbi_link(null)['ok'] === false && classify_powerbi_link(['https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE'])['ok'] === false, 'link classification rejects non-string input');
 $refs = [generate_report_ref(), generate_report_ref()];
 check($refs[0] !== $refs[1] && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $refs[0]) === 1, 'internal report references are random UUID v4 values');
+
+// UX-08C: lista de informes del visor administrativo (configuración de servidor; falla cerrada).
+putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS');
+check(admin_viewer_allowlist() === null && admin_viewer_permits('admin', 5), 'viewer allow-list: not configured means no extra restriction');
+putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS=72');
+check(admin_viewer_allowlist() === [72], 'viewer allow-list: a single id is parsed');
+check(admin_viewer_permits('admin', 72) && admin_viewer_permits('admin', '72'), 'viewer allow-list: admin may open a listed report');
+check(!admin_viewer_permits('admin', 73) && !admin_viewer_permits('ADMIN', 73), 'viewer allow-list: admin may not open an unlisted report');
+check(admin_viewer_permits('user', 73) && admin_viewer_permits('usuario', 73), 'viewer allow-list: workers are not restricted by the admin list');
+putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS= 72 , 105,72 ');
+check(admin_viewer_allowlist() === [72, 105], 'viewer allow-list: spaces and duplicates are normalized');
+putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS=');
+check(admin_viewer_allowlist() === [] && !admin_viewer_permits('admin', 72), 'viewer allow-list: an empty value allows no report');
+foreach (['72,*', '72,0', '72,-1', '72,abc', '072', '72;105', '4294967296', 'all'] as $bad) {
+    putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS=' . $bad);
+    check(admin_viewer_allowlist() === [] && !admin_viewer_permits('admin', 72), 'viewer allow-list: invalid value fails closed: ' . $bad);
+}
+putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS');

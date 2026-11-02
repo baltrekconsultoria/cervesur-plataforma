@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/../models/ReporteModel.php';
 require_once __DIR__ . '/../lib/powerbi_link.php';
+require_once __DIR__ . '/../lib/admin_viewer_allowlist.php';
 class ReporteController {
     private $reporteModel;
 
@@ -167,6 +168,9 @@ class ReporteController {
             if (empty($found['success']) || empty($found['data'])) {
                 return [['success' => false, 'message' => 'Reporte no encontrado'], 404];
             }
+            if (!admin_viewer_permits($role, $found['data']['id'] ?? 0)) {
+                return [['success' => false, 'message' => 'Acceso denegado'], 403];
+            }
             return [['success' => true, 'data' => $this->viewerData($found['data'], false)], 200];
         } catch (Exception $e) {
             return [['success' => false, 'message' => public_error_message('Error al obtener el visor', $e)], 500];
@@ -189,6 +193,9 @@ class ReporteController {
             $found = $this->reporteModel->getById((int)$id, $user_id, $role);
             if (empty($found['success']) || empty($found['data'])) {
                 return [['success' => false, 'message' => 'Reporte no encontrado'], 404];
+            }
+            if (!admin_viewer_permits($role, $found['data']['id'] ?? 0)) {
+                return [['success' => false, 'message' => 'Acceso denegado'], 403];
             }
             return [['success' => true, 'data' => $this->viewerData($found['data'], true)], 200];
         } catch (Exception $e) {
