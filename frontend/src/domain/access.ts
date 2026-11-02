@@ -17,6 +17,7 @@ export function assignmentStatus(a: Assignment, users: User[], reports: Report[]
   // El acceso se concede a través de una empresa concreta (un informe puede pertenecer a varias).
   const companyId = a.companyId ?? report?.companyId;
   const company = companyId ? companies.find(c => c.id === companyId) : undefined;
+  if (a.active === false) return { ok: false, reason: 'Acceso revocado' };
   if (!user?.active) return { ok: false, reason: 'Usuario inactivo' };
   if (!report?.active) return { ok: false, reason: 'Informe inactivo' };
   if (!company?.active) return { ok: false, reason: 'Empresa inactiva' };

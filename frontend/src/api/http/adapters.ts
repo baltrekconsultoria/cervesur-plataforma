@@ -30,7 +30,7 @@ export interface ReportFormDto { id: number | string; nombre: string; descripcio
 /** Fila de GET /api/empresa-usuario?view=minimal. */
 export interface CompanyLinkDto { id: number | string; user_id: number | string; empresa_id: number | string }
 /** Fila de GET /api/empresa-reporte-usuario?view=minimal: `reporte_id` es la referencia HISTÓRICA del informe (no sirve para unir); `empresa_reporte_id` es el id de la relación empresa–informe. */
-export interface AccessDto { id: number | string; user_id: number | string; empresa_id: number | string; empresa_reporte_id?: number | string; reporte_id?: string | null }
+export interface AccessDto { id: number | string; user_id: number | string; empresa_id: number | string; empresa_reporte_id?: number | string; reporte_id?: string | null; activo?: boolean | number | string | null }
 
 /** Identificador numérico canónico de MySQL (INT UNSIGNED): entero positivo, sin signo, decimales ni ceros a la izquierda. Devuelve la cadena o null. */
 const MAX_NUMERIC_ID = 4294967295;
@@ -104,7 +104,7 @@ export function toAssignment(dto: AccessDto, reportIdByRelation: Map<string, str
   if (!dto || dto.empresa_reporte_id === undefined || dto.empresa_reporte_id === null) return null;
   const reportId = reportIdByRelation.get(String(dto.empresa_reporte_id));
   if (!reportId) return null;
-  return { id: String(dto.id), userId: String(dto.user_id), reportId, companyId: String(dto.empresa_id) };
+  return { id: String(dto.id), userId: String(dto.user_id), reportId, companyId: String(dto.empresa_id), ...(toActive(dto.activo) ? {} : { active: false }) };
 }
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {

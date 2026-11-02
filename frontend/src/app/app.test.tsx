@@ -279,6 +279,9 @@ describe('administración inicial', () => {
     await user.click(within(await screen.findByRole('navigation', { name: 'Secciones' })).getByRole('link', { name: /Usuarios/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Usuarios' })).toBeInTheDocument();
     // El título aparece mientras carga: se espera a la tabla en lugar de depender del tiempo.
+    // UX-08A: «Activos» es el filtro inicial; los inactivos siguen disponibles en «Todos» e «Inactivos».
+    await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(3));
+    await user.selectOptions(screen.getByLabelText('Estado'), 'all');
     await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(4));
     await user.selectOptions(screen.getByLabelText('Estado'), 'inactive');
     await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(1));

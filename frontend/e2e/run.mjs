@@ -137,7 +137,9 @@ async function desktop() {
   await b.eval(`document.querySelector('.attention-list a').click()`); await b.wait(400);
   ok('pendientes enlazan a listas filtradas', await path(b) === '/admin/reportes?status=unassigned' && await count(b, 'tbody tr') === 1);
   await navTo(b, 'Usuarios');
-  ok('usuarios: 4 filas', await count(b, 'tbody tr') === 4);
+  ok('usuarios: 3 filas (Activos por defecto, UX-08A)', await count(b, 'tbody tr') === 3);
+  await b.select('#us-status', 'all');
+  ok('usuarios: Todos muestra los 4', await count(b, 'tbody tr') === 4);
   await b.select('#us-status', 'inactive');
   ok('filtro inactivos', await count(b, 'tbody tr') === 1 && (await text(b, 'tbody')).includes('Jorge'));
   await b.click('.resultbar button');
@@ -147,10 +149,14 @@ async function desktop() {
   ok('sin identificadores técnicos visibles', !/(usr|emp|rep)-\d/.test(await text(b, '#view')));
   await b.shot(join(shots, '12-admin-usuarios.png'));
   await navTo(b, 'Empresas');
+  ok('empresas: Activas por defecto (UX-08A)', await count(b, 'tbody tr') === 4 && !(await text(b, 'tbody')).includes('Inactiva'));
+  await b.select('#ac-status', 'all');
   ok('empresas con estados', await count(b, 'tbody tr') === 5 && (await text(b, 'tbody')).includes('Inactiva'));
   await b.shot(join(shots, '13-admin-empresas.png'));
   await navTo(b, 'Reportes');
-  ok('reportes: 7 filas', await count(b, 'tbody tr') === 7);
+  ok('reportes: 6 activos por defecto (UX-08A)', await count(b, 'tbody tr') === 6);
+  await b.select('#ar-status', 'all');
+  ok('reportes: Todos muestra los 7', await count(b, 'tbody tr') === 7);
   await b.select('#ar-company', 'emp-3'); await b.select('#ar-group', 'Finanzas');
   ok('reportes empresa + grupo', await count(b, 'tbody tr') === 2);
   await b.click('.resultbar button');
@@ -161,6 +167,8 @@ async function desktop() {
   await clickLink(b, 'Volver a Reportes');
   ok('retorno admin conserva filtro', await path(b) === '/admin/reportes?q=flujo' && await b.eval(`document.querySelector('#ar-q').value === 'flujo'`));
   await navTo(b, 'Accesos');
+  ok('accesos: solo vigentes por defecto (UX-08A)', (await text(b, 'tbody')).includes('Vigente') && !(await text(b, 'tbody')).includes('Sin efecto'));
+  await b.select('#ax-effect', 'all');
   ok('accesos vigentes / sin efecto', (await text(b, 'tbody')).includes('Vigente') && (await text(b, 'tbody')).includes('Sin efecto'));
   await b.shot(join(shots, '15-admin-accesos.png'));
 

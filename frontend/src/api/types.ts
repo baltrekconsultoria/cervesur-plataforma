@@ -58,7 +58,15 @@ export interface Assignment {
   reportId: string;
   /** Empresa a través de la cual se concede el acceso. */
   companyId?: string;
+  /** `false` si el acceso fue revocado (baja lógica). Ausente = activo. Solo llega con `ListScope` `all`. */
+  active?: boolean;
 }
+
+/**
+ * Alcance de un listado: `active` (por defecto) solo trae registros activos; `all` (UX-08A, solo administradores)
+ * trae también los inactivos para poder filtrarlos en las pantallas administrativas.
+ */
+export type ListScope = 'active' | 'all';
 
 /** Alta de usuario. El rol, el estado y la versión de sesión los fija siempre el backend. */
 export interface NewUser {
@@ -182,14 +190,14 @@ export interface ApiClient {
   logout(): Promise<void>;
   me(): Promise<User>;
   /** Informes que el usuario autenticado puede consultar (el servidor decide). */
-  listReports(): Promise<Report[]>;
+  listReports(scope?: ListScope): Promise<Report[]>;
   /** 403 y 404 se tratan igual en la interfaz para no revelar la existencia del recurso. */
   getReport(id: string): Promise<Report>;
-  listCompanies(): Promise<Company[]>;
+  listCompanies(scope?: ListScope): Promise<Company[]>;
   /** Solo administradores. */
   listUsers(): Promise<User[]>;
   /** Solo administradores. */
-  listAssignments(): Promise<Assignment[]>;
+  listAssignments(scope?: ListScope): Promise<Assignment[]>;
   updateProfile(update: ProfileUpdate): Promise<User>;
   /** Solo administradores. Resuelve únicamente si el servidor confirmó el alta. */
   createUser(input: NewUser): Promise<void>;

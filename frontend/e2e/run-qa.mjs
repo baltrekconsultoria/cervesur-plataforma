@@ -189,12 +189,18 @@ async function desktop() {
   current = 'Administrador real';
   await login(b, 'admin');
   ok('el administrador entra a /admin con navegación propia', await path(b) === '/admin' && (await text(b, '.role-badge')) === 'Modo administrador');
-  ok('inicio: empresas 2 de 2, reportes 6 de 6, usuarios y accesos vigentes reales desde PHP', (await body(b)).includes('2 de 2') && (await body(b)).includes('6 de 6') && (await body(b)).includes('USUARIOS ACTIVOS') && (await body(b)).includes('ACCESOS VIGENTES'));
+  // UX-08A: el inicio muestra «activos de total»; el total incluye los inactivos (status=all, solo administradores).
+  const adminTok = (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
+  const totalOf = async (route, query = '') => (await nodeApi('GET', `${route}?per_page=1${query}`, adminTok)).pagination.total;
+  const [companiesActive, companiesAll, reportsActive, reportsAll] = [await totalOf('/api/empresas'), await totalOf('/api/empresas', '&status=all'), await totalOf('/api/reportes'), await totalOf('/api/reportes', '&status=all')];
+  ok(`inicio: empresas ${companiesActive} de ${companiesAll}, reportes ${reportsActive} de ${reportsAll}, usuarios y accesos vigentes reales desde PHP`, (await body(b)).includes(`${companiesActive} de ${companiesAll}`) && (await body(b)).includes(`${reportsActive} de ${reportsAll}`) && (await body(b)).includes('USUARIOS ACTIVOS') && (await body(b)).includes('ACCESOS VIGENTES'));
   await b.shot(join(shots, '09-admin-inicio-real.png'));
   await navTo(b, 'Usuarios');
-  const adminTok = (await nodeApi('POST', '/api/login', null, { login: 'admin', password: PASSWORD })).token;
   const realUsers = await nodeApi('GET', '/api/users?status=all&per_page=100', adminTok);
-  ok('usuarios: lista real de MySQL (activos e inactivos), sin aviso de integración pendiente', await count(b, 'tbody tr') === realUsers.pagination.total && !(await body(b)).includes('Se conecta en la siguiente etapa'), `${await count(b, 'tbody tr')} filas / ${realUsers.pagination.total} en el servidor`);
+  const activeUsers = realUsers.users.filter(u => Number(u.is_active) === 1).length;
+  ok('usuarios: «Activos» por defecto (UX-08A), solo los activos de MySQL', await count(b, 'tbody tr') === activeUsers && activeUsers < realUsers.pagination.total, `${await count(b, 'tbody tr')} filas / ${activeUsers} activos`);
+  await b.select('#us-status', 'all');
+  ok('usuarios: «Todos» muestra la lista real de MySQL (activos e inactivos), sin aviso de integración pendiente', await count(b, 'tbody tr') === realUsers.pagination.total && !(await body(b)).includes('Se conecta en la siguiente etapa'), `${await count(b, 'tbody tr')} filas / ${realUsers.pagination.total} en el servidor`);
   ok('usuarios: el rol heredado se muestra como Usuario y el rol desconocido como «sin acceso»', (await body(b)).includes('Rol no reconocido') && await b.eval(`[...document.querySelectorAll('tbody tr')].some(r => r.textContent.includes('Demo Legacy') && r.textContent.includes('Usuario'))`));
   await b.shot(join(shots, '30-admin-usuarios-real.png'));
   await navTo(b, 'Empresas');

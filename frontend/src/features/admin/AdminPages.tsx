@@ -22,8 +22,8 @@ interface AdminData { users: User[]; companies: Company[]; reports: Report[]; as
 function useAdminData(): AsyncState<AdminData> {
   const { api, version, capabilities } = useApp();
   return useAsync(async () => {
-    const [companies, reports] = await Promise.all([api.listCompanies(), api.listReports()]);
-    const [users, assignments] = capabilities.adminDirectory ? await Promise.all([api.listUsers(), api.listAssignments()]) : [[], []];
+    const [companies, reports] = await Promise.all([api.listCompanies('all'), api.listReports('all')]);
+    const [users, assignments] = capabilities.adminDirectory ? await Promise.all([api.listUsers(), api.listAssignments('all')]) : [[], []];
     return { users, companies, reports, assignments };
   }, [api, version]);
 }
@@ -101,12 +101,12 @@ function Dashboard({ data, capabilities }: { data: AdminData; capabilities: ApiC
   );
 }
 
-const ACTIVE_OPTIONS = (on: string, off: string): Array<[string, string]> => [['all', 'Todos'], ['active', on], ['inactive', off]];
+const ACTIVE_OPTIONS = (on: string, off: string): Array<[string, string]> => [['active', on], ['inactive', off], ['all', 'Todos']];
 
 export function AdminUsersPage() {
   const data = useAdminData();
   const { user: me, capabilities, bump } = useApp();
-  const filters = useUrlFilters({ q: '', role: 'all', status: 'all' });
+  const filters = useUrlFilters({ q: '', role: 'all', status: 'active' });
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState('');
   const [paging, setPaging] = useState({ key: '', page: 1 });
@@ -152,7 +152,7 @@ export function AdminUsersPage() {
 export function AdminCompaniesPage() {
   const data = useAdminData();
   const { capabilities, bump } = useApp();
-  const filters = useUrlFilters({ q: '', status: 'all' });
+  const filters = useUrlFilters({ q: '', status: 'active' });
   const [editing, setEditing] = useState<Company | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   return (
@@ -196,7 +196,7 @@ export function AdminReportsPage() {
   const data = useAdminData();
   const { capabilities, bump } = useApp();
   const location = useLocation();
-  const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'all' });
+  const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'active' });
   const [editing, setEditing] = useState<Report | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   return (
@@ -227,7 +227,7 @@ export function AdminReportsPage() {
               {capabilities.adminWrites && <>{' '}<Button variant="secondary" size="sm" aria-label={`Editar ${r.name}`} onClick={() => { setNotice(''); setEditing(r); }}>Editar</Button></>}
             </>) }
         ];
-        const statusOptions: Array<[string, string]> = [['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : []), ...(capabilities.reportCompany ? [['unlinked', 'Sin empresa'] as [string, string]] : [])];
+        const statusOptions: Array<[string, string]> = [['active', 'Activos'], ['inactive', 'Inactivos'], ['all', 'Todos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : []), ...(capabilities.reportCompany ? [['unlinked', 'Sin empresa'] as [string, string]] : [])];
         return (
           <>
             <div className="toolbar" role="search">
@@ -249,7 +249,7 @@ export function AdminReportsPage() {
 export function AdminAccessPage() {
   const data = useAdminData();
   const { capabilities, bump } = useApp();
-  const filters = useUrlFilters({ q: '', company: 'all', effect: 'all' });
+  const filters = useUrlFilters({ q: '', company: 'all', effect: 'ok' });
   const [revoking, setRevoking] = useState<{ assignment: Assignment; userName: string; reportName: string; companyName: string } | null>(null);
   const [notice, setNotice] = useState('');
   if (!capabilities.adminDirectory) return <NotIntegrated title="Accesos y asignaciones" what="El listado de asignaciones" />;
@@ -283,7 +283,7 @@ export function AdminAccessPage() {
             <div className="toolbar" role="search">
               <SearchField id="ax-q" label="Buscar asignación" placeholder="Usuario o informe" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="ax-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />
-              <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['all', 'Todos'], ['ok', 'Vigentes'], ['off', 'Sin efecto']]} />
+              <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['ok', 'Vigentes'], ['off', 'Sin efecto'], ['all', 'Todos']]} />
               {capabilities.adminWrites && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
             </div>
             <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />

@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
@@ -80,12 +80,12 @@ export class HttpApiClient implements ApiClient {
     return toUser(env.profile as Parameters<typeof toUser>[0]);
   }
 
-  async listReports(): Promise<Report[]> {
+  async listReports(scope: ListScope = 'active'): Promise<Report[]> {
     // Las tres lecturas son necesarias: si cualquiera falla, falla todo (nunca un catálogo parcial como definitivo).
     const [reports, assignments, companies] = await Promise.all([
-      this.listAll<ReportDto>('/api/reportes'),
-      this.listAll<AssignmentDto>('/api/asignacion'),
-      this.listCompanies()
+      this.listAll<ReportDto>('/api/reportes', scopeOptions(scope)),
+      this.listAll<AssignmentDto>('/api/asignacion', scopeOptions(scope)),
+      this.listCompanies(scope)
     ]);
     return composeReportCatalog(reports, assignments, companies);
   }
@@ -96,7 +96,7 @@ export class HttpApiClient implements ApiClient {
     return toReport(env.data as ReportDto);
   }
 
-  async listCompanies(): Promise<Company[]> { return (await this.listAll<CompanyDto>('/api/empresas')).map(toCompany); }
+  async listCompanies(scope: ListScope = 'active'): Promise<Company[]> { return (await this.listAll<CompanyDto>('/api/empresas', scopeOptions(scope))).map(toCompany); }
   async listUsers(): Promise<User[]> {
     const [users, links] = await Promise.all([
       this.listAll<UserDto>('/api/users', { minimal: false, key: 'users', query: 'status=all' }),
@@ -111,11 +111,11 @@ export class HttpApiClient implements ApiClient {
     return users.map(dto => { const user = toDirectoryUser(dto); return { ...user, companyIds: companiesByUser.get(user.id) ?? [] }; });
   }
 
-  async listAssignments(): Promise<Assignment[]> {
+  async listAssignments(scope: ListScope = 'active'): Promise<Assignment[]> {
     // El informe de cada acceso se resuelve por su relación empresa–informe (`empresa_reporte_id` → `reporte.id`), no por el reporte_id histórico.
-    const [rows, relations] = await Promise.all([this.listAll<AccessDto>('/api/empresa-reporte-usuario'), this.listAll<AssignmentDto>('/api/asignacion')]);
+    const [rows, relations] = await Promise.all([this.listAll<AccessDto>('/api/empresa-reporte-usuario', scopeOptions(scope)), this.listAll<AssignmentDto>('/api/asignacion', scopeOptions(scope))]);
     const reportIdByRelation = new Map<string, string>();
-    for (const r of relations) { const report = numericId(r.reporte_id); if (r.id !== undefined && report && toActive(r.activo)) reportIdByRelation.set(String(r.id), report); }
+    for (const r of relations) { const report = numericId(r.reporte_id); if (r.id !== undefined && report && (scope === 'all' || toActive(r.activo))) reportIdByRelation.set(String(r.id), report); }
     return rows.map(row => toAssignment(row, reportIdByRelation)).filter((a): a is Assignment => a !== null);
   }
 
@@ -285,6 +285,9 @@ export class HttpApiClient implements ApiClient {
     return envelope;
   }
 }
+
+/** `all` pide también los inactivos (el servidor solo lo permite a administradores); `active` conserva la petición de siempre. */
+const scopeOptions = (scope: ListScope): { query?: string } => (scope === 'all' ? { query: 'status=all' } : {});
 
 const positiveInt = (value: string): number | null => (/^[1-9]\d*$/.test(value) ? Number(value) : null);
 
