@@ -410,6 +410,23 @@ async function catalogFlow() {
   const edited = (await nodeApi('GET', `/api/empresas/${company.id}?view=form`, await A())).data;
   ok('persistió en MySQL (ciudad y teléfono) sin tocar Power BI', edited.ciudad === 'Arequipa' && edited.telefono === '988 777 666' && !JSON.stringify(edited).match(/powerbi/));
 
+  // UX-08B.2: baja lógica y reactivación contra PHP real (contrato 2), con confirmación.
+  const companyRow = async () => (await nodeApi('GET', '/api/empresas?view=minimal&status=all&per_page=100', await A())).data.find(c => c.ruc === ruc);
+  const clickLabel = label => b.eval(`[...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(label)}).click()`);
+  await clickLabel(`Desactivar ${companyName}`); await b.wait(600);
+  ok('desactivar pide confirmación con el efecto', (await text(b, '.modal')).includes('Desactivar empresa') && (await text(b, '.modal')).includes('sin efecto'));
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('baja lógica en MySQL: la fila sigue existiendo con activo=0 y sale de «Activas»', (await companyRow())?.activo === 0 && !(await tableRows(b)).some(r => r.includes(companyName)) && (await body(b)).includes('desactivada correctamente'));
+  const writes = b.requestLog.filter(r => r.method === 'DELETE' && /\/api\/empresas\/\d+$/.test(r.url));
+  ok('la baja se pidió con el contrato 2', writes.length > 0 && writes.every(r => r.contract === '2'));
+  await b.select('#ac-status', 'inactive'); await b.wait(600);
+  await clickLabel(`Reactivar ${companyName}`); await b.wait(600);
+  await b.click('.modal form button[type=submit]'); await b.wait(1200);
+  ok('reactivada: activo=1 de nuevo, sin duplicar la fila', (await companyRow())?.activo === 1 && (await companyRow())?.id === company.id);
+  await go(b, '/admin/historial'); await b.wait(900);
+  ok('historial: el servidor QA aún no tiene bitácora y la pantalla lo explica en vez de fallar', (await body(b)).includes('El historial aún no está habilitado'));
+  await navTo(b, 'Empresas'); await settle();
+
   current = 'UX-07B · reportes';
   await navTo(b, 'Reportes'); await settle();
   ok('«Nuevo reporte» disponible', await clickByText('button', 'Nuevo reporte') && await count(b, 'dialog[open]') === 1);
