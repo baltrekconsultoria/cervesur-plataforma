@@ -179,6 +179,12 @@ jobs:
           # UX-08B.2: escrituras transaccionales y auditadas de las tres relaciones, historial y concurrencia.
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_access_writes_test.php
 
+          # UX-08B.3: migración mínima grupo_id NULL (up/down con rechazo de la reversión incompatible). Debe ir después de las suites de escritura.
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_report_nogroup_test.php
+
+          # UX-08E: la cuenta de privilegios mínimos puede lo necesario y nada más (MySQL desechable; la plantilla nunca toca un servidor real).
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/privileges_matrix_test.php
+
           # UX-08B.2: matriz de sesiones y tokens (necesita el secreto de la instancia para forjar tokens inválidos).
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env JWT_SECRET             cervesur-ci-php:local php tests/isolated/http_session_matrix_test.php
 

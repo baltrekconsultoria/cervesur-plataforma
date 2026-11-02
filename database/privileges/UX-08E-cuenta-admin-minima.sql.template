@@ -1,0 +1,42 @@
+-- UX-08E · Cuenta de aplicación de PRIVILEGIOS MÍNIMOS para la API administrativa (escrituras de UX-08B).
+--
+-- PLANTILLA. NO SE EJECUTA EN NINGÚN SERVIDOR REAL sin autorización expresa, respaldo y revisión del responsable.
+-- Se prueba únicamente en MySQL desechable (tests/isolated/privileges_matrix_test.php), que sustituye {DB}, {USER}, {HOST} y {PASS}.
+-- En una ventana autorizada: sustituir los marcadores a mano, nunca dejar la contraseña en el repositorio ni en el historial del shell.
+--
+-- Principios:
+--   * Ningún DELETE sobre ninguna tabla: las bajas son lógicas (`activo` / `is_active`). Las FK `ON DELETE CASCADE` no pueden dispararse.
+--   * Sin DDL, sin TRIGGER, sin GRANT OPTION, sin DROP/TRUNCATE/ALTER.
+--   * UPDATE por columnas: no se puede modificar `username`, `created_*`, ni los campos de configuración Power BI de `empresa`
+--     (`powerbi_tenant`, `powerbi_client`, `powerbi_clientsecret`), que esta etapa no edita.
+--   * `audit_log`: SOLO INSERT (y SELECT para el historial). La cuenta no puede alterar ni borrar el historial.
+--   * `SELECT … FOR UPDATE` exige SELECT más algún privilegio de UPDATE/DELETE sobre la tabla: los UPDATE por columnas lo satisfacen.
+
+CREATE USER IF NOT EXISTS '{USER}'@'{HOST}' IDENTIFIED BY '{PASS}';
+
+GRANT SELECT ON `{DB}`.* TO '{USER}'@'{HOST}';
+
+-- Altas (INSERT de tabla completa: las sentencias de la aplicación nombran sus columnas; `id` es automático)
+GRANT INSERT ON `{DB}`.`user`                 TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`empresa`              TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`reporte`              TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`empresa_usuario`      TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`empresa_reporte`      TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`user_empresa_reporte` TO '{USER}'@'{HOST}';
+GRANT INSERT ON `{DB}`.`audit_log`            TO '{USER}'@'{HOST}';
+
+-- Modificaciones: solo las columnas que la aplicación cambia
+GRANT UPDATE (first_name, last_name, phone, email, role, is_active, session_version, last_login, password, avatar)
+    ON `{DB}`.`user` TO '{USER}'@'{HOST}';
+GRANT UPDATE (nombre, razon_social, ruc, email, telefono, website, direccion, ciudad, pais, logo, contacto_principal, activo, updated_by)
+    ON `{DB}`.`empresa` TO '{USER}'@'{HOST}';
+GRANT UPDATE (nombre, descripcion, enlace, grupo_id, reporte_id, activo, updated_by)
+    ON `{DB}`.`reporte` TO '{USER}'@'{HOST}';
+GRANT UPDATE (empresa_id, user_id, notas, activo, updated_by)
+    ON `{DB}`.`empresa_usuario` TO '{USER}'@'{HOST}';
+GRANT UPDATE (empresa_id, reporte_id, notas, activo, updated_by)
+    ON `{DB}`.`empresa_reporte` TO '{USER}'@'{HOST}';
+GRANT UPDATE (user_id, empresa_reporte_id, notas, activo, updated_by)
+    ON `{DB}`.`user_empresa_reporte` TO '{USER}'@'{HOST}';
+
+-- Reversión: DROP USER '{USER}'@'{HOST}';  (no toca datos)
