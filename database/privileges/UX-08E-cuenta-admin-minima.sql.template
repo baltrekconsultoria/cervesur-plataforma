@@ -26,7 +26,8 @@ GRANT INSERT ON `{DB}`.`user_empresa_reporte` TO '{USER}'@'{HOST}';
 GRANT INSERT ON `{DB}`.`audit_log`            TO '{USER}'@'{HOST}';
 
 -- Modificaciones: solo las columnas que la aplicación cambia
-GRANT UPDATE (first_name, last_name, phone, email, role, is_active, session_version, last_login, password, avatar)
+-- `updated_at`: el código la fija explícitamente (no se asume ON UPDATE CURRENT_TIMESTAMP en producción).
+GRANT UPDATE (first_name, last_name, phone, email, role, is_active, session_version, last_login, password, avatar, updated_at)
     ON `{DB}`.`user` TO '{USER}'@'{HOST}';
 GRANT UPDATE (nombre, razon_social, ruc, email, telefono, website, direccion, ciudad, pais, logo, contacto_principal, activo, updated_by)
     ON `{DB}`.`empresa` TO '{USER}'@'{HOST}';

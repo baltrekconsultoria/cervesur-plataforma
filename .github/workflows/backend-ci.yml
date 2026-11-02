@@ -70,9 +70,12 @@ jobs:
           appprod_name="cervesur-ci-appprod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           appadmin_name="cervesur-ci-appadmin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           appw_name="cervesur-ci-appw-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          appu_name="cervesur-ci-appu-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          appuoff_name="cervesur-ci-appuoff-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          appmin_name="cervesur-ci-appmin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           cleanup() {
-            docker rm --force "$app_name" "$appprod_name" "$appadmin_name" "$appw_name" "$db_name" >/dev/null 2>&1 || true
+            docker rm --force "$app_name" "$appprod_name" "$appadmin_name" "$appw_name" "$appu_name" "$appuoff_name" "$appmin_name" "$db_name" >/dev/null 2>&1 || true
             docker network rm "$network_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -182,8 +185,25 @@ jobs:
           # UX-08B.3: migración mínima grupo_id NULL (up/down con rechazo de la reversión incompatible). Debe ir después de las suites de escritura.
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_report_nogroup_test.php
 
+          # UX-08E: la API completa conectada como la cuenta de privilegios mínimos (plantilla database/privileges). Va al final: usa y limpia `fixture_w`.
+          MIN_PASS="$(openssl rand -hex 12)"
+          echo "::add-mask::$MIN_PASS"
+          docker run --detach --name "$appmin_name" --network "$network_name" --network-alias appmin             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_w --env DB_USER=app_admin_min --env DB_PASS="$MIN_PASS"             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             --env AUDIT_LOG_MODE=required --env REACT_STRICT_VIEWS=1 --env USER_ADMIN_WRITES=1             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          sleep 1
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env MIN_PASS="$MIN_PASS"             cervesur-ci-php:local php tests/isolated/http_min_privileges_test.php
+
           # UX-08E: la cuenta de privilegios mínimos puede lo necesario y nada más (MySQL desechable; la plantilla nunca toca un servidor real).
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/privileges_matrix_test.php
+
+          # UX-08B.3: administración de usuarios. `appu` con USER_ADMIN_WRITES=1; `appuoff` sin el interruptor (las rutas deben responder 404).
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/seed_users.php
+          for spec in "appu:$appu_name:1" "appuoff:$appuoff_name:0"; do
+            alias="${spec%%:*}"; rest="${spec#*:}"; name="${rest%%:*}"; flag="${rest##*:}"
+            extra=""; [ "$flag" = "1" ] && extra="--env USER_ADMIN_WRITES=1 --env REACT_STRICT_VIEWS=1"
+            docker run --detach --name "$name" --network "$network_name" --network-alias "$alias"               --read-only --tmpfs /tmp               --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work               --env DB_HOST=db --env DB_NAME=fixture_u --env DB_USER=root --env DB_PASS               --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4               --env AUDIT_LOG_MODE=required $extra               cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          done
+          sleep 1
+          docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env JWT_SECRET             cervesur-ci-php:local php tests/isolated/http_users_admin_test.php
 
           # UX-08B.2: matriz de sesiones y tokens (necesita el secreto de la instancia para forjar tokens inválidos).
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env JWT_SECRET             cervesur-ci-php:local php tests/isolated/http_session_matrix_test.php
