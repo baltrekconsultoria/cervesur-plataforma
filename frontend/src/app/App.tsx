@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
 import { homePath } from '../auth/returnTo';
 import { DeniedState } from '../components/DeniedState';
+import { AdminHistoryPage } from '../features/admin/HistoryPage';
 import { AdminAccessPage, AdminCompaniesPage, AdminDashboardPage, AdminReportsPage, AdminUsersPage } from '../features/admin/AdminPages';
 import { AccessWizardPage } from '../features/admin/AccessWizard';
 import { CompanyReportsPage } from '../features/admin/CompanyReportsPage';
@@ -61,6 +62,7 @@ export function App() {
           <Route path="/admin/reportes" element={<AdminReportsPage />} />
           <Route path="/admin/accesos" element={<AdminAccessPage />} />
           <Route path="/admin/accesos/nueva" element={<AccessWizardPage />} />
+          <Route path="/admin/historial" element={<AdminHistoryPage />} />
           <Route path="/admin/asociaciones" element={<CompanyReportsPage />} />
         </Route>
         <Route path="*" element={<Home />} />

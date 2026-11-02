@@ -1,7 +1,7 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
 import { classifyPowerBiLink } from '../../domain/powerbiLink';
-import type { ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import type { AuditEntry, AuditPage, AuditQuery, ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { createSeed, type Seed } from './seed';
 
 export type MockScenario = 'normal' | 'empty' | 'forbidden';
@@ -20,6 +20,9 @@ export class MockApi implements ApiClient {
   private companyExtra = new Map<string, Partial<CompanyInput>>();
   private reportMeta = new Map<string, string>();
   private scenario: MockScenario = 'normal';
+  /** Historial simulado (en el servidor real es la tabla `audit_log`). */
+  private auditLog: AuditEntry[] = [];
+  private auditSeq = 0;
 
   constructor(private readonly tokens: TokenStore) {}
 
@@ -91,8 +94,16 @@ export class MockApi implements ApiClient {
     return reportIds.map((reportId): GrantResult => {
       const report = this.seed.reports.find(r => r.id === reportId);
       if (!report?.active || !report.companyIds.includes(companyId)) return { reportId, status: 'failed', message: 'El informe no está asignado a esa empresa.' };
-      if (this.seed.assignments.some(a => a.userId === userId && a.reportId === reportId && a.companyId === companyId)) return { reportId, status: 'already', message: 'El usuario ya tenía este acceso.' };
-      this.seed.assignments.push({ id: `asg-${Math.random().toString(36).slice(2, 8)}`, userId, reportId, companyId });
+      const existing = this.seed.assignments.find(a => a.userId === userId && a.reportId === reportId && a.companyId === companyId);
+      if (existing && existing.active === false && existing.id) {
+        existing.active = true; // reactiva la fila revocada en lugar de duplicarla
+        this.record('user_empresa_reporte.reactivate', 'user_empresa_reporte', existing.id, { activo: 0 }, { activo: 1 });
+        return { reportId, status: 'granted', message: 'Acceso concedido.' };
+      }
+      if (existing) return { reportId, status: 'already', message: 'El usuario ya tenía este acceso.' };
+      const id = `asg-${Math.random().toString(36).slice(2, 8)}`;
+      this.seed.assignments.push({ id, userId, reportId, companyId });
+      this.record('user_empresa_reporte.create', 'user_empresa_reporte', id, null, { activo: 1 });
       return { reportId, status: 'granted', message: 'Acceso concedido.' };
     });
   }
@@ -199,9 +210,73 @@ export class MockApi implements ApiClient {
 
   async revokeAssignment(assignmentId: string): Promise<void> {
     this.requireAdmin();
-    const index = this.seed.assignments.findIndex(a => a.id === assignmentId);
-    if (index < 0) throw new ApiError(422, 'Relación no encontrada o ya inactiva');
-    this.seed.assignments.splice(index, 1);
+    const assignment = this.seed.assignments.find(a => a.id === assignmentId && a.active !== false);
+    if (!assignment) throw new ApiError(422, 'Relación no encontrada o ya inactiva');
+    // Baja lógica, como el servidor: la fila se conserva y puede reactivarse.
+    assignment.active = false;
+    this.record('user_empresa_reporte.revoke', 'user_empresa_reporte', assignmentId, { activo: 1 }, { activo: 0 });
+  }
+
+  /* --- UX-08B.2: baja lógica, reactivación e historial (mismas reglas que el servidor) --- */
+  private record(action: string, entity: string, entityId: string, before: Record<string, unknown> | null, after: Record<string, unknown> | null): void {
+    this.auditLog.unshift({ id: String(++this.auditSeq), at: new Date().toISOString().slice(0, 19).replace('T', ' '), correlationId: `sim${String(this.auditSeq).padStart(29, '0')}`, actor: this.requireAdmin().displayName, action, entity, entityId, before, after });
+  }
+
+  async deactivateCompany(id: string): Promise<void> {
+    this.requireAdmin();
+    const company = this.seed.companies.find(c => c.id === id);
+    if (!company?.active) throw new ApiError(404, 'Empresa no encontrada');
+    company.active = false;
+    this.record('empresa.deactivate', 'empresa', id, { activo: 1 }, { activo: 0 });
+  }
+
+  async reactivateCompany(id: string): Promise<void> {
+    this.requireAdmin();
+    const company = this.seed.companies.find(c => c.id === id);
+    if (!company) throw new ApiError(404, 'Empresa no encontrada');
+    if (company.active) throw new ApiError(409, 'La empresa ya está activa');
+    company.active = true;
+    this.record('empresa.reactivate', 'empresa', id, { activo: 0 }, { activo: 1 });
+  }
+
+  async deactivateReport(internalId: string): Promise<void> {
+    this.requireAdmin();
+    const report = this.seed.reports.find(r => r.id === internalId);
+    if (!report?.active) throw new ApiError(404, 'Reporte no encontrado');
+    report.active = false;
+    this.record('reporte.deactivate', 'reporte', internalId, { activo: 1 }, { activo: 0 });
+  }
+
+  async reactivateReport(internalId: string): Promise<void> {
+    this.requireAdmin();
+    const report = this.seed.reports.find(r => r.id === internalId);
+    if (!report) throw new ApiError(404, 'Reporte no encontrado');
+    if (report.active) throw new ApiError(409, 'El reporte ya está activo');
+    report.active = true;
+    this.record('reporte.reactivate', 'reporte', internalId, { activo: 0 }, { activo: 1 });
+  }
+
+  async reactivateAssignment(assignmentId: string): Promise<void> {
+    this.requireAdmin();
+    const assignment = this.seed.assignments.find(a => a.id === assignmentId);
+    if (!assignment) throw new ApiError(404, 'Relación no encontrada');
+    if (assignment.active !== false) throw new ApiError(409, 'El acceso ya está activo');
+    const user = this.seed.users.find(u => u.id === assignment.userId);
+    const report = this.seed.reports.find(r => r.id === assignment.reportId);
+    const company = this.seed.companies.find(c => c.id === (assignment.companyId ?? report?.companyId));
+    if (!user?.active) throw new ApiError(409, 'El usuario está inactivo');
+    if (!company?.active) throw new ApiError(409, 'La empresa está inactiva');
+    if (!report?.active) throw new ApiError(409, 'El informe está inactivo');
+    if (!report.companyIds.includes(company.id) || !user.companyIds.includes(company.id)) throw new ApiError(409, 'Falta una relación intermedia activa (usuario–empresa o empresa–informe)');
+    assignment.active = true;
+    this.record('user_empresa_reporte.reactivate', 'user_empresa_reporte', assignmentId, { activo: 0 }, { activo: 1 });
+  }
+
+  async listAudit({ entity, page }: AuditQuery): Promise<AuditPage> {
+    this.requireAdmin();
+    const access = ['user_empresa_reporte', 'empresa_usuario', 'empresa_reporte'];
+    const rows = this.auditLog.filter(e => (entity === 'access' ? access.includes(e.entity) : e.entity === entity));
+    return { entries: rows.slice((page - 1) * 25, page * 25).map(e => ({ ...e })), total: rows.length, available: true };
   }
 
   async updateProfile({ displayName, phone }: ProfileUpdate): Promise<User> {

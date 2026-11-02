@@ -166,7 +166,7 @@ export interface ProfileUpdate {
   phone: string;
 }
 
-export type ApiErrorKind = 'unauthorized' | 'forbidden' | 'not_found' | 'validation' | 'network' | 'server' | 'invalid_response' | 'not_integrated';
+export type ApiErrorKind = 'unauthorized' | 'forbidden' | 'not_found' | 'validation' | 'conflict' | 'network' | 'server' | 'invalid_response' | 'not_integrated';
 
 /**
  * Qué datos entrega realmente cada proveedor. La interfaz se adapta a estas capacidades en lugar de
@@ -227,6 +227,40 @@ export interface ApiClient {
   linkReports(request: LinkRequest): Promise<GrantResult[]>;
   /** Desvincula (baja lógica) una asociación por su id. */
   unlinkReport(linkId: string): Promise<void>;
+  /** UX-08B.2 · Solo administradores. Baja lógica y reactivación; el servidor rechaza con 409 lo que ya está en ese estado o tiene dependencias inactivas. */
+  deactivateCompany(id: string): Promise<void>;
+  reactivateCompany(id: string): Promise<void>;
+  deactivateReport(internalId: string): Promise<void>;
+  reactivateReport(internalId: string): Promise<void>;
+  /** Reactiva un acceso revocado (el servidor exige que usuario, empresa, informe y relaciones intermedias estén activos). */
+  reactivateAssignment(assignmentId: string): Promise<void>;
+  /** Historial de operaciones administrativas (auditoría), de la más reciente a la más antigua. */
+  listAudit(query: AuditQuery): Promise<AuditPage>;
+}
+
+/** Entidades que admite el historial. `access` agrupa las tres relaciones (usuario↔empresa, empresa↔informe, usuario↔informe). */
+export type AuditEntity = 'access' | 'empresa' | 'reporte' | 'empresa_usuario' | 'empresa_reporte' | 'user_empresa_reporte';
+
+export interface AuditQuery { entity: AuditEntity; page: number }
+
+export interface AuditEntry {
+  id: string;
+  /** Fecha y hora del servidor (texto tal como llega). */
+  at: string;
+  correlationId: string;
+  actor: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  total: number;
+  /** `false` si el servidor aún no tiene la bitácora (migración sin aplicar). */
+  available: boolean;
 }
 
 /** Almacén del token. La implementación por defecto vive solo en memoria. */

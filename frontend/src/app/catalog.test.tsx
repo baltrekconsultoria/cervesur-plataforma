@@ -39,6 +39,12 @@ class CatalogApi implements ApiClient {
   listReportLinks() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   linkReports() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   unlinkReport() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  deactivateCompany() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  reactivateCompany() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  deactivateReport() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  reactivateReport() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  reactivateAssignment() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  listAudit() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
 }
 
 async function setup(api: CatalogApi, entry = '/login') {

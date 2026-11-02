@@ -16,7 +16,7 @@ function client(getViewerConfig: () => Promise<ViewerConfig>, liveViewer = true)
     capabilities, getViewerConfig,
     login: reject, logout: () => Promise.resolve(), me: reject, listReports: reject, getReport: reject, listCompanies: reject, listUsers: reject, listAssignments: reject,
     updateProfile: reject, createUser: reject, grantAccess: reject, revokeAssignment: reject, getCompanyDetail: reject, createCompany: reject, updateCompany: reject,
-    getReportDetail: reject, createReport: reject, updateReport: reject, listReportLinks: reject, linkReports: reject, unlinkReport: reject
+    getReportDetail: reject, createReport: reject, updateReport: reject, listReportLinks: reject, linkReports: reject, unlinkReport: reject, deactivateCompany: reject, reactivateCompany: reject, deactivateReport: reject, reactivateReport: reject, reactivateAssignment: reject, listAudit: reject
   };
 }
 

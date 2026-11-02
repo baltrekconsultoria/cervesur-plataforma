@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User, ViewerConfig } from '../types';
+import type { AuditEntry, Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User, ViewerConfig } from '../types';
 
 /**
  * Adaptadores entre el JSON REAL del backend PHP (verificado contra el código en UX-06A/06B.0, no solo contra
@@ -105,6 +105,14 @@ export function toAssignment(dto: AccessDto, reportIdByRelation: Map<string, str
   const reportId = reportIdByRelation.get(String(dto.empresa_reporte_id));
   if (!reportId) return null;
   return { id: String(dto.id), userId: String(dto.user_id), reportId, companyId: String(dto.empresa_id), ...(toActive(dto.activo) ? {} : { active: false }) };
+}
+
+/** Fila de GET /api/auditoria (solo administradores). El servidor no envía IP ni secretos. */
+export interface AuditDto { id: number | string; occurred_at?: string; correlation_id?: string; actor?: string | null; actor_user_id?: number | string; action?: string; entity?: string; entity_id?: number | string; before?: Record<string, unknown> | null; after?: Record<string, unknown> | null }
+export function toAuditEntry(dto: AuditDto): AuditEntry {
+  if (!dto || typeof dto !== 'object' || dto.id === undefined || typeof dto.action !== 'string' || typeof dto.entity !== 'string') throw invalid('Respuesta del historial incompleta.');
+  const object = (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
+  return { id: String(dto.id), at: dto.occurred_at ?? '', correlationId: dto.correlation_id ?? '', actor: dto.actor?.trim() || (dto.actor_user_id !== undefined ? `Usuario ${dto.actor_user_id}` : '—'), action: dto.action, entity: dto.entity, entityId: String(dto.entity_id ?? ''), before: object(dto.before), after: object(dto.after) };
 }
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {

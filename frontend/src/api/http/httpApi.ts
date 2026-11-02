@@ -1,9 +1,9 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
-import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
+import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
-interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock }
+interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock; audit_available?: boolean }
 interface ListOptions { /** Pide la vista mínima (solo endpoints que la admiten). */ minimal?: boolean; /** Parámetros adicionales, p. ej. `status=all`. */ query?: string; /** Propiedad con las filas (por defecto `data`). */ key?: 'data' | 'users' }
 
 export interface HttpApiOptions {
@@ -151,7 +151,8 @@ export class HttpApiClient implements ApiClient {
         await this.mutate('POST', '/api/empresa-reporte-usuario', { user_id: user, empresa_reporte_id: relationId });
         results.push({ reportId, status: 'granted', message: 'Acceso concedido.' });
       } catch (error) {
-        if (!(error instanceof ApiError) || error.kind !== 'validation') throw error;
+        // 409 = ya existe o dependencia inactiva (contrato 2): se informa por informe, igual que una validación.
+        if (!(error instanceof ApiError) || (error.kind !== 'validation' && error.kind !== 'conflict')) throw error;
         results.push(/ya existe/i.test(error.message) ? { reportId, status: 'already', message: 'El usuario ya tenía este acceso.' } : { reportId, status: 'failed', message: error.message });
       }
     }
@@ -216,7 +217,8 @@ export class HttpApiClient implements ApiClient {
         await this.mutate('POST', '/api/asignacion', { empresa_id: company, reporte_id: report });
         results.push({ reportId, status: 'granted', message: 'Informe asociado.' });
       } catch (error) {
-        if (!(error instanceof ApiError) || error.kind !== 'validation') throw error;
+        // 409 = ya existe o dependencia inactiva (contrato 2): se informa por informe, igual que una validación.
+        if (!(error instanceof ApiError) || (error.kind !== 'validation' && error.kind !== 'conflict')) throw error;
         results.push(/ya existe/i.test(error.message) ? { reportId, status: 'already', message: 'El informe ya estaba asociado a la empresa.' } : { reportId, status: 'failed', message: error.message });
       }
     }
@@ -227,6 +229,25 @@ export class HttpApiClient implements ApiClient {
     const id = positiveInt(linkId);
     if (!id) throw new ApiError(400, 'Asociación no válida.');
     await this.mutate('DELETE', `/api/asignacion/${id}`);
+  }
+
+  async deactivateCompany(id: string): Promise<void> { await this.mutate('DELETE', `/api/empresas/${this.pk(id, 'Empresa no válida.')}`); }
+  async reactivateCompany(id: string): Promise<void> { await this.mutate('POST', `/api/empresas/${this.pk(id, 'Empresa no válida.')}/reactivate`, {}); }
+  async deactivateReport(internalId: string): Promise<void> { await this.mutate('DELETE', `/api/reportes/${this.pk(internalId, 'Informe no válido.')}`); }
+  async reactivateReport(internalId: string): Promise<void> { await this.mutate('POST', `/api/reportes/${this.pk(internalId, 'Informe no válido.')}/reactivate`, {}); }
+  async reactivateAssignment(assignmentId: string): Promise<void> { await this.mutate('POST', `/api/empresa-reporte-usuario/${this.pk(assignmentId, 'Acceso no válido.')}/reactivate`, {}); }
+
+  async listAudit({ entity, page }: AuditQuery): Promise<AuditPage> {
+    const env = await this.request('GET', `/api/auditoria?entity=${entity}&per_page=25&page=${Math.max(1, Math.floor(page))}`);
+    if (!Array.isArray(env.data) || !env.pagination || typeof env.pagination.total !== 'number') throw invalid('Respuesta del historial inesperada.');
+    return { entries: (env.data as Parameters<typeof toAuditEntry>[0][]).map(toAuditEntry), total: env.pagination.total, available: env.audit_available !== false };
+  }
+
+  /** Identificador numérico positivo para una ruta; uno malformado no llega al servidor. */
+  private pk(id: string, message: string): number {
+    const numeric = positiveInt(id);
+    if (!numeric) throw new ApiError(400, message);
+    return numeric;
   }
 
   async revokeAssignment(assignmentId: string): Promise<void> {
@@ -271,6 +292,8 @@ export class HttpApiClient implements ApiClient {
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const token = this.tokens.get();
     if (auth && token) headers.Authorization = `Bearer ${token}`;
+    // UX-08B.2: las escrituras piden el contrato 2 (409 conflicto, 404, 400, 500 reales). Sin la cabecera el servidor conserva el formato heredado.
+    if (auth && method !== 'GET') headers['X-API-Contract'] = '2';
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit' });

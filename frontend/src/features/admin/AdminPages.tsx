@@ -10,6 +10,7 @@ import { useAsync, type AsyncState } from '../../lib/useAsync';
 import { usePaging } from '../../lib/usePaging';
 import { useUrlFilters } from '../../lib/useUrlFilters';
 import { CompanyDialog } from './CompanyDialog';
+import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { NewUserDialog } from './NewUserDialog';
 import { ReportDialog } from './ReportDialog';
 import { RevokeDialog } from './RevokeDialog';
@@ -150,15 +151,29 @@ export function AdminUsersPage() {
 
 export function AdminCompaniesPage() {
   const data = useAdminData();
-  const { capabilities, bump } = useApp();
+  const { api, capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', status: 'active' });
   const paging = usePaging(JSON.stringify(filters.values));
   const [editing, setEditing] = useState<Company | 'new' | null>(null);
+  const [toggling, setToggling] = useState<{ company: Company; to: 'off' | 'on' } | null>(null);
   const [notice, setNotice] = useState('');
   return (
     <AdminScreen title="Empresas" data={data} notice={<>
       {notice && <p className="success-box" role="status">{notice}</p>}
       {editing && <CompanyDialog company={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(name, created) => { setEditing(null); setNotice(created ? `Empresa «${name}» creada correctamente.` : `Empresa «${name}» actualizada correctamente.`); bump(); }} />}
+      {toggling && (
+        <ConfirmActionDialog
+          title={toggling.to === 'off' ? 'Desactivar empresa' : 'Reactivar empresa'} labelId="co-toggle-title"
+          confirmLabel={toggling.to === 'off' ? 'Desactivar empresa' : 'Reactivar empresa'} savingLabel={toggling.to === 'off' ? 'Desactivando…' : 'Reactivando…'}
+          variant={toggling.to === 'off' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el estado de la empresa. Intente nuevamente."
+          run={() => (toggling.to === 'off' ? api.deactivateCompany(toggling.company.id) : api.reactivateCompany(toggling.company.id))}
+          onClose={() => setToggling(null)} onStale={bump}
+          onDone={() => { setNotice(`Empresa «${toggling.company.name}» ${toggling.to === 'off' ? 'desactivada' : 'reactivada'} correctamente.`); setToggling(null); bump(); }}>
+          {toggling.to === 'off'
+            ? <><p>¿Desactivar <strong>{toggling.company.name}</strong>?</p><p className="form-note">Sus usuarios dejarán de ver sus informes y sus accesos quedarán sin efecto. No se borra nada: podrá reactivarla después.</p></>
+            : <><p>¿Reactivar <strong>{toggling.company.name}</strong>?</p><p className="form-note">Los accesos que sigan activos recuperarán su efecto.</p></>}
+        </ConfirmActionDialog>
+      )}
     </>}>
       {({ companies, reports, users }) => {
         const { q, status } = filters.values;
@@ -172,10 +187,13 @@ export function AdminCompaniesPage() {
           ...(capabilities.adminDirectory ? [{ header: 'Usuarios', cls: 'num', cell: (c: Company) => users.filter(u => u.active && u.role === 'user' && u.companyIds.includes(c.id)).length }] : []),
           { header: 'Estado', cell: c => <StatusTag active={c.active} on="Activa" off="Inactiva" /> },
           ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (c: Company) => (
-            <>
-              <Button variant="secondary" size="sm" aria-label={`Editar ${c.name}`} onClick={() => { setNotice(''); setEditing(c); }}>Editar</Button>{' '}
-              <Link className="btn btn-secondary btn-sm" to={`/admin/asociaciones?company=${encodeURIComponent(c.id)}`} aria-label={`Informes de ${c.name}`}>Informes</Link>
-            </>) }] : [])
+            c.active ? (
+              <>
+                <Button variant="secondary" size="sm" aria-label={`Editar ${c.name}`} onClick={() => { setNotice(''); setEditing(c); }}>Editar</Button>{' '}
+                <Link className="btn btn-secondary btn-sm" to={`/admin/asociaciones?company=${encodeURIComponent(c.id)}`} aria-label={`Informes de ${c.name}`}>Informes</Link>{' '}
+                <Button variant="secondary" size="sm" aria-label={`Desactivar ${c.name}`} onClick={() => { setNotice(''); setToggling({ company: c, to: 'off' }); }}>Desactivar</Button>
+              </>
+            ) : <Button variant="secondary" size="sm" aria-label={`Reactivar ${c.name}`} onClick={() => { setNotice(''); setToggling({ company: c, to: 'on' }); }}>Reactivar</Button>) }] : [])
         ];
         return (
           <>
@@ -195,16 +213,30 @@ export function AdminCompaniesPage() {
 
 export function AdminReportsPage() {
   const data = useAdminData();
-  const { capabilities, bump } = useApp();
+  const { api, capabilities, bump } = useApp();
   const location = useLocation();
   const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'active' });
   const paging = usePaging(JSON.stringify(filters.values));
   const [editing, setEditing] = useState<Report | 'new' | null>(null);
+  const [toggling, setToggling] = useState<{ report: Report; to: 'off' | 'on' } | null>(null);
   const [notice, setNotice] = useState('');
   return (
     <AdminScreen title="Reportes" data={data} notice={<>
       {notice && <p className="success-box" role="status">{notice}</p>}
       {editing && <ReportDialog report={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={(name, created) => { setEditing(null); setNotice(created ? `Reporte «${name}» creado correctamente. Asócielo a una empresa desde «Informes por empresa».` : `Reporte «${name}» actualizado correctamente.`); bump(); }} />}
+      {toggling && (
+        <ConfirmActionDialog
+          title={toggling.to === 'off' ? 'Desactivar reporte' : 'Reactivar reporte'} labelId="rp-toggle-title"
+          confirmLabel={toggling.to === 'off' ? 'Desactivar reporte' : 'Reactivar reporte'} savingLabel={toggling.to === 'off' ? 'Desactivando…' : 'Reactivando…'}
+          variant={toggling.to === 'off' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el estado del reporte. Intente nuevamente."
+          run={() => (toggling.to === 'off' ? api.deactivateReport(toggling.report.id) : api.reactivateReport(toggling.report.id))}
+          onClose={() => setToggling(null)} onStale={bump}
+          onDone={() => { setNotice(`Reporte «${toggling.report.name}» ${toggling.to === 'off' ? 'desactivado' : 'reactivado'} correctamente.`); setToggling(null); bump(); }}>
+          {toggling.to === 'off'
+            ? <><p>¿Desactivar <strong>{toggling.report.name}</strong>?</p><p className="form-note">Nadie podrá abrirlo y los accesos asociados quedarán sin efecto. No se borra nada: podrá reactivarlo después.</p></>
+            : <><p>¿Reactivar <strong>{toggling.report.name}</strong>?</p><p className="form-note">Los accesos que sigan activos recuperarán su efecto.</p></>}
+        </ConfirmActionDialog>
+      )}
     </>}>
       {({ reports, companies, users, assignments }) => {
         const { q, status } = filters.values;
@@ -226,8 +258,10 @@ export function AdminReportsPage() {
           { header: 'Estado', cell: r => <StatusTag active={r.active} /> },
           { header: 'Acciones', cls: 'actions-cell', cell: r => (
             <>
-              <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link>
-              {capabilities.adminWrites && <>{' '}<Button variant="secondary" size="sm" aria-label={`Editar ${r.name}`} onClick={() => { setNotice(''); setEditing(r); }}>Editar</Button></>}
+              {r.active && <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link>}
+              {capabilities.adminWrites && (r.active
+                ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Editar ${r.name}`} onClick={() => { setNotice(''); setEditing(r); }}>Editar</Button>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar ${r.name}`} onClick={() => { setNotice(''); setToggling({ report: r, to: 'off' }); }}>Desactivar</Button></>
+                : <Button variant="secondary" size="sm" aria-label={`Reactivar ${r.name}`} onClick={() => { setNotice(''); setToggling({ report: r, to: 'on' }); }}>Reactivar</Button>)}
             </>) }
         ];
         const statusOptions: Array<[string, string]> = [['active', 'Activos'], ['inactive', 'Inactivos'], ['all', 'Todos'], ...(capabilities.adminDirectory ? [['unassigned', 'Activos sin usuarios'] as [string, string]] : []), ...(capabilities.reportCompany ? [['unlinked', 'Sin empresa'] as [string, string]] : [])];
@@ -251,15 +285,25 @@ export function AdminReportsPage() {
 
 export function AdminAccessPage() {
   const data = useAdminData();
-  const { capabilities, bump } = useApp();
+  const { api, capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', company: 'all', effect: 'ok' });
   const paging = usePaging(JSON.stringify(filters.values));
   const [revoking, setRevoking] = useState<{ assignment: Assignment; userName: string; reportName: string; companyName: string } | null>(null);
+  const [reactivating, setReactivating] = useState<{ assignment: Assignment; userName: string; reportName: string } | null>(null);
   const [notice, setNotice] = useState('');
   if (!capabilities.adminDirectory) return <NotIntegrated title="Accesos y asignaciones" what="El listado de asignaciones" />;
   return (
     <AdminScreen title="Accesos y asignaciones" data={data} notice={<>
       {notice && <p className="success-box" role="status">{notice}</p>}
+      {reactivating && (
+        <ConfirmActionDialog
+          title="Reactivar acceso" labelId="rv-react-title" confirmLabel="Reactivar acceso" savingLabel="Reactivando…" fallbackError="No se pudo reactivar el acceso. Intente nuevamente."
+          run={() => api.reactivateAssignment(reactivating.assignment.id ?? '')} onClose={() => setReactivating(null)} onStale={bump}
+          onDone={() => { setNotice(`Acceso de ${reactivating.userName} a «${reactivating.reportName}» reactivado.`); setReactivating(null); bump(); }}>
+          <p>¿Reactivar el acceso de <strong>{reactivating.userName}</strong> al informe <strong>{reactivating.reportName}</strong>?</p>
+          <p className="form-note">Solo surtirá efecto si el usuario, la empresa, el informe y sus relaciones siguen activos; de lo contrario el servidor lo rechazará.</p>
+        </ConfirmActionDialog>
+      )}
       {revoking && <RevokeDialog {...revoking} onClose={() => setRevoking(null)} onRevoked={() => { setRevoking(null); setNotice(`Acceso de ${revoking.userName} a «${revoking.reportName}» retirado.`); bump(); }} />}
     </>}>
       {({ assignments, users, reports, companies }) => {
@@ -279,7 +323,9 @@ export function AdminAccessPage() {
           { header: 'Informe', cell: x => <Highlight text={x.report.name} query={q} /> },
           { header: 'Empresa', cell: x => companies.find(c => c.id === companyOf(x))?.name ?? '—' },
           { header: 'Estado', cell: x => (x.status.ok ? <Tag tone="ok">Vigente</Tag> : <Tag tone="warn">Sin efecto · {x.status.reason}</Tag>) },
-          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (x: Row) => (x.a.id
+          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (x: Row) => (x.a.id && x.a.active === false
+            ? <Button variant="secondary" size="sm" aria-label={`Reactivar acceso de ${x.user.displayName} a ${x.report.name}`} onClick={() => { setNotice(''); setReactivating({ assignment: x.a, userName: x.user.displayName, reportName: x.report.name }); }}>Reactivar</Button>
+            : x.a.id
             ? <Button variant="secondary" size="sm" aria-label={`Retirar acceso de ${x.user.displayName} a ${x.report.name}`} onClick={() => { setNotice(''); setRevoking({ assignment: x.a, userName: x.user.displayName, reportName: x.report.name, companyName: companies.find(c => c.id === companyOf(x))?.name ?? '' }); }}>Retirar</Button>
             : null) }] : [])
         ];
@@ -290,6 +336,7 @@ export function AdminAccessPage() {
               <SelectField id="ax-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />
               <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['ok', 'Vigentes'], ['off', 'Sin efecto'], ['all', 'Todos']]} />
               {capabilities.adminWrites && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
+              {capabilities.adminWrites && <ButtonLink to="/admin/historial">Ver historial</ButtonLink>}
             </div>
             <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={x => x.a.id ?? `${x.a.userId}-${x.a.reportId}-${x.a.companyId ?? ''}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="acceso" onClear={filters.clear} />}
