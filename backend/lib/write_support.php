@@ -17,7 +17,14 @@
 const FORM_VERSION_FIELDS = [
     'empresa_form' => ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais', 'contacto_principal', 'activo'],
     'reporte_form' => ['nombre', 'descripcion', 'enlace', 'grupo_id', 'reporte_id', 'activo'],
+    // Usuarios (UX-08A.users): nunca incluye contraseña ni session_version.
+    'user_form' => ['first_name', 'last_name', 'phone', 'email', 'role', 'is_active'],
 ];
+
+/** Interruptor de las escrituras administrativas de usuarios: solo con USER_ADMIN_WRITES exactamente `1` (por defecto, apagado). */
+function user_admin_writes_enabled() {
+    return getenv('USER_ADMIN_WRITES') === '1';
+}
 
 /** Conflicto de negocio o de concurrencia. `kind`: duplicate | stale | state. */
 class WriteConflict extends RuntimeException {
@@ -118,6 +125,21 @@ function audit_mode() {
 function audit_snapshot($entity, $row) {
     if (!is_array($row)) {
         return null;
+    }
+    if ($entity === 'user') {
+        // Usuarios: solo `role` e `is_active` como valores. Los datos personales NO se guardan: el correo solo como huella.
+        // Nunca contraseña, hash ni session_version.
+        $out = [];
+        if (array_key_exists('role', $row)) {
+            $out['role'] = $row['role'] === null ? null : (string)$row['role'];
+        }
+        if (array_key_exists('is_active', $row)) {
+            $out['is_active'] = (int)$row['is_active'];
+        }
+        if (array_key_exists('email', $row)) {
+            $out['email_sha256_12'] = $row['email'] === null ? null : substr(hash('sha256', strtolower((string)$row['email'])), 0, 12);
+        }
+        return $out;
     }
     $allowed = [
         'empresa' => ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais', 'contacto_principal', 'activo'],

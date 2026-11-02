@@ -112,26 +112,14 @@ class UserController {
      */
     public function updateUserRole($target_user_id, $new_role, $current_user_id) {
         try {
-            // Validar que el usuario no puede cambiar su propio rol
-            if ($target_user_id === $current_user_id) { // Se asume que ambos vienen tipados como int
-                return [
-                    'success' => false,
-                    'message' => 'No puedes cambiar tu propio rol'
-                ];
-            }
-
-            // Validar que el nuevo rol no esté vacío
-            if (empty(trim($new_role))) {
+            if (!is_string($new_role) || trim($new_role) === '') {
                 return [
                     'success' => false,
                     'message' => 'El rol no puede estar vacío'
                 ];
             }
-
-            // Llamar al modelo para actualizar el rol
-            $result = $this->userModel->updateUserRole($target_user_id, trim($new_role));
-
-            return $result;
+            // El modelo valida el rol, impide cambiar el propio y degradar al último administrador, y audita en una transacción.
+            return $this->userModel->updateUserRole((int)$target_user_id, trim($new_role), (int)$current_user_id);
         } catch (Exception $e) {
             // Loguear el error y devolver un mensaje genérico
             error_log('Error en UserController::updateUserRole: ' . $e->getMessage());
@@ -140,6 +128,52 @@ class UserController {
                 'message' => 'Error interno del servidor'
             ];
         }
+    }
+
+    /* ------------------------------------------------------------------ administración de usuarios (UX-08A.users) */
+
+    /** GET /api/users/{id}: detalle administrativo con `version`. */
+    public function adminGet($id) {
+        return $this->userModel->getAdminDetail($id);
+    }
+
+    /** GET /api/users/{id}/access: accesos de solo lectura. */
+    public function adminAccess($id) {
+        return $this->userModel->getAccess($id);
+    }
+
+    /** PUT /api/users/{id}: solo first_name, last_name, phone, email (+ version); cualquier otro campo se ignora. */
+    public function adminUpdate($id, array $input, $actorId) {
+        [$clean, $error] = UserModel::validateIdentity($input, ['first_name', 'last_name', 'phone', 'email'], []);
+        if ($error !== null) {
+            return ['success' => false, 'message' => $error];
+        }
+        if (!$clean && !array_key_exists('phone', $input)) {
+            return ['success' => false, 'message' => 'No se enviaron campos para actualizar. Campos permitidos: first_name, last_name, phone, email'];
+        }
+        $version = $input['version'] ?? null;
+        if ($version !== null && !is_string($version)) {
+            return ['success' => false, 'message' => 'La versión no es válida'];
+        }
+        // `phone: null` limpia el teléfono explícitamente.
+        if (array_key_exists('phone', $input) && $input['phone'] === null) {
+            $clean['phone'] = null;
+        }
+        return $this->userModel->updateAdmin($id, $clean, $version, $actorId);
+    }
+
+    /** POST /api/users/{id}/deactivate | reactivate. */
+    public function adminSetActive($id, $active, $actorId) {
+        return $this->userModel->setActive($id, (bool)$active, $actorId);
+    }
+
+    /** PUT /api/users/{id}/password. */
+    public function adminSetPassword($id, array $input, $actorId) {
+        $error = UserModel::passwordError($input['password'] ?? null);
+        if ($error !== null) {
+            return ['success' => false, 'message' => $error];
+        }
+        return $this->userModel->setPassword($id, $input['password'], $actorId);
     }
 
     /**

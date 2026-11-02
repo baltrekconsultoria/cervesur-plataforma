@@ -7,7 +7,7 @@ require_once __DIR__ . '/../lib/pagination.php';
  */
 class AuditoriaModel {
     /** Entidades auditadas; `access` es un alias de las tres relaciones de acceso. */
-    const ENTITIES = ['empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte'];
+    const ENTITIES = ['empresa', 'reporte', 'user', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte'];
     const ACCESS_ENTITIES = ['empresa_usuario', 'empresa_reporte', 'user_empresa_reporte'];
 
     private $pdo;

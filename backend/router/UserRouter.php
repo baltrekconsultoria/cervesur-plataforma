@@ -334,8 +334,8 @@ if (preg_match('#^/api/user/(\d+)/role$#', $uri, $matches)) {
             exit;
         }
 
-        // Validar que se envíe el campo 'role'
-        if (!isset($input['role']) || empty(trim($input['role']))) {
+        // Validar que se envíe el campo 'role' (solo cadenas)
+        if (!is_array($input) || !isset($input['role']) || !is_string($input['role']) || trim($input['role']) === '') {
             http_response_code(400);
             echo json_encode([
                 'success' => false,
@@ -344,15 +344,13 @@ if (preg_match('#^/api/user/(\d+)/role$#', $uri, $matches)) {
             exit;
         }
 
-        // Instanciar controlador y actualizar rol
+        // Instanciar controlador y actualizar rol (transacción + auditoría; conflictos de estado = 409)
+        require_once __DIR__ . '/../lib/write_support.php';
         $userController = new UserController($pdo);
         $result = $userController->updateUserRole($target_user_id, $input['role'], $user['user_id']);
 
-        // Responder
-        if (!$result['success']) {
-            http_response_code(400);
-        }
-        echo json_encode($result);
+        // Responder: los fallos de validación conservan su 400 histórico; los de estado son 409
+        write_respond($result, 400);
         exit;
     }
 }
@@ -410,4 +408,82 @@ if ($method === 'GET' && $uri === '/api/users') {
     // Responder
     echo json_encode($result);
     exit;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Administración de usuarios (UX-08A.users). Solo administradores (rol leído de MySQL en cada petición).
+// Las ESCRITURAS nuevas responden 404 salvo que el servidor tenga USER_ADMIN_WRITES=1; las lecturas no están condicionadas.
+// ---------------------------------------------------------------------------------------------------------------------------
+if (preg_match('#^/api/users/(capabilities|\d+)(?:/(access|deactivate|reactivate|password))?$#', $uri, $matches)) {
+    $segment = $matches[1];
+    $sub = $matches[2] ?? null;
+    $isCapabilities = $segment === 'capabilities';
+    $routeKey = $method . ' ' . ($isCapabilities ? 'capabilities' : '{id}') . ($sub ? '/' . $sub : '');
+    $readRoutes = ['GET capabilities', 'GET {id}', 'GET {id}/access'];
+    $writeRoutes = ['PUT {id}', 'POST {id}/deactivate', 'POST {id}/reactivate', 'PUT {id}/password'];
+
+    if (in_array($routeKey, $readRoutes, true) || in_array($routeKey, $writeRoutes, true)) {
+        require_once __DIR__ . '/../lib/auth_middleware.php';
+        require_once __DIR__ . '/../lib/write_support.php';
+        require_once __DIR__ . '/../controllers/UserController.php';
+
+        // Interruptor: las escrituras no existen (404) mientras USER_ADMIN_WRITES no sea exactamente 1, ni siquiera para anónimos.
+        if (in_array($routeKey, $writeRoutes, true) && !user_admin_writes_enabled()) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'No encontrado']);
+            exit;
+        }
+
+        $jwt_secret = get_jwt_secret_or_fail('/api/users/*');
+        $actor = require_auth($jwt_secret);
+        if ($actor['role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado. Solo administradores']);
+            exit;
+        }
+
+        $userController = new UserController($pdo);
+        if ($isCapabilities) {
+            echo json_encode(['success' => true, 'data' => ['user_admin_writes' => user_admin_writes_enabled()]]);
+            exit;
+        }
+
+        $targetId = positive_int($segment);
+        if ($targetId === null) {
+            write_respond(['success' => false, 'message' => 'ID de usuario inválido']);
+            exit;
+        }
+
+        // Cuerpo JSON (objeto) solo para las rutas que lo usan; los campos no permitidos (role, is_active, session_version…) se ignoran.
+        $input = [];
+        if ($routeKey === 'PUT {id}' || $routeKey === 'PUT {id}/password') {
+            $input = json_decode((string)file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                write_respond(['success' => false, 'message' => 'Body JSON inválido']);
+                exit;
+            }
+        }
+
+        switch ($routeKey) {
+            case 'GET {id}':
+                $result = $userController->adminGet($targetId);
+                break;
+            case 'GET {id}/access':
+                $result = $userController->adminAccess($targetId);
+                break;
+            case 'PUT {id}':
+                $result = $userController->adminUpdate($targetId, $input, $actor['user_id']);
+                break;
+            case 'POST {id}/deactivate':
+                $result = $userController->adminSetActive($targetId, false, $actor['user_id']);
+                break;
+            case 'POST {id}/reactivate':
+                $result = $userController->adminSetActive($targetId, true, $actor['user_id']);
+                break;
+            default: // PUT {id}/password
+                $result = $userController->adminSetPassword($targetId, $input, $actor['user_id']);
+        }
+        write_respond($result);
+        exit;
+    }
 }

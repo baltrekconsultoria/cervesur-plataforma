@@ -98,19 +98,19 @@ if ($method === 'POST' && $uri === '/api/register') {
         exit;
     }
 
-    // Normalizar valores básicos (el controlador/modelo hará más validaciones)
-    $input['first_name'] = trim((string)$input['first_name']);
-    $input['last_name'] = trim((string)$input['last_name']);
-    $input['username'] = trim((string)$input['username']);
-    $input['email'] = trim((string)$input['email']);
+    // El controlador valida tipos (solo cadenas), longitudes y formato; aquí solo se rechazan valores no escalares.
+    foreach (['first_name', 'last_name', 'username', 'email', 'password'] as $field) {
+        if (!is_string($input[$field])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => "El campo '$field' no es válido"]);
+            exit;
+        }
+    }
 
     try {
-        // Instanciar el controlador y procesar el registro
+        // Instanciar el controlador y procesar el registro (transacción + auditoría; duplicado = conflicto)
         $register = new RegisterController($pdo);
-        $result = $register->register($input);
-
-        // Responder en JSON
-        echo json_encode($result);
+        write_respond($register->register($input, $actor['user_id']));
     } catch (Exception $e) {
         // Loguear el error y devolver mensaje genérico
         error_log('Error en ruta /api/register: ' . $e->getMessage());

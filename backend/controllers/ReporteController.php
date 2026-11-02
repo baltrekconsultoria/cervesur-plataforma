@@ -46,7 +46,7 @@ class ReporteController {
         $enlace = trim((string)$data['enlace']);
         $max = $this->reporteModel->linkMaxLength();
         if ($max !== null && strlen($enlace) > $max) {
-            return [null, "El enlace supera el máximo que admite la base de datos ($max caracteres); aplique la migración UX-07C"];
+            return [null, "El enlace supera el máximo que admite la base de datos ($max caracteres)"];
         }
 
         $uuid = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
@@ -76,7 +76,7 @@ class ReporteController {
         // una cadena vacía: se rechaza con un mensaje claro. Las ediciones de informes existentes conservan su grupo_id actual y no se ven afectadas.
         if ($grupo === null && $this->reporteModel->grupoIdNullable() === false) {
             return [null, 'Esta base de datos exige el ID del grupo del informe y el enlace «Publicar en web» no lo incluye. No se inventan identificadores: '
-                . 'aplique la migración UX-07C (pendiente de autorización) o registre el informe con un enlace que incluya el grupo.'];
+                . 'aplique la migración UX-08B3 (pendiente de autorización) o registre el informe con un enlace que incluya el grupo.'];
         }
         if ($this->reporteModel->reporteIdExists($ref, $excludeId)) {
             return [null, 'Ya existe un informe con ese ID de Power BI'];

@@ -103,12 +103,19 @@ expectCase($s === 404 && strpos($raw, 'SQLSTATE') === false && strpos($raw, 'fix
 expectCase($s === 403, 'user role is enforced before administrative change');
 [$s,$data] = requestApi('PUT','/api/user/2/role',['role'=>'admin'],$admin);
 expectCase($s === 200 && ($data['success'] ?? false), 'administrator can promote managed user');
+// UX-08B.3: un cambio de rol también cierra las sesiones del usuario afectado (session_version + 1): el token anterior ya no sirve y un login nuevo refleja el rol vigente.
 [$s] = requestApi('GET','/api/users',null,$b);
-expectCase($s === 200, 'role change takes effect for an existing token');
+expectCase($s === 401, 'role change revokes the existing token of the affected user');
+$b = login('userb');
+[$s] = requestApi('GET','/api/users',null,$b);
+expectCase($s === 200, 'role change takes effect for a new session');
 [$s,$data] = requestApi('PUT','/api/user/2/role',['role'=>'user'],$admin);
 expectCase($s === 200 && ($data['success'] ?? false), 'administrator can restore managed user role');
 [$s] = requestApi('GET','/api/users',null,$b);
-expectCase($s === 403, 'role revocation takes effect for an existing token');
+expectCase($s === 401, 'role revocation also revokes the previous session');
+$b = login('userb');
+[$s] = requestApi('GET','/api/users',null,$b);
+expectCase($s === 403, 'role revocation takes effect for a new session');
 [$s,$data] = requestApi('POST','/api/logout',null,$a);
 expectCase($s === 200 && ($data['success'] ?? false), 'logout revokes current user sessions');
 [$s] = requestApi('GET','/api/user',null,$a);

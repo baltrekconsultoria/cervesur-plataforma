@@ -189,7 +189,7 @@ expectCase(($detail['data']['reporte_id'] ?? null) === $H['reporte_id'] && ($det
 echo "== Creación con grupo_id NOT NULL\n";
 $count = (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte');
 [$st, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Nuevo público sintético', 'descripcion' => '', 'enlace' => 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLU5VRVZPLTAwMDE'], $admin);
-expectCase(($d['success'] ?? true) === false && str_contains($d['message'] ?? '', 'ID del grupo') && str_contains($d['message'] ?? '', 'UX-07C') && !preg_match('/SQLSTATE|grupo_id|Column|PDO/i', $GLOBALS['lastResponse']) && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $count, '«Publicar en web» nuevo: se rechaza con un mensaje claro; no se inventa grupo_id ni se inserta nada');
+expectCase(($d['success'] ?? true) === false && str_contains($d['message'] ?? '', 'ID del grupo') && str_contains($d['message'] ?? '', 'UX-08B3') && !preg_match('/SQLSTATE|grupo_id|Column|PDO/i', $GLOBALS['lastResponse']) && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $count, '«Publicar en web» nuevo: se rechaza con un mensaje claro; no se inventa grupo_id ni se inserta nada');
 $rid = '77777777-8888-4999-8aaa-bbbbbbbbbbbb'; $gid = 'cccccccc-dddd-4eee-8fff-000000000000';
 [$st, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Inserción sintética', 'descripcion' => '', 'enlace' => "https://app.powerbi.com/reportEmbed?reportId=$rid&groupId=$gid&autoAuth=true"], $admin);
 $newId = $d['data']['id'] ?? null; $created = $newId ? row($pdo, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$newId]) : null;
