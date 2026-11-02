@@ -236,10 +236,50 @@ export interface ApiClient {
   reactivateAssignment(assignmentId: string): Promise<void>;
   /** Historial de operaciones administrativas (auditoría), de la más reciente a la más antigua. */
   listAudit(query: AuditQuery): Promise<AuditPage>;
+  /** UX-08B.3 · `true` si el servidor tiene habilitada la administración de usuarios (`USER_ADMIN_WRITES`). Sin eso no se muestran los botones. */
+  getUserAdminEnabled(): Promise<boolean>;
+  /** Solo administradores. Datos editables del usuario con la versión de la fila (bloqueo optimista). Nunca trae contraseña ni versión de sesión. */
+  getUserDetail(id: string): Promise<UserDetail>;
+  updateUser(id: string, input: UserEdit): Promise<void>;
+  /** Baja lógica: el servidor además cierra sus sesiones. Rechaza (409) desactivarse a uno mismo o al último administrador activo. */
+  deactivateUser(id: string): Promise<void>;
+  reactivateUser(id: string): Promise<void>;
+  /** Cambio de rol; el servidor rechaza (409) cambiar el propio o degradar al último administrador activo, y cierra las sesiones del usuario. */
+  changeUserRole(id: string, role: Role): Promise<void>;
+  /** Empresas e informes del usuario con su efectividad (solo lectura). */
+  getUserAccess(id: string): Promise<UserAccess[]>;
+}
+
+/** Datos de un usuario para el formulario de edición. */
+export interface UserDetail {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  role: Role;
+  active: boolean;
+  /** Huella de la fila leída: si cambió cuando se guarde, el servidor responde 409. */
+  version: string;
+}
+
+/** Campos que un administrador puede editar. El rol, el estado y las sesiones tienen operaciones propias. */
+export interface UserEdit { firstName: string; lastName: string; phone: string; email: string; version: string }
+
+/** Una empresa o un informe del usuario y si surte efecto hoy. */
+export interface UserAccess {
+  kind: 'company' | 'report';
+  name: string;
+  /** Empresa a través de la cual se concede un informe. */
+  via?: string;
+  effective: boolean;
+  /** Motivo cuando no surte efecto (usuario/empresa/informe inactivo, falta una relación…). */
+  reason: string;
 }
 
 /** Entidades que admite el historial. `access` agrupa las tres relaciones (usuario↔empresa, empresa↔informe, usuario↔informe). */
-export type AuditEntity = 'access' | 'empresa' | 'reporte' | 'empresa_usuario' | 'empresa_reporte' | 'user_empresa_reporte';
+export type AuditEntity = 'access' | 'user' | 'empresa' | 'reporte' | 'empresa_usuario' | 'empresa_reporte' | 'user_empresa_reporte';
 
 export interface AuditQuery { entity: AuditEntity; page: number }
 

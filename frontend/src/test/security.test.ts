@@ -61,8 +61,10 @@ describe('alcance de integración UX-06A', () => {
       // UX-07B: empresas, informes y asociaciones
       '/api/empresas', '/api/empresas/', '/api/reportes/', '/api/asignacion/',
       // UX-08B.2: historial de operaciones (solo administradores; el servidor no envía IP ni secretos)
-      '/api/auditoria?entity='];
-    // Nunca cambios de rol desde esta etapa. Las bajas/reactivaciones de empresas, informes y accesos usan las rutas ya permitidas (`/api/empresas/`, `/api/reportes/`, `/api/empresa-reporte-usuario/`).
+      '/api/auditoria?entity=',
+      // UX-08B.3: administración de usuarios. El servidor las mantiene apagadas (404) salvo `USER_ADMIN_WRITES=1`; el cambio de rol usa la ruta singular existente.
+      '/api/users/capabilities', '/api/users/', '/api/user/'];
+    // Las bajas/reactivaciones y el cambio de rol viajan por rutas con identificador (ya declaradas arriba); ninguna ruta literal contiene rol, estado ni filtros de estado distintos de `all`.
     expect(routes.filter(r => /role|activ|desactiv|status=(?!all)/i.test(r))).toEqual([]);
     expect(routes.filter(r => !allowed.includes(r)), routes.join(', ')).toEqual([]);
   });

@@ -1,6 +1,6 @@
 import { ApiError } from '../errors';
-import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
-import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
+import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, Role, UserAccess, UserDetail, UserEdit, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toUserAccess, toUserDetail, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
 interface PaginationBlock { page?: number; per_page?: number; total?: number; total_pages?: number; has_more?: boolean }
 interface Envelope { success?: boolean; message?: string; token?: string; user?: unknown; users?: unknown; profile?: unknown; data?: unknown; pagination?: PaginationBlock; audit_available?: boolean }
@@ -241,6 +241,35 @@ export class HttpApiClient implements ApiClient {
     const env = await this.request('GET', `/api/auditoria?entity=${entity}&per_page=25&page=${Math.max(1, Math.floor(page))}`);
     if (!Array.isArray(env.data) || !env.pagination || typeof env.pagination.total !== 'number') throw invalid('Respuesta del historial inesperada.');
     return { entries: (env.data as Parameters<typeof toAuditEntry>[0][]).map(toAuditEntry), total: env.pagination.total, available: env.audit_available !== false };
+  }
+
+  /* --- UX-08B.3: administración de usuarios --- */
+  async getUserAdminEnabled(): Promise<boolean> {
+    const env = await this.request('GET', '/api/users/capabilities');
+    const data = env.data as { user_admin_writes?: unknown } | undefined;
+    return data?.user_admin_writes === true;
+  }
+
+  async getUserDetail(id: string): Promise<UserDetail> {
+    const env = await this.request('GET', `/api/users/${this.pk(id, 'Usuario no válido.')}`);
+    return toUserDetail(env.data as Parameters<typeof toUserDetail>[0]);
+  }
+
+  async updateUser(id: string, input: UserEdit): Promise<void> {
+    await this.mutate('PUT', `/api/users/${this.pk(id, 'Usuario no válido.')}`, { first_name: input.firstName.trim(), last_name: input.lastName.trim(), phone: input.phone.trim(), email: input.email.trim(), version: input.version });
+  }
+
+  async deactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/deactivate`, {}); }
+  async reactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/reactivate`, {}); }
+
+  async changeUserRole(id: string, role: Role): Promise<void> {
+    if (role !== 'admin' && role !== 'user') throw new ApiError(400, 'Rol no válido.');
+    await this.mutate('PUT', `/api/user/${this.pk(id, 'Usuario no válido.')}/role`, { role });
+  }
+
+  async getUserAccess(id: string): Promise<UserAccess[]> {
+    const env = await this.request('GET', `/api/users/${this.pk(id, 'Usuario no válido.')}/access`);
+    return toUserAccess(env.data);
   }
 
   /** Identificador numérico positivo para una ruta; uno malformado no llega al servidor. */

@@ -12,6 +12,7 @@ import { useUrlFilters } from '../../lib/useUrlFilters';
 import { CompanyDialog } from './CompanyDialog';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { NewUserDialog } from './NewUserDialog';
+import { UserAccessDialog, UserEditDialog } from './UserDialogs';
 import { ReportDialog } from './ReportDialog';
 import { RevokeDialog } from './RevokeDialog';
 
@@ -107,16 +108,49 @@ const ACTIVE_OPTIONS = (on: string, off: string): Array<[string, string]> => [['
 
 export function AdminUsersPage() {
   const data = useAdminData();
-  const { user: me, capabilities, bump } = useApp();
+  const { api, user: me, capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', role: 'all', status: 'active' });
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<User | null>(null);
+  const [viewing, setViewing] = useState<User | null>(null);
+  const [toggling, setToggling] = useState<{ user: User; to: 'off' | 'on' } | null>(null);
+  const [roleChange, setRoleChange] = useState<User | null>(null);
   const [notice, setNotice] = useState('');
+  // UX-08B.3: los botones de edición, estado y rol solo aparecen si el SERVIDOR tiene habilitada la administración de usuarios.
+  const userAdmin = useAsync(async () => (capabilities.adminWrites ? api.getUserAdminEnabled().catch(() => false) : false), [api, capabilities.adminWrites]);
+  const manage = userAdmin.status === 'ready' && userAdmin.data;
   const paging = usePaging(JSON.stringify(filters.values));
   if (!capabilities.adminDirectory) return <NotIntegrated title="Usuarios" what="El listado de usuarios" />;
   return (
     <AdminScreen title="Usuarios" data={data} notice={<>
       {notice && <p className="success-box" role="status">{notice}</p>}
       {creating && <NewUserDialog onClose={() => setCreating(false)} onCreated={username => { setCreating(false); setNotice(`Usuario «${username}» creado correctamente.`); bump(); }} />}
+      {editing && <UserEditDialog user={editing} onClose={() => setEditing(null)} onStale={bump} onSaved={name => { setEditing(null); setNotice(`Usuario «${name}» actualizado correctamente.`); bump(); }} />}
+      {viewing && <UserAccessDialog user={viewing} onClose={() => setViewing(null)} />}
+      {toggling && (
+        <ConfirmActionDialog
+          title={toggling.to === 'off' ? 'Desactivar usuario' : 'Reactivar usuario'} labelId="us-toggle-title"
+          confirmLabel={toggling.to === 'off' ? 'Desactivar usuario' : 'Reactivar usuario'} savingLabel={toggling.to === 'off' ? 'Desactivando…' : 'Reactivando…'}
+          variant={toggling.to === 'off' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el estado del usuario. Intente nuevamente."
+          run={() => (toggling.to === 'off' ? api.deactivateUser(toggling.user.id) : api.reactivateUser(toggling.user.id))}
+          onClose={() => setToggling(null)} onStale={bump}
+          onDone={() => { setNotice(`Usuario «${toggling.user.displayName}» ${toggling.to === 'off' ? 'desactivado' : 'reactivado'} correctamente.`); setToggling(null); bump(); }}>
+          {toggling.to === 'off'
+            ? <><p>¿Desactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Se cerrarán sus sesiones y dejará de poder ingresar; sus accesos quedarán sin efecto, pero no se borran. Podrá reactivarlo después. En Flutter, la sesión abierta dejará de funcionar en su siguiente consulta.</p></>
+            : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
+        </ConfirmActionDialog>
+      )}
+      {roleChange && (
+        <ConfirmActionDialog
+          title="Cambiar rol" labelId="us-role-title" confirmLabel={roleChange.role === 'admin' ? 'Quitar rol de administrador' : 'Hacer administrador'} savingLabel="Guardando…"
+          variant={roleChange.role === 'admin' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el rol. Intente nuevamente."
+          run={() => api.changeUserRole(roleChange.id, roleChange.role === 'admin' ? 'user' : 'admin')}
+          onClose={() => setRoleChange(null)} onStale={bump}
+          onDone={() => { setNotice(`Rol de «${roleChange.displayName}» actualizado: ahora es ${roleChange.role === 'admin' ? 'usuario' : 'administrador'}.`); setRoleChange(null); bump(); }}>
+          <p>{roleChange.role === 'admin' ? <>¿Quitar el rol de administrador a <strong>{roleChange.displayName}</strong>?</> : <>¿Convertir a <strong>{roleChange.displayName}</strong> en administrador?</>}</p>
+          <p className="form-note">Se cerrarán sus sesiones y deberá iniciar sesión de nuevo. No se puede cambiar el propio rol ni quitárselo al último administrador activo. Las sesiones de Flutter ya iniciadas conservan el rol anterior hasta que caduquen.</p>
+        </ConfirmActionDialog>
+      )}
     </>}>
       {({ users, companies, assignments, reports }) => {
         const { q, role, status } = filters.values;
@@ -130,7 +164,20 @@ export function AdminUsersPage() {
           { header: 'Empresas', cell: u => (u.role === 'admin' ? <span className="muted">Todas</span> : u.companyIds.map(id => companies.find(c => c.id === id)?.name.replace(/ S\.A\.C\.$/, '')).filter(Boolean).join(', ') || '—') },
           { header: 'Informes', cls: 'num', cell: u => (u.role === 'admin' ? <span className="muted">Todos</span> : accessCount(u)) },
           { header: 'Estado', cell: u => <StatusTag active={u.active} /> },
-          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (u: User) => (u.active && u.role === 'user' && !u.loginBlocked ? <Link className="btn btn-secondary btn-sm" to={`/admin/accesos/nueva?user=${encodeURIComponent(u.id)}`} aria-label={`Asignar accesos a ${u.displayName}`}>Asignar accesos</Link> : null) }] : [])
+          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (u: User) => (
+            <>
+              {u.active && u.role === 'user' && !u.loginBlocked && <><Link className="btn btn-secondary btn-sm" to={`/admin/accesos/nueva?user=${encodeURIComponent(u.id)}`} aria-label={`Asignar accesos a ${u.displayName}`}>Asignar accesos</Link>{' '}</>}
+              <Button variant="secondary" size="sm" aria-label={`Ver accesos de ${u.displayName}`} onClick={() => { setNotice(''); setViewing(u); }}>Accesos</Button>
+              {manage && (
+                <>
+                  {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
+                  {u.id !== me?.id && !u.loginBlocked && u.active && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
+                  {u.id !== me?.id && (u.active
+                    ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'off' }); }}>Desactivar</Button></>
+                    : <>{' '}<Button variant="secondary" size="sm" aria-label={`Reactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'on' }); }}>Reactivar</Button></>)}
+                </>
+              )}
+            </>) }] : [])
         ];
         return (
           <>

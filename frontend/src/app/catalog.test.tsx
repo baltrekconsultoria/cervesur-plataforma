@@ -45,6 +45,13 @@ class CatalogApi implements ApiClient {
   reactivateReport() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   reactivateAssignment() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   listAudit() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  getUserAdminEnabled() { return Promise.resolve(false); }
+  getUserDetail() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  updateUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  deactivateUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  reactivateUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  changeUserRole() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  getUserAccess() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
 }
 
 async function setup(api: CatalogApi, entry = '/login') {

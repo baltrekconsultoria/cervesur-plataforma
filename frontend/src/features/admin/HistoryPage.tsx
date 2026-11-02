@@ -8,7 +8,7 @@ import { useAsync } from '../../lib/useAsync';
 /* UX-08B.2 · Historial de operaciones administrativas (tabla de auditoría del servidor). Solo lectura. */
 const crumbs = [{ label: 'Administración', to: '/admin' }, { label: 'Historial' }];
 
-const SCOPES: Array<[AuditEntity, string]> = [['access', 'Accesos y asignaciones'], ['empresa', 'Empresas'], ['reporte', 'Reportes']];
+const SCOPES: Array<[AuditEntity, string]> = [['access', 'Accesos y asignaciones'], ['user', 'Usuarios'], ['empresa', 'Empresas'], ['reporte', 'Reportes']];
 
 const ACTION_LABELS: Record<string, string> = {
   'user_empresa_reporte.create': 'Acceso concedido',
@@ -20,6 +20,12 @@ const ACTION_LABELS: Record<string, string> = {
   'empresa_reporte.create': 'Informe asociado a empresa',
   'empresa_reporte.reactivate': 'Asociación empresa–informe reactivada',
   'empresa_reporte.revoke': 'Asociación empresa–informe retirada',
+  'user.create': 'Usuario creado',
+  'user.update': 'Usuario editado',
+  'user.deactivate': 'Usuario desactivado',
+  'user.reactivate': 'Usuario reactivado',
+  'user.role': 'Rol cambiado',
+  'user.password': 'Contraseña restablecida',
   'empresa.create': 'Empresa creada',
   'empresa.update': 'Empresa editada',
   'empresa.deactivate': 'Empresa desactivada',
@@ -30,14 +36,17 @@ const ACTION_LABELS: Record<string, string> = {
   'reporte.reactivate': 'Reporte reactivado'
 };
 
-const FIELD_LABELS: Record<string, string> = { nombre: 'Nombre', razon_social: 'Razón social', ruc: 'RUC', ciudad: 'Ciudad', pais: 'País', email: 'Correo', telefono: 'Teléfono', direccion: 'Dirección', descripcion: 'Descripción', activo: 'Estado' };
+const FIELD_LABELS: Record<string, string> = { nombre: 'Nombre', razon_social: 'Razón social', ruc: 'RUC', ciudad: 'Ciudad', pais: 'País', email: 'Correo', telefono: 'Teléfono', direccion: 'Dirección', descripcion: 'Descripción', activo: 'Estado', is_active: 'Estado', role: 'Rol' };
 
 /** Texto de un valor de auditoría (escalares tal cual; cualquier otra cosa como JSON, nunca «[object Object]»). */
 const text = (value: unknown): string => (value === null || value === undefined ? '' : typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : JSON.stringify(value));
 
+const PERSONAL_LABELS: Record<string, string> = { first_name: 'nombres', last_name: 'apellidos', email: 'correo', phone: 'teléfono' };
+
 const show = (field: string, value: unknown): string => {
   if (text(value) === '') return '—';
-  if (field === 'activo') return Number(value) === 1 ? 'activo' : 'inactivo';
+  if (field === 'activo' || field === 'is_active') return Number(value) === 1 ? 'activo' : 'inactivo';
+  if (field === 'role') return value === 'admin' ? 'administrador' : 'usuario';
   return text(value);
 };
 
@@ -45,10 +54,13 @@ const show = (field: string, value: unknown): string => {
 export function describeChanges(entry: Pick<AuditEntry, 'before' | 'after'>): string[] {
   const before = entry.before ?? {};
   const after = entry.after ?? {};
-  const skip = (key: string) => /(_id|_sha256_12|_campos)$/.test(key);
+  const skip = (key: string) => (/(_id|_sha256_12|_campos)$/.test(key) && key !== 'is_active') || key.endsWith('_modificado');
   const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(key => !skip(key) && text(before[key]) !== text(after[key]));
-  if (!entry.before) return keys.filter(key => key !== 'activo').slice(0, 4).map(key => `${FIELD_LABELS[key] ?? key}: ${show(key, after[key])}`);
-  return keys.slice(0, 4).map(key => `${FIELD_LABELS[key] ?? key}: ${show(key, before[key])} → ${show(key, after[key])}`);
+  // Datos personales: la bitácora solo guarda QUE cambiaron (`<campo>_modificado`), nunca su valor.
+  const touched = Object.keys(after).filter(key => key.endsWith('_modificado') && after[key] === true).map(key => PERSONAL_LABELS[key.replace(/_modificado$/, '')] ?? key.replace(/_modificado$/, ''));
+  const touchedText = touched.length ? [`Modificó: ${touched.join(', ')}`] : [];
+  if (!entry.before) return [...keys.filter(key => key !== 'activo').slice(0, 4).map(key => `${FIELD_LABELS[key] ?? key}: ${show(key, after[key])}`), ...touchedText];
+  return [...keys.slice(0, 4).map(key => `${FIELD_LABELS[key] ?? key}: ${show(key, before[key])} → ${show(key, after[key])}`), ...touchedText];
 }
 
 export function AdminHistoryPage() {

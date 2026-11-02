@@ -1,7 +1,7 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
 import { classifyPowerBiLink } from '../../domain/powerbiLink';
-import type { AuditEntry, AuditPage, AuditQuery, ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
+import type { Role, UserAccess, UserDetail, UserEdit, AuditEntry, AuditPage, AuditQuery, ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { createSeed, type Seed } from './seed';
 
 export type MockScenario = 'normal' | 'empty' | 'forbidden';
@@ -270,6 +270,92 @@ export class MockApi implements ApiClient {
     if (!report.companyIds.includes(company.id) || !user.companyIds.includes(company.id)) throw new ApiError(409, 'Falta una relación intermedia activa (usuario–empresa o empresa–informe)');
     assignment.active = true;
     this.record('user_empresa_reporte.reactivate', 'user_empresa_reporte', assignmentId, { activo: 0 }, { activo: 1 });
+  }
+
+  /* --- UX-08B.3: administración de usuarios (mismas reglas que el servidor) --- */
+  /** Interruptor del servidor simulado (`USER_ADMIN_WRITES`). */
+  userAdminEnabled = true;
+
+  async getUserAdminEnabled(): Promise<boolean> { this.requireAdmin(); return this.userAdminEnabled; }
+
+  private requireUserAdmin(): User {
+    const admin = this.requireAdmin();
+    if (!this.userAdminEnabled) throw new ApiError(404, 'No encontrado');
+    return admin;
+  }
+
+  private versionOf(user: User): string { return `${user.displayName}|${user.email}|${user.phone}|${user.role}|${user.active ? 1 : 0}`; }
+
+  async getUserDetail(id: string): Promise<UserDetail> {
+    this.requireAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    const [firstName = '', ...rest] = user.displayName.split(' ');
+    return { id, username: user.username, email: user.email, firstName, lastName: rest.join(' '), phone: user.phone, role: user.role, active: user.active, version: this.versionOf(user) };
+  }
+
+  async updateUser(id: string, input: UserEdit): Promise<void> {
+    this.requireUserAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    if (input.version !== this.versionOf(user)) throw new ApiError(409, 'El registro cambió mientras lo editaba. Recargue e intente de nuevo.');
+    const email = input.email.trim().toLowerCase();
+    if (this.seed.users.some(u => u.email === email && u.id !== id)) throw new ApiError(409, 'El email ya está registrado');
+    Object.assign(user, { displayName: `${input.firstName.trim()} ${input.lastName.trim()}`.trim(), email, phone: input.phone.trim() });
+    this.record('user.update', 'user', id, {}, { first_name_modificado: true, last_name_modificado: true, email_modificado: true, phone_modificado: true });
+  }
+
+  private otherActiveAdmins(id: string): number { return this.seed.users.filter(u => u.role === 'admin' && u.active && u.id !== id).length; }
+
+  async deactivateUser(id: string): Promise<void> {
+    const me = this.requireUserAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    if (!user.active) throw new ApiError(409, 'El usuario ya está inactivo');
+    if (user.id === me.id) throw new ApiError(409, 'No puede desactivar su propia cuenta');
+    if (user.role === 'admin' && this.otherActiveAdmins(id) === 0) throw new ApiError(409, 'No se puede desactivar al último administrador activo');
+    user.active = false;
+    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
+    this.record('user.deactivate', 'user', id, { is_active: 1 }, { is_active: 0 });
+  }
+
+  async reactivateUser(id: string): Promise<void> {
+    this.requireUserAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    if (user.active) throw new ApiError(409, 'El usuario ya está activo');
+    user.active = true;
+    this.record('user.reactivate', 'user', id, { is_active: 0 }, { is_active: 1 });
+  }
+
+  async changeUserRole(id: string, role: Role): Promise<void> {
+    const me = this.requireUserAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    if (user.id === me.id) throw new ApiError(409, 'No puede cambiar su propio rol');
+    if (user.role === role) throw new ApiError(409, 'El usuario ya tiene ese rol');
+    if (user.role === 'admin' && user.active && this.otherActiveAdmins(id) === 0) throw new ApiError(409, 'No se puede degradar al último administrador activo');
+    const before = user.role;
+    user.role = role;
+    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
+    this.record('user.role', 'user', id, { role: before }, { role });
+  }
+
+  async getUserAccess(id: string): Promise<UserAccess[]> {
+    this.requireAdmin();
+    const user = this.seed.users.find(u => u.id === id);
+    if (!user) throw new ApiError(404, 'Usuario no encontrado');
+    const companies: UserAccess[] = user.companyIds.flatMap((companyId): UserAccess[] => {
+      const company = this.seed.companies.find(c => c.id === companyId);
+      return company ? [{ kind: 'company', name: company.name, effective: user.active && company.active, reason: !user.active ? 'Usuario inactivo' : !company.active ? 'Empresa inactiva' : 'Vigente' }] : [];
+    });
+    const reports: UserAccess[] = this.seed.assignments.filter(a => a.userId === id).flatMap((a): UserAccess[] => {
+      const report = this.seed.reports.find(r => r.id === a.reportId);
+      if (!report) return [];
+      const status = assignmentStatus(a, this.seed.users, this.seed.reports, this.seed.companies);
+      return [{ kind: 'report', name: report.name, via: this.seed.companies.find(c => c.id === (a.companyId ?? report.companyId))?.name, effective: status.ok, reason: status.reason }];
+    });
+    return [...companies, ...reports];
   }
 
   async listAudit({ entity, page }: AuditQuery): Promise<AuditPage> {

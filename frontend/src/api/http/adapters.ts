@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import type { AuditEntry, Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User, ViewerConfig } from '../types';
+import type { UserAccess, UserDetail, AuditEntry, Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDetail, ReportInput, ReportLink, Role, User, ViewerConfig } from '../types';
 
 /**
  * Adaptadores entre el JSON REAL del backend PHP (verificado contra el código en UX-06A/06B.0, no solo contra
@@ -113,6 +113,25 @@ export function toAuditEntry(dto: AuditDto): AuditEntry {
   if (!dto || typeof dto !== 'object' || dto.id === undefined || typeof dto.action !== 'string' || typeof dto.entity !== 'string') throw invalid('Respuesta del historial incompleta.');
   const object = (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
   return { id: String(dto.id), at: dto.occurred_at ?? '', correlationId: dto.correlation_id ?? '', actor: dto.actor?.trim() || (dto.actor_user_id !== undefined ? `Usuario ${dto.actor_user_id}` : '—'), action: dto.action, entity: dto.entity, entityId: String(dto.entity_id ?? ''), before: object(dto.before), after: object(dto.after) };
+}
+
+/** GET /api/users/{id} (solo administradores): sin contraseña, hash ni versión de sesión. */
+export interface UserDetailDto { id: number | string; username?: string; email?: string | null; first_name?: string | null; last_name?: string | null; phone?: string | null; role?: unknown; is_active?: unknown; version?: string | null }
+export function toUserDetail(dto: UserDetailDto): UserDetail {
+  if (!dto || typeof dto !== 'object' || dto.id === undefined || dto.id === null) throw invalid('Respuesta de usuario incompleta.');
+  if (typeof dto.version !== 'string' || !dto.version) throw invalid('Respuesta de usuario sin versión.');
+  return { id: String(dto.id), username: requireText(dto.username, 'username'), email: dto.email ?? '', firstName: dto.first_name ?? '', lastName: dto.last_name ?? '', phone: dto.phone ?? '', role: parseRole(dto.role), active: toActive(dto.is_active), version: dto.version };
+}
+
+/** GET /api/users/{id}/access: empresas e informes del usuario con su efectividad. */
+export interface UserAccessDto { kind?: unknown; name?: unknown; via?: unknown; effective?: unknown; reason?: unknown }
+export function toUserAccess(data: unknown): UserAccess[] {
+  const rows = Array.isArray(data) ? (data as UserAccessDto[]) : null;
+  if (!rows) throw invalid('Respuesta de accesos del usuario inesperada.');
+  return rows.map(row => {
+    if (!row || (row.kind !== 'company' && row.kind !== 'report') || typeof row.name !== 'string') throw invalid('Acceso de usuario incompleto.');
+    return { kind: row.kind, name: row.name, ...(typeof row.via === 'string' && row.via ? { via: row.via } : {}), effective: row.effective === true, reason: typeof row.reason === 'string' ? row.reason : '' };
+  });
 }
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {
