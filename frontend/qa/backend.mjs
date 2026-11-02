@@ -85,6 +85,8 @@ async function up() {
       '--volume', `${REPO}:/work:ro`, '--workdir', '/work',
       '--env', 'DB_HOST=db', '--env', 'DB_NAME=fixture', '--env', 'DB_USER=root', '--env', 'DB_PASS', '--env', 'DB_CHARSET=utf8mb4',
       '--env', 'JWT_SECRET', '--env', `JWT_EXPIRATION=${ttl}`, '--env', 'PHP_CLI_SERVER_WORKERS=4',
+      // UX-08B: QA_STRICT_VIEWS=1 sirve la respuesta mínima por defecto (como las instancias React desplegadas) para probar que el frontend no depende de los campos completos.
+      ...(process.env.QA_STRICT_VIEWS === '1' ? ['--env', 'REACT_STRICT_VIEWS=1'] : []),
       IMAGE, 'php', '-S', '0.0.0.0:8080', 'tests/isolated/router.php'], { env });
   }
   // Reenviador: publica solo 127.0.0.1:8080/8081 y reenvía bytes a la red interna.

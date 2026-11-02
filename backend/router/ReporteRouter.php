@@ -33,7 +33,7 @@ if (strpos($uri, '/api/reportes') === 0) {
         // Obtener datos del request
         $data = json_decode(file_get_contents('php://input'), true);
         $response = $reporteController->create($data, $user_id);
-        echo json_encode($response);
+        write_respond($response);
         exit;
     }
 
@@ -51,7 +51,7 @@ if (strpos($uri, '/api/reportes') === 0) {
 
         $data = json_decode(file_get_contents('php://input'), true);
         $response = $reporteController->update($matches[1], $data, $user_data['user_id']);
-        echo json_encode($response);
+        write_respond($response);
         exit;
     }
 
@@ -68,7 +68,20 @@ if (strpos($uri, '/api/reportes') === 0) {
         $user_id = $user_data['user_id'];
 
         $response = $reporteController->delete($matches[1], $user_data['user_id']);
-        echo json_encode($response);
+        write_respond($response);
+        exit;
+    }
+
+    // POST /api/reportes/{id}/reactivate - Reactivar un reporte dado de baja (solo administradores)
+    if ($method === 'POST' && preg_match('/^\/api\/reportes\/(\d+)\/reactivate$/', $uri, $matches)) {
+        $jwt_secret = get_jwt_secret_or_fail('ruta protegida');
+        $user_data = require_auth($jwt_secret);
+        if (strtolower((string)$user_data['role']) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Acceso denegado']);
+            exit;
+        }
+        write_respond($reporteController->reactivate((int)$matches[1], $user_data['user_id']));
         exit;
     }
 

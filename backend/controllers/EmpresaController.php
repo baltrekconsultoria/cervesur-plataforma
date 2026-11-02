@@ -100,7 +100,8 @@ class EmpresaController {
             if ($this->empresaModel->rucExists($data['ruc'])) {
                 return [
                     'success' => false,
-                    'message' => 'El RUC ya está registrado'
+                    'message' => 'El RUC ya está registrado',
+                    'conflict' => 'duplicate'
                 ];
             }
 
@@ -167,7 +168,8 @@ class EmpresaController {
                 if ($this->empresaModel->rucExists($data['ruc'], $id)) {
                     return [
                         'success' => false,
-                        'message' => 'El RUC ya está registrado en otra empresa'
+                        'message' => 'El RUC ya está registrado en otra empresa',
+                        'conflict' => 'duplicate'
                     ];
                 }
             }
@@ -215,6 +217,11 @@ class EmpresaController {
                 'message' => 'Error interno del servidor'
             ];
         }
+    }
+
+    /** Reactiva una empresa dada de baja (UX-08B). */
+    public function reactivate($id, $user_id) {
+        return $this->empresaModel->reactivate($id, $user_id);
     }
 
     /**

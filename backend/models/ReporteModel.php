@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/status_filter.php';
+require_once __DIR__ . '/../lib/write_support.php';
 
 class ReporteModel {
     private $pdo;
@@ -19,51 +20,66 @@ class ReporteModel {
      * @param array $data Datos del reporte
      * @return array Resultado de la operación
      */
-    public function create($data) {
-        try {
-            // Insertar el reporte
-            $sql = "INSERT INTO reporte (
-                            nombre, descripcion, enlace,
-                            grupo_id, reporte_id, created_by
-                        ) VALUES (
-                            :nombre, :descripcion, :enlace,
-                            :grupo_id, :reporte_id, :created_by
-                        )";
+    /** Campos que forman la huella de versión (bloqueo optimista). El enlace entra en la huella, pero nunca se devuelve ni se audita en claro. */
+    const VERSION_FIELDS = FORM_VERSION_FIELDS['reporte_form'];
 
+    /** Fila actual bloqueada (`FOR UPDATE`) dentro de la transacción en curso. */
+    private function lockRow($id) {
+        $stmt = $this->pdo->prepare('SELECT id, nombre, descripcion, enlace, grupo_id, reporte_id, activo FROM reporte WHERE id = :id FOR UPDATE');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** Huella de versión de una fila (la recibe el cliente en `view=form`). */
+    public function versionOf(array $row) {
+        return row_version($row, self::VERSION_FIELDS);
+    }
+
+    /**
+     * Replica los UNIQUE productivos (`enlace`, `reporte_id`) dentro de la transacción: cuentan también los informes inactivos.
+     * Lectura sin bloqueo (ver EmpresaModel::assertRucFree); la carrera la decide el UNIQUE real.
+     */
+    private function assertUnique(array $data, $excludeId) {
+        foreach (['enlace' => 'Ya existe un informe con ese enlace', 'reporte_id' => 'Ya existe un informe con ese ID de Power BI'] as $column => $message) {
+            $sql = "SELECT id FROM reporte WHERE $column = :v" . ($excludeId !== null ? ' AND id <> :exclude' : '') . ' LIMIT 1';
+            $params = ['v' => $data[$column]] + ($excludeId !== null ? ['exclude' => $excludeId] : []);
             $stmt = $this->pdo->prepare($sql);
-            $result = $stmt->execute([
-                'nombre' => $data['nombre'],
-                'descripcion' => $data['descripcion'] ?? null,
-                'enlace' => $data['enlace'],
-                'grupo_id' => $data['grupo_id'] ?? null,
-                'reporte_id' => $data['reporte_id'],
-                'created_by' => $data['created_by'] ?? null
-            ]);
+            $stmt->execute($params);
+            if ($stmt->fetchColumn() !== false) {
+                throw new WriteConflict('duplicate', $message);
+            }
+        }
+    }
 
-            if ($result) {
-                $reporte_id = $this->pdo->lastInsertId();
+    /** Crea un informe (transacción + auditoría; enlace o referencia duplicados = conflicto, también ante una carrera). */
+    public function create($data) {
+        return run_write(function () use ($data) {
+            return db_tx($this->pdo, function () use ($data) {
+                $this->assertUnique($data, null);
+                $sql = "INSERT INTO reporte (
+                                nombre, descripcion, enlace,
+                                grupo_id, reporte_id, created_by
+                            ) VALUES (
+                                :nombre, :descripcion, :enlace,
+                                :grupo_id, :reporte_id, :created_by
+                            )";
+                $this->pdo->prepare($sql)->execute([
+                    'nombre' => $data['nombre'],
+                    'descripcion' => $data['descripcion'] ?? null,
+                    'enlace' => $data['enlace'],
+                    'grupo_id' => $data['grupo_id'] ?? null,
+                    'reporte_id' => $data['reporte_id'],
+                    'created_by' => $data['created_by'] ?? null
+                ]);
+                $id = $this->pdo->lastInsertId();
+                audit_record($this->pdo, $data['created_by'] ?? 0, 'reporte.create', 'reporte', $id, null, audit_snapshot('reporte', $this->lockRow($id)));
                 return [
                     'success' => true,
                     'message' => 'Reporte creado exitosamente',
-                    'data' => [
-                        'id' => $reporte_id,
-                        'reporte_id' => $data['reporte_id'],
-                        'nombre' => $data['nombre']
-                    ]
+                    'data' => ['id' => $id, 'reporte_id' => $data['reporte_id'], 'nombre' => $data['nombre']]
                 ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Error al crear el reporte'
-                ];
-            }
-        } catch (PDOException $e) {
-            error_log("Error en ReporteModel::create: " . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Error interno del servidor '
-            ];
-        }
+            });
+        }, 'Error interno del servidor ');
     }
 
     /** Identificadores almacenados de un informe activo (para conservarlos al editar solo el enlace). */
@@ -117,89 +133,74 @@ class ReporteModel {
         return (bool)$stmt->fetchColumn();
     }
 
+    /** Cambia `activo` de un informe dentro de una transacción auditada. */
+    private function setActive($id, $user_id, $active, $action, $successMessage) {
+        return run_write(function () use ($id, $user_id, $active, $action, $successMessage) {
+            return db_tx($this->pdo, function () use ($id, $user_id, $active, $action, $successMessage) {
+                $before = $this->lockRow($id);
+                if (!$before) {
+                    throw new WriteNotFound('Reporte no encontrado');
+                }
+                if ((int)$before['activo'] === $active) {
+                    if ($active === 1) {
+                        throw new WriteConflict('state', 'El reporte ya está activo');
+                    }
+                    return ['success' => true, 'message' => $successMessage]; // baja idempotente (comportamiento heredado)
+                }
+                $this->pdo->prepare('UPDATE reporte SET activo = :a, updated_by = :u WHERE id = :id')->execute(['a' => $active, 'u' => $user_id, 'id' => $id]);
+                audit_record($this->pdo, $user_id, $action, 'reporte', $id, audit_snapshot('reporte', $before), audit_snapshot('reporte', $this->lockRow($id)));
+                return ['success' => true, 'message' => $successMessage];
+            });
+        }, 'Error al cambiar el estado del reporte');
+    }
+
     /**
-     * Eliminar un reporte
+     * Eliminar un reporte (baja lógica)
      * @param int $id ID del reporte
      * @return array Resultado de la operación
      */
     public function delete($id, $updated_by) {
-        try {
-            $sql = "UPDATE reporte SET
-                    activo = 0,
-                    updated_by = :updated_by
-                    WHERE id = :id AND activo = 1";
+        return $this->setActive($id, $updated_by, 0, 'reporte.deactivate', 'Reporte eliminado exitosamente');
+    }
 
-            $stmt = $this->pdo->prepare($sql);
-            $result = $stmt->execute([
-                'id' => $id,
-                'updated_by' => $updated_by
-            ]);
-
-            if ($result) {
-                return [
-                    'success' => true,
-                    'message' => 'Reporte eliminado exitosamente'
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Error al eliminar el reporte'
-                ];
-            }
-        } catch (PDOException $e) {
-            error_log("Error en ReporteModel::delete: " . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Error al eliminar el reporte'
-            ];
-        }
+    /** Reactiva un informe dado de baja (UX-08B). Un informe ya activo es un conflicto de estado (409). */
+    public function reactivate($id, $user_id) {
+        return $this->setActive($id, $user_id, 1, 'reporte.reactivate', 'Reporte reactivado exitosamente');
     }
 
     /**
-     * Actualizar un reporte
+     * Actualizar un reporte (transacción + auditoría + bloqueo optimista).
+     * Si `$data['version']` viene informado, debe coincidir con la versión actual; si no, conflicto `stale` (409).
      * @param array $data Datos del reporte
      * @return array Resultado de la operación
      */
     public function update($id, $data) {
-        try {
-            // Actualizar el reporte
-            $sql = "UPDATE reporte SET
-                    nombre = :nombre, descripcion = :descripcion, enlace = :enlace,
-                    grupo_id = :grupo_id, reporte_id = :reporte_id, updated_by = :updated_by
-                    WHERE id = :id AND activo = 1";
-
-            $stmt = $this->pdo->prepare($sql);
-
-            $result = $stmt->execute([
-                'nombre' => $data['nombre'],
-                'descripcion' => $data['descripcion'] ?? null,
-                'enlace' => $data['enlace'],
-                'grupo_id' => $data['grupo_id'] ?? null,
-                'reporte_id' => $data['reporte_id'],
-                'updated_by' => $data['updated_by'],
-                'id' => $id
-            ]);
-
-            if ($result) {
-                return [
-                    'success' => true,
-                    'message' => 'Reporte actualizado exitosamente'
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Error al actualizar el reporte'
-                ];
-            }
-        } catch (PDOException $e) {
-            error_log("Error en ReporteModel::update: " . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Error al actualizar el reporte'
-            ];
-        }
+        return run_write(function () use ($id, $data) {
+            return db_tx($this->pdo, function () use ($id, $data) {
+                $before = $this->lockRow($id);
+                if (!$before || (int)$before['activo'] !== 1) {
+                    throw new WriteNotFound('Reporte no encontrado');
+                }
+                assert_version($data['version'] ?? null, $before, self::VERSION_FIELDS);
+                $this->assertUnique($data, (int)$id);
+                $sql = "UPDATE reporte SET
+                        nombre = :nombre, descripcion = :descripcion, enlace = :enlace,
+                        grupo_id = :grupo_id, reporte_id = :reporte_id, updated_by = :updated_by
+                        WHERE id = :id AND activo = 1";
+                $this->pdo->prepare($sql)->execute([
+                    'nombre' => $data['nombre'],
+                    'descripcion' => $data['descripcion'] ?? null,
+                    'enlace' => $data['enlace'],
+                    'grupo_id' => $data['grupo_id'] ?? null,
+                    'reporte_id' => $data['reporte_id'],
+                    'updated_by' => $data['updated_by'],
+                    'id' => $id
+                ]);
+                audit_record($this->pdo, $data['updated_by'], 'reporte.update', 'reporte', $id, audit_snapshot('reporte', $before), audit_snapshot('reporte', $this->lockRow($id)));
+                return ['success' => true, 'message' => 'Reporte actualizado exitosamente'];
+            });
+        }, 'Error al actualizar el reporte');
     }
-
 
     /**
      * Restringe las lecturas de usuarios normales a una asignación activa y

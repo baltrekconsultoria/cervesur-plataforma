@@ -90,11 +90,16 @@ class ReporteController {
         ], null];
     }
 
+    /** Tipifica los errores de validación que en realidad son duplicados (contrato 2: HTTP 409). */
+    private function conflictOf($message) {
+        return strpos((string)$message, 'Ya existe un informe') === 0 ? ['conflict' => 'duplicate'] : [];
+    }
+
     public function create($data, $user_id) {
         try {
             [$data, $error] = $this->validateReport($data);
             if ($error !== null) {
-                return ['success' => false, 'message' => $error];
+                return ['success' => false, 'message' => $error] + $this->conflictOf($error);
             }
 
             // Agregar created_by
@@ -122,14 +127,16 @@ class ReporteController {
                 return ['success' => false, 'message' => 'ID de reporte inválido'];
             }
             if (!$this->reporteModel->existsActive((int)$id)) {
-                return ['success' => false, 'message' => 'Reporte no encontrado'];
+                return ['success' => false, 'message' => 'Reporte no encontrado', 'conflict' => 'notfound'];
             }
+            $expectedVersion = is_array($data) && isset($data['version']) ? $data['version'] : null;
             [$data, $error] = $this->validateReport($data, (int)$id, $this->reporteModel->internalRow((int)$id));
             if ($error !== null) {
-                return ['success' => false, 'message' => $error];
+                return ['success' => false, 'message' => $error] + $this->conflictOf($error);
             }
             // El modelo exige `updated_by`: sin esto quedaba siempre NULL.
             $data['updated_by'] = $user_id;
+            $data['version'] = $expectedVersion;
             $result = $this->reporteModel->update($id, $data);
             return $result;
         } catch (Exception $e) {
@@ -138,6 +145,11 @@ class ReporteController {
                 'message' => public_error_message('Error al actualizar el reporte', $e)
             ];
         }
+    }
+
+    /** Reactiva un reporte dado de baja (UX-08B). */
+    public function reactivate($id, $user_id) {
+        return $this->reporteModel->reactivate((int)$id, $user_id);
     }
 
     /**

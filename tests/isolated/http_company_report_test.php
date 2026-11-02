@@ -46,7 +46,7 @@ expectCase($stored && (int)$stored['activo'] === 1 && (int)$stored['created_by']
 expectCase(($d['success'] ?? true) === false && stripos($d['message'] ?? '', 'RUC') !== false && (int)scalar($pdo, "SELECT COUNT(*) FROM empresa WHERE ruc = '20999999991'") === 1, 'a duplicated RUC is rejected');
 
 [$s, $d, $raw] = requestApi('GET', "/api/empresas/$cid?view=form", null, $admin);
-expectCase($s === 200 && sortedKeys($d['data'] ?? []) === ['activo', 'ciudad', 'direccion', 'email', 'id', 'nombre', 'pais', 'razon_social', 'ruc', 'telefono'] && stripos($raw, 'powerbi') === false, 'view=form returns the editable fields and no Power BI data');
+expectCase($s === 200 && sortedKeys($d['data'] ?? []) === ['activo', 'ciudad', 'direccion', 'email', 'id', 'nombre', 'pais', 'razon_social', 'ruc', 'telefono', 'version'] && stripos($raw, 'powerbi') === false, 'view=form returns the editable fields and no Power BI data');
 [$s] = requestApi('GET', "/api/empresas/$cid?view=form", null, $userA);
 expectCase($s === 403, 'a normal user cannot request view=form');
 [$s] = requestApi('GET', "/api/empresas/$cid?view=otra", null, $admin);
@@ -93,7 +93,7 @@ expectCase($stored && $stored['reporte_id'] === $uuidReport && (int)$stored['act
 expectCase(($d['success'] ?? true) === false && stripos($d['message'] ?? '', 'ID de Power BI') !== false && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte WHERE reporte_id = ?', [$uuidReport]) === 1, 'a duplicated Power BI UUID is rejected');
 
 [$s, $d, $raw] = requestApi('GET', "/api/reportes/$rid?view=form", null, $admin);
-expectCase($s === 200 && sortedKeys($d['data'] ?? []) === ['activo', 'descripcion', 'enlace', 'grupo_id', 'id', 'nombre', 'reporte_id'] && (int)$d['data']['id'] === $rid, 'view=form returns the editable fields with the internal id and the UUID');
+expectCase($s === 200 && sortedKeys($d['data'] ?? []) === ['activo', 'descripcion', 'enlace', 'grupo_id', 'id', 'nombre', 'reporte_id', 'version'] && (int)$d['data']['id'] === $rid, 'view=form returns the editable fields with the internal id and the UUID');
 [$s] = requestApi('GET', "/api/reportes/reporteid/$uuidReport?view=form", null, $admin);
 expectCase($s === 200, 'view=form also works by Power BI UUID for admins');
 [$s] = requestApi('GET', "/api/reportes/$rid?view=form", null, $userA);

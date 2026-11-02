@@ -32,6 +32,8 @@ function runSqlFile($pdo, $path) {
 $UUID_RE = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 $PUBLIC = 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDE';
 $PUBLIC2 = 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDI&pageName=ReportSection1';
+// UX-08B: en producción `reporte.enlace` es UNIQUE; editar un informe para usar el enlace de otro es un conflicto, así que la edición usa un enlace propio.
+$PUBLIC3 = 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLUNFUlZFU1VSLTAwMDM';
 $EMBED_ID = '77777777-8888-4999-8aaa-bbbbbbbbbbbb'; $EMBED_GROUP = 'cccccccc-dddd-4eee-8fff-000000000000';
 $EMBED = "https://app.powerbi.com/reportEmbed?reportId=$EMBED_ID&groupId=$EMBED_GROUP&autoAuth=true";
 $admin = tokenOf('admin');
@@ -114,9 +116,9 @@ $c2 = (int)$d['id'];
 $link1 = (int)($d['data']['id'] ?? 0);
 expectCase($link1 > 0, 'a link-only report can be associated with a company (numeric ids)');
 $refBefore = $pub['reporte_id'];
-[$s, $d] = requestApi('PUT', "/api/reportes/$pubId", ['nombre' => 'Informe público C (editado)', 'descripcion' => 'Editado', 'enlace' => $PUBLIC2], $admin);
+[$s, $d] = requestApi('PUT', "/api/reportes/$pubId", ['nombre' => 'Informe público C (editado)', 'descripcion' => 'Editado', 'enlace' => $PUBLIC3], $admin);
 $pubAfter = row($pdo, 'SELECT * FROM reporte WHERE id = ?', [$pubId]);
-expectCase(($d['success'] ?? false) === true && $pubAfter['enlace'] === $PUBLIC2 && (int)$pubAfter['id'] === $pubId, 'the public link can be edited');
+expectCase(($d['success'] ?? false) === true && $pubAfter['enlace'] === $PUBLIC3 && (int)$pubAfter['id'] === $pubId, 'the public link can be edited');
 expectCase($pubAfter['reporte_id'] === $refBefore && $pubAfter['grupo_id'] === null, 'editing the link keeps the internal reference and invents nothing');
 expectCase((int)scalar($pdo, 'SELECT activo FROM empresa_reporte WHERE id = ?', [$link1]) === 1 && (int)scalar($pdo, 'SELECT reporte_id FROM empresa_reporte WHERE id = ?', [$link1]) === $pubId, 'the association survives the link edit (it uses the numeric id)');
 [$s, $d] = requestApi('PUT', "/api/reportes/$pubId", ['nombre' => 'Informe público C (editado)', 'enlace' => "https://app.powerbi.com/reportEmbed?reportId=55555555-6666-4777-8888-999999999999"], $admin);

@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/status_filter.php';
+require_once __DIR__ . '/../lib/write_support.php';
 
 /**
  * Modelo para la tabla empresa
@@ -51,66 +52,90 @@ class EmpresaModel {
         return $this->withoutSecrets($stmt->fetch(PDO::FETCH_ASSOC));
     }
 
+    /** Campos editables que forman la huella de versión (bloqueo optimista). Nunca incluye `powerbi_*`. */
+    const VERSION_FIELDS = FORM_VERSION_FIELDS['empresa_form'];
+
+    /** Fila actual bloqueada (`FOR UPDATE`) dentro de la transacción en curso, sin columnas de configuración Power BI. */
+    private function lockRow($id) {
+        $stmt = $this->pdo->prepare('SELECT id, nombre, razon_social, ruc, email, telefono, website, direccion, ciudad, pais, contacto_principal, activo FROM empresa WHERE id = :id FOR UPDATE');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** Huella de versión de una fila (la recibe el cliente en `view=form`). */
+    public function versionOf(array $row) {
+        return row_version($row, self::VERSION_FIELDS);
+    }
+
+    /** Nombres (no valores) de los campos de configuración Power BI presentes en una entrada. */
+    private static function powerbiKeys(array $data) {
+        return array_values(array_filter(['powerbi_tenant', 'powerbi_client', 'powerbi_clientsecret'], function ($k) use ($data) {
+            return isset($data[$k]);
+        }));
+    }
+
     /**
-     * Crea una nueva empresa
-     * @param array $data Datos de la empresa
-     * @return array Resultado de la creación
+     * ¿Existe ya otra empresa (activa o no) con ese RUC? Replica el UNIQUE productivo dentro de la transacción.
+     * Lectura SIN bloqueo a propósito: bloquear un hueco de índice hace que dos altas simultáneas se bloqueen entre sí (deadlock);
+     * la carrera la decide el UNIQUE real (1062 -> conflicto).
      */
-    public function create($data) {
-        try {
-            $sql = "INSERT INTO empresa (
-                            nombre, razon_social, ruc, email, telefono,
-                            website, direccion, ciudad, pais, powerbi_tenant,
-                            powerbi_client, powerbi_clientsecret, logo, contacto_principal, created_by
-
-                        ) VALUES (
-                            :nombre, :razon_social, :ruc, :email, :telefono,
-                            :website, :direccion, :ciudad, :pais, :powerbi_tenant,
-                            :powerbi_client, :powerbi_clientsecret, :logo, :contacto_principal, :created_by
-                        )";
-
-            $stmt = $this->pdo->prepare($sql);
-            $result = $stmt->execute([
-                'nombre' => $data['nombre'],
-                'razon_social' => $data['razon_social'],
-                'ruc' => $data['ruc'],
-                'email' => $data['email'] ?? null,
-                'telefono' => $data['telefono'] ?? null,
-                'website' => $data['website'] ?? null,
-                'direccion' => $data['direccion'] ?? null,
-                'ciudad' => $data['ciudad'] ?? null,
-                'pais' => $data['pais'] ?? null,
-                'powerbi_tenant' => $data['powerbi_tenant'] ?? null,
-                'powerbi_client' => $data['powerbi_client'] ?? null,
-                'powerbi_clientsecret' => $data['powerbi_clientsecret'] ?? null,
-                'logo' => $data['logo'] ?? null,
-                'contacto_principal' => $data['contacto_principal'] ?? null,
-                'created_by' => $data['created_by']
-            ]);
-
-            if ($result) {
-                return [
-                    'success' => true,
-                    'id' => $this->pdo->lastInsertId(),
-                    'message' => 'Empresa creada exitosamente'
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Error al crear la empresa'
-                ];
-            }
-        } catch (PDOException $e) {
-            error_log("Error en EmpresaModel::create: " . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Error al crear la empresa'
-            ];
+    private function assertRucFree($ruc, $excludeId, $message) {
+        $sql = 'SELECT id FROM empresa WHERE ruc = :ruc' . ($excludeId !== null ? ' AND id <> :exclude' : '') . ' LIMIT 1';
+        $params = ['ruc' => $ruc] + ($excludeId !== null ? ['exclude' => $excludeId] : []);
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        if ($stmt->fetchColumn() !== false) {
+            throw new WriteConflict('duplicate', $message);
         }
     }
 
     /**
-     * Actualiza una empresa existente
+     * Crea una nueva empresa (transacción + auditoría; RUC duplicado = conflicto, también ante una carrera).
+     * @param array $data Datos de la empresa
+     * @return array Resultado de la creación
+     */
+    public function create($data) {
+        return run_write(function () use ($data) {
+            return db_tx($this->pdo, function () use ($data) {
+                $this->assertRucFree($data['ruc'], null, 'El RUC ya está registrado');
+                $sql = "INSERT INTO empresa (
+                                nombre, razon_social, ruc, email, telefono,
+                                website, direccion, ciudad, pais, powerbi_tenant,
+                                powerbi_client, powerbi_clientsecret, logo, contacto_principal, created_by
+                            ) VALUES (
+                                :nombre, :razon_social, :ruc, :email, :telefono,
+                                :website, :direccion, :ciudad, :pais, :powerbi_tenant,
+                                :powerbi_client, :powerbi_clientsecret, :logo, :contacto_principal, :created_by
+                            )";
+                $this->pdo->prepare($sql)->execute([
+                    'nombre' => $data['nombre'],
+                    'razon_social' => $data['razon_social'],
+                    'ruc' => $data['ruc'],
+                    'email' => $data['email'] ?? null,
+                    'telefono' => $data['telefono'] ?? null,
+                    'website' => $data['website'] ?? null,
+                    'direccion' => $data['direccion'] ?? null,
+                    'ciudad' => $data['ciudad'] ?? null,
+                    'pais' => $data['pais'] ?? null,
+                    'powerbi_tenant' => $data['powerbi_tenant'] ?? null,
+                    'powerbi_client' => $data['powerbi_client'] ?? null,
+                    'powerbi_clientsecret' => $data['powerbi_clientsecret'] ?? null,
+                    'logo' => $data['logo'] ?? null,
+                    'contacto_principal' => $data['contacto_principal'] ?? null,
+                    'created_by' => $data['created_by']
+                ]);
+                $id = $this->pdo->lastInsertId();
+                $powerbi = self::powerbiKeys($data);
+                audit_record($this->pdo, $data['created_by'], 'empresa.create', 'empresa', $id, null,
+                    audit_snapshot('empresa', $this->lockRow($id)), $powerbi ? ['powerbi_campos' => $powerbi] : []);
+                return ['success' => true, 'id' => $id, 'message' => 'Empresa creada exitosamente'];
+            });
+        }, 'Error al crear la empresa');
+    }
+
+    /**
+     * Actualiza una empresa existente (transacción + auditoría + bloqueo optimista).
+     * Si `$data['version']` viene informado, debe coincidir con la versión actual; si no, conflicto `stale` (409).
      * @param int $id ID de la empresa
      * @param array $data Datos a actualizar
      * @param int $user_id ID del usuario (para verificar permisos)
@@ -118,68 +143,60 @@ class EmpresaModel {
      * @return array Resultado de la actualización
      */
     public function update($id, $data, $user_id, $role = 'user') {
-        // Verificar que la empresa existe
-        $empresa = $this->getById($id, $user_id, $role);
-        if (!$empresa) {
-            return [
-                'success' => false,
-                'message' => 'Empresa no encontrada'
-            ];
-        }
+        return run_write(function () use ($id, $data, $user_id) {
+            return db_tx($this->pdo, function () use ($id, $data, $user_id) {
+                $before = $this->lockRow($id);
+                if (!$before || (int)$before['activo'] !== 1) {
+                    throw new WriteNotFound('Empresa no encontrada');
+                }
+                assert_version($data['version'] ?? null, $before, self::VERSION_FIELDS);
 
-        // Construir query dinámicamente basado en los campos proporcionados
-        $updateFields = [];
-        $params = ['id' => $id, 'updated_by' => $user_id];
+                $updateFields = [];
+                $params = ['id' => $id, 'updated_by' => $user_id];
+                $fields = ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais',
+                    'powerbi_tenant', 'powerbi_client', 'powerbi_clientsecret', 'logo', 'contacto_principal'];
+                foreach ($fields as $field) {
+                    if (isset($data[$field])) {
+                        $updateFields[] = "$field = :$field";
+                        $params[$field] = $data[$field];
+                    }
+                }
+                if (empty($updateFields)) {
+                    return ['success' => false, 'message' => 'No se proporcionaron campos para actualizar'];
+                }
+                if (isset($data['ruc'])) {
+                    $this->assertRucFree($data['ruc'], (int)$id, 'El RUC ya está registrado en otra empresa');
+                }
+                $updateFields[] = 'updated_by = :updated_by';
+                $this->pdo->prepare('UPDATE empresa SET ' . implode(', ', $updateFields) . ' WHERE id = :id')->execute($params);
 
-        $fields = [
-            'nombre',
-            'razon_social',
-            'ruc',
-            'email',
-            'telefono',
-            'website',
-            'direccion',
-            'ciudad',
-            'pais',
-            'powerbi_tenant',
-            'powerbi_client',
-            'powerbi_clientsecret',
-            'logo',
-            'contacto_principal'
-        ];
+                $powerbi = self::powerbiKeys($data);
+                audit_record($this->pdo, $user_id, 'empresa.update', 'empresa', $id, audit_snapshot('empresa', $before),
+                    audit_snapshot('empresa', $this->lockRow($id)), $powerbi ? ['powerbi_campos' => $powerbi] : []);
+                return ['success' => true, 'message' => 'Empresa actualizada exitosamente'];
+            });
+        }, 'Error al actualizar la empresa');
+    }
 
-        foreach ($fields as $field) {
-            if (isset($data[$field])) {
-                $updateFields[] = "$field = :$field";
-
-                $params[$field] = $data[$field];
-            }
-        }
-
-        if (empty($updateFields)) {
-            return [
-                'success' => false,
-                'message' => 'No se proporcionaron campos para actualizar'
-            ];
-        }
-
-        $updateFields[] = 'updated_by = :updated_by';
-        $sql = "UPDATE empresa SET " . implode(', ', $updateFields) . " WHERE id = :id";
-
-        $stmt = $this->pdo->prepare($sql);
-        $result = $stmt->execute($params);
-
-        if ($result) {
-            return [
-                'success' => true,
-                'message' => 'Empresa actualizada exitosamente'
-            ];
-        } else {
-            return [
-                'success' => false,
-                'message' => 'Error al actualizar la empresa'
-            ];
-        }
+    /** Cambia `activo` de una empresa dentro de una transacción auditada. */
+    private function setActive($id, $user_id, $active, $action, $successMessage) {
+        return run_write(function () use ($id, $user_id, $active, $action, $successMessage) {
+            return db_tx($this->pdo, function () use ($id, $user_id, $active, $action, $successMessage) {
+                $before = $this->lockRow($id);
+                if (!$before) {
+                    throw new WriteNotFound('Empresa no encontrada');
+                }
+                if ((int)$before['activo'] === $active) {
+                    if ($active === 1) {
+                        throw new WriteConflict('state', 'La empresa ya está activa');
+                    }
+                    throw new WriteNotFound('Empresa no encontrada');
+                }
+                $this->pdo->prepare('UPDATE empresa SET activo = :a, updated_by = :u WHERE id = :id')->execute(['a' => $active, 'u' => $user_id, 'id' => $id]);
+                audit_record($this->pdo, $user_id, $action, 'empresa', $id, audit_snapshot('empresa', $before), audit_snapshot('empresa', $this->lockRow($id)));
+                return ['success' => true, 'message' => $successMessage];
+            });
+        }, 'Error al cambiar el estado de la empresa');
     }
 
     /**
@@ -190,33 +207,12 @@ class EmpresaModel {
      * @return array Resultado de la eliminación
      */
     public function delete($id, $user_id, $role = 'user') {
-        // Verificar que la empresa existe
-        $empresa = $this->getById($id, $user_id, $role);
-        if (!$empresa) {
-            return [
-                'success' => false,
-                'message' => 'Empresa no encontrada'
-            ];
-        }
+        return $this->setActive($id, $user_id, 0, 'empresa.deactivate', 'Empresa eliminada exitosamente');
+    }
 
-        $sql = "UPDATE empresa SET activo = 0, updated_by = :updated_by WHERE id = :id";
-        $stmt = $this->pdo->prepare($sql);
-        $result = $stmt->execute([
-            'id' => $id,
-            'updated_by' => $user_id
-        ]);
-
-        if ($result) {
-            return [
-                'success' => true,
-                'message' => 'Empresa eliminada exitosamente'
-            ];
-        } else {
-            return [
-                'success' => false,
-                'message' => 'Error al eliminar la empresa'
-            ];
-        }
+    /** Reactiva una empresa dada de baja (UX-08B). Una empresa ya activa es un conflicto de estado (409). */
+    public function reactivate($id, $user_id) {
+        return $this->setActive($id, $user_id, 1, 'empresa.reactivate', 'Empresa reactivada exitosamente');
     }
 
     /**

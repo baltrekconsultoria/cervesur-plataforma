@@ -8,6 +8,8 @@
  * de contacto. La proyección ocurre DESPUÉS de la autorización y solo puede quitar campos; los datos completos
  * siguen disponibles internamente para los servicios autorizados (p. ej. Power BI).
  */
+require_once __DIR__ . '/write_support.php';
+
 const VIEW_MINIMAL_FIELDS = [
     'reporte' => ['id', 'reporte_id', 'nombre', 'descripcion', 'activo'],
     'empresa' => ['id', 'nombre', 'razon_social', 'ruc', 'ciudad', 'pais', 'logo', 'activo'],
@@ -15,8 +17,8 @@ const VIEW_MINIMAL_FIELDS = [
     // UX-07A (administración de accesos): solo identificadores y etiquetas; sin `reporte_enlace`, `created_by*` ni notas.
     // UX-07B (formularios de edición, SOLO administradores): datos no sensibles. Nunca incluye powerbi_* ni secretos;
     // el informe incluye su enlace porque es un dato que el administrador debe poder corregir.
-    'empresa_form' => ['id', 'nombre', 'razon_social', 'ruc', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 'activo'],
-    'reporte_form' => ['id', 'nombre', 'descripcion', 'enlace', 'grupo_id', 'reporte_id', 'activo'],
+    'empresa_form' => ['id', 'nombre', 'razon_social', 'ruc', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 'activo', 'version'],
+    'reporte_form' => ['id', 'nombre', 'descripcion', 'enlace', 'grupo_id', 'reporte_id', 'activo', 'version'],
     'empresa_usuario' => ['id', 'user_id', 'empresa_id', 'activo'],
     'empresa_reporte_usuario' => ['id', 'user_id', 'empresa_id', 'empresa_reporte_id', 'reporte_id', 'activo'],
 ];
@@ -24,7 +26,9 @@ const VIEW_MINIMAL_FIELDS = [
 /** Valida `view`: null (sin vista), 'minimal', o responde 400 y termina. */
 function require_view(array $allowed = ['minimal']) {
     if (!array_key_exists('view', $_GET)) {
-        return null;
+        // UX-08B: en las instancias React (REACT_STRICT_VIEWS=1) la respuesta por defecto es la mínima: sin `enlace`, `created_by*` ni `powerbi_*`.
+        // Flutter usa su propia instancia (sin la variable) y conserva la respuesta completa.
+        return getenv('REACT_STRICT_VIEWS') === '1' && in_array('minimal', $allowed, true) ? 'minimal' : null;
     }
     if (!is_string($_GET['view']) || !in_array($_GET['view'], $allowed, true)) {
         http_response_code(400);
@@ -75,6 +79,10 @@ function project_view_data($data, array $allowed) {
 function apply_view(array $response, $view, $resource) {
     if ($view === null || !isset($response['data'])) {
         return $response;
+    }
+    // UX-08B: los formularios incluyen la versión de la fila (bloqueo optimista); se calcula ANTES de proyectar.
+    if (isset(FORM_VERSION_FIELDS[$resource]) && is_array($response['data']) && !array_is_list($response['data'])) {
+        $response['data']['version'] = row_version($response['data'], FORM_VERSION_FIELDS[$resource]);
     }
     $response['data'] = project_view_data($response['data'], VIEW_MINIMAL_FIELDS[$resource]);
     return $response;
