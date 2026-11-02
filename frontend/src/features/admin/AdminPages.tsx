@@ -4,9 +4,10 @@ import type { ApiCapabilities, Assignment, Company, Report, User } from '../../a
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
-import { Button, ButtonLink, DataTable, EmptyState, ErrorState, Highlight, LoadingState, NoMatches, PAGE_SIZE, Pager, ResultBar, SearchField, SelectField, StatusTag, Tag, type Column } from '../../components/ui';
+import { Button, ButtonLink, DataTable, EmptyState, ErrorState, Highlight, LoadingState, NoMatches, Pager, ResultBar, SearchField, SelectField, StatusTag, Tag, type Column } from '../../components/ui';
 import { norm } from '../../lib/text';
 import { useAsync, type AsyncState } from '../../lib/useAsync';
+import { usePaging } from '../../lib/usePaging';
 import { useUrlFilters } from '../../lib/useUrlFilters';
 import { CompanyDialog } from './CompanyDialog';
 import { NewUserDialog } from './NewUserDialog';
@@ -109,10 +110,8 @@ export function AdminUsersPage() {
   const filters = useUrlFilters({ q: '', role: 'all', status: 'active' });
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState('');
-  const [paging, setPaging] = useState({ key: '', page: 1 });
+  const paging = usePaging(JSON.stringify(filters.values));
   if (!capabilities.adminDirectory) return <NotIntegrated title="Usuarios" what="El listado de usuarios" />;
-  const filterKey = JSON.stringify(filters.values);
-  const page = paging.key === filterKey ? paging.page : 1;
   return (
     <AdminScreen title="Usuarios" data={data} notice={<>
       {notice && <p className="success-box" role="status">{notice}</p>}
@@ -122,7 +121,7 @@ export function AdminUsersPage() {
         const { q, role, status } = filters.values;
         const needle = norm(q);
         const rows = users.filter(u => (role === 'all' || u.role === role) && (status === 'all' || (status === 'active') === u.active) && (!needle || norm(`${u.displayName} ${u.email} ${u.username}`).includes(needle)));
-        const visible = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        const shown = paging.view(rows);
         const accessCount = (u: User) => assignments.filter(a => a.userId === u.id && assignmentStatus(a, users, reports, companies).ok).length;
         const cols: Array<Column<User>> = [
           { header: 'Usuario', cell: u => <><strong><Highlight text={u.displayName} query={q} /></strong>{u.id === me?.id && <> <Tag>Usted</Tag></>}<span className="muted"><Highlight text={u.email} query={q} /></span></> },
@@ -141,7 +140,7 @@ export function AdminUsersPage() {
               {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setCreating(true); }}>Nuevo usuario</Button>}
             </div>
             <ResultBar shown={rows.length} total={users.length} noun="usuarios" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <><DataTable columns={cols} rows={visible} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /><Pager page={page} total={rows.length} onPage={p => setPaging({ key: filterKey, page: p })} /></> : <NoMatches noun="usuario" onClear={filters.clear} />}
+            {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="usuario" onClear={filters.clear} />}
           </>
         );
       }}
@@ -153,6 +152,7 @@ export function AdminCompaniesPage() {
   const data = useAdminData();
   const { capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', status: 'active' });
+  const paging = usePaging(JSON.stringify(filters.values));
   const [editing, setEditing] = useState<Company | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   return (
@@ -164,6 +164,7 @@ export function AdminCompaniesPage() {
         const { q, status } = filters.values;
         const needle = norm(q);
         const rows = companies.filter(c => (status === 'all' || (status === 'active') === c.active) && (!needle || norm(`${c.name} ${c.city} ${c.taxId}`).includes(needle)));
+        const shown = paging.view(rows);
         const cols: Array<Column<Company>> = [
           { header: 'Empresa', cell: c => <><strong><Highlight text={c.name} query={q} /></strong><span className="muted">RUC <Highlight text={c.taxId} query={q} /></span></> },
           { header: 'Ciudad', cell: c => <Highlight text={c.city} query={q} /> },
@@ -184,7 +185,7 @@ export function AdminCompaniesPage() {
               {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nueva empresa</Button>}
             </div>
             <ResultBar shown={rows.length} total={companies.length} noun="empresas" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={c => c.id} rowClass={c => (c.active ? '' : 'is-off')} /> : <NoMatches noun="empresa" onClear={filters.clear} />}
+            {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={c => c.id} rowClass={c => (c.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="empresa" onClear={filters.clear} />}
           </>
         );
       }}
@@ -197,6 +198,7 @@ export function AdminReportsPage() {
   const { capabilities, bump } = useApp();
   const location = useLocation();
   const filters = useUrlFilters({ q: '', company: 'all', group: 'all', status: 'active' });
+  const paging = usePaging(JSON.stringify(filters.values));
   const [editing, setEditing] = useState<Report | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   return (
@@ -215,6 +217,7 @@ export function AdminReportsPage() {
           && (!needle || norm(`${r.name} ${r.description}`).includes(needle)));
         const groups = [...new Set(reports.map(r => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
         const from = `${location.pathname}${location.search}`;
+        const shown = paging.view(rows);
         const cols: Array<Column<Report>> = [
           { header: 'Reporte', cell: r => <><strong><Highlight text={r.name} query={q} /></strong><span className="muted"><Highlight text={r.description} query={q} /></span></> },
           ...(capabilities.reportCompany ? [{ header: 'Empresa', cell: (r: Report) => r.companyIds.map(id => companies.find(c => c.id === id)?.name).filter(Boolean).join(' · ') || '—' }] : []),
@@ -238,7 +241,7 @@ export function AdminReportsPage() {
               {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nuevo reporte</Button>}
             </div>
             <ResultBar shown={rows.length} total={reports.length} noun="reportes" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={r => r.id} rowClass={r => (r.active ? '' : 'is-off')} /> : <NoMatches noun="reporte" onClear={filters.clear} />}
+            {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={r => r.id} rowClass={r => (r.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="reporte" onClear={filters.clear} />}
           </>
         );
       }}
@@ -250,6 +253,7 @@ export function AdminAccessPage() {
   const data = useAdminData();
   const { capabilities, bump } = useApp();
   const filters = useUrlFilters({ q: '', company: 'all', effect: 'ok' });
+  const paging = usePaging(JSON.stringify(filters.values));
   const [revoking, setRevoking] = useState<{ assignment: Assignment; userName: string; reportName: string; companyName: string } | null>(null);
   const [notice, setNotice] = useState('');
   if (!capabilities.adminDirectory) return <NotIntegrated title="Accesos y asignaciones" what="El listado de asignaciones" />;
@@ -268,6 +272,7 @@ export function AdminAccessPage() {
         });
         const companyOf = (x: { a: Assignment; report: Report }) => x.a.companyId ?? x.report.companyId;
         const rows = all.filter(x => (company === 'all' || companyOf(x) === company) && (effect === 'all' || (effect === 'ok') === x.status.ok) && (!needle || norm(`${x.user.displayName} ${x.user.email} ${x.report.name}`).includes(needle)));
+        const shown = paging.view(rows);
         type Row = (typeof all)[number];
         const cols: Array<Column<Row>> = [
           { header: 'Usuario', cell: x => <><strong><Highlight text={x.user.displayName} query={q} /></strong><span className="muted"><Highlight text={x.user.email} query={q} /></span></> },
@@ -287,7 +292,7 @@ export function AdminAccessPage() {
               {capabilities.adminWrites && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
             </div>
             <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />
-            {rows.length ? <DataTable columns={cols} rows={rows} rowKey={x => x.a.id ?? `${x.a.userId}-${x.a.reportId}-${x.a.companyId ?? ''}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /> : <NoMatches noun="acceso" onClear={filters.clear} />}
+            {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={x => x.a.id ?? `${x.a.userId}-${x.a.reportId}-${x.a.companyId ?? ''}`} rowClass={x => (x.status.ok ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="acceso" onClear={filters.clear} />}
           </>
         );
       }}
