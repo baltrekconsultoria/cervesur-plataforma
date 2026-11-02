@@ -10,3 +10,8 @@ deploy/apache/*.conf text eol=lf
 deploy/apache/*.example text eol=lf
 
 deploy/tunel-ssh-compat/** text eol=lf
+
+# UX-08F: auditoria de solo lectura y piloto QA aislado se ejecutan en Linux; siempre LF.
+deploy/auditoria/** text eol=lf
+deploy/qa-admin-aislado/** text eol=lf
+database/privileges/*.template text eol=lf
