@@ -103,3 +103,56 @@ describe('UX-08B.2 · historial', () => {
     await expect(client.listAudit({ entity: 'access', page: 1 })).rejects.toMatchObject({ kind: 'forbidden' });
   });
 });
+
+describe('UX-08B.3 · cliente HTTP de Usuarios', () => {
+  const detail = { id: 7, username: 'ana', email: 'ana@example.invalid', first_name: 'Ana', last_name: 'Paz', phone: '999 000 111', role: 'usuario', is_active: true, version: 'a1b2c3d4e5f60718' };
+
+  it('el interruptor del servidor decide si hay botones; un 404 (apagado) equivale a «no habilitado» en la pantalla', async () => {
+    expect(await server(() => json(200, { success: true, data: { user_admin_writes: true } })).client.getUserAdminEnabled()).toBe(true);
+    expect(await server(() => json(200, { success: true, data: { user_admin_writes: false } })).client.getUserAdminEnabled()).toBe(false);
+    expect(await server(() => json(200, { success: true, data: {} })).client.getUserAdminEnabled()).toBe(false);
+  });
+
+  it('el detalle exige versión, normaliza el rol heredado y no trae contraseña ni versión de sesión', async () => {
+    const { client } = server(() => json(200, { success: true, data: detail }));
+    expect(await client.getUserDetail('7')).toEqual({ id: '7', username: 'ana', email: 'ana@example.invalid', firstName: 'Ana', lastName: 'Paz', phone: '999 000 111', role: 'user', active: true, version: 'a1b2c3d4e5f60718' });
+    await expect(server(() => json(200, { success: true, data: { ...detail, version: undefined } })).client.getUserDetail('7')).rejects.toMatchObject({ kind: 'invalid_response' });
+    await expect(server(() => json(200, { success: true, data: { ...detail, role: 'superadmin' } })).client.getUserDetail('7')).rejects.toMatchObject({ kind: 'invalid_response' });
+  });
+
+  it('la edición envía solo los campos permitidos y la versión leída; nunca rol, estado ni sesión', async () => {
+    const { client, calls } = server();
+    await client.updateUser('7', { firstName: ' Ana ', lastName: 'Paz', phone: '999', email: 'ana@example.invalid', version: 'v1' });
+    const call = calls.find(c => c.method === 'PUT');
+    expect(call?.path).toBe('/api/users/7');
+    expect(call?.contract).toBe('2');
+  });
+
+  it('estado y rol usan sus rutas propias con el contrato 2', async () => {
+    const { client, calls } = server();
+    await client.deactivateUser('7');
+    await client.reactivateUser('7');
+    await client.changeUserRole('7', 'admin');
+    expect(calls.map(c => `${c.method} ${c.path} ${c.contract}`)).toEqual(['POST /api/users/7/deactivate 2', 'POST /api/users/7/reactivate 2', 'PUT /api/user/7/role 2']);
+    await expect(client.changeUserRole('7', 'usuario' as never)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('un 409 (último administrador, uno mismo, versión obsoleta) llega como conflicto con el mensaje del servidor', async () => {
+    const { client } = server(() => json(409, { success: false, message: 'No se puede desactivar al último administrador activo' }));
+    await expect(client.deactivateUser('7')).rejects.toMatchObject({ kind: 'conflict', message: 'No se puede desactivar al último administrador activo' });
+  });
+
+  it('los accesos del usuario se leen como empresas e informes con su efectividad', async () => {
+    const data = {
+      user_id: 7, user_active: false,
+      empresas: [{ relacion_id: 1, empresa_id: 2, nombre: 'Empresa A', activo: 1, effective: false, reason: 'user_inactive', reason_label: 'Usuario inactivo' }],
+      reportes: [{ asignacion_id: 9, reporte_id: 3, reporte_nombre: 'Informe X', empresa_id: 2, empresa_nombre: 'Empresa A', activo: 1, effective: false, reason: 'user_inactive', reason_label: 'Usuario inactivo' }]
+    };
+    const result = await server(() => json(200, { success: true, data })).client.getUserAccess('7');
+    expect(result).toEqual([
+      { kind: 'company', name: 'Empresa A', effective: false, reason: 'Usuario inactivo' },
+      { kind: 'report', name: 'Informe X', via: 'Empresa A', effective: false, reason: 'Usuario inactivo' }
+    ]);
+    await expect(server(() => json(200, { success: true, data: [] })).client.getUserAccess('7')).rejects.toMatchObject({ kind: 'invalid_response' });
+  });
+});

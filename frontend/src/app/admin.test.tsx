@@ -58,7 +58,7 @@ describe('UX-07A · alta de usuarios', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Crear usuario' }));
     expect(within(dialog).getByText('Ingrese los nombres.')).toBeVisible();
     expect(within(dialog).getByText('Ingrese un correo válido.')).toBeVisible();
-    expect(within(dialog).getByText(/al menos 8 caracteres/)).toBeVisible();
+    expect(within(dialog).getByText(/al menos 12 caracteres/)).toBeVisible();
 
     await fill(user, 'Nombres', 'Operador');
     await fill(user, 'Apellidos', 'Prueba');

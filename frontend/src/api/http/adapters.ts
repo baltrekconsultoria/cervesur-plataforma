@@ -123,15 +123,17 @@ export function toUserDetail(dto: UserDetailDto): UserDetail {
   return { id: String(dto.id), username: requireText(dto.username, 'username'), email: dto.email ?? '', firstName: dto.first_name ?? '', lastName: dto.last_name ?? '', phone: dto.phone ?? '', role: parseRole(dto.role), active: toActive(dto.is_active), version: dto.version };
 }
 
-/** GET /api/users/{id}/access: empresas e informes del usuario con su efectividad. */
-export interface UserAccessDto { kind?: unknown; name?: unknown; via?: unknown; effective?: unknown; reason?: unknown }
+/** GET /api/users/{id}/access (solo administradores): relaciones del usuario con su efectividad. Sin enlaces ni datos de Power BI. */
+interface AccessEntryDto { nombre?: unknown; reporte_nombre?: unknown; empresa_nombre?: unknown; effective?: unknown; reason?: unknown; reason_label?: unknown }
+export interface UserAccessDto { empresas?: AccessEntryDto[]; reportes?: AccessEntryDto[] }
 export function toUserAccess(data: unknown): UserAccess[] {
-  const rows = Array.isArray(data) ? (data as UserAccessDto[]) : null;
-  if (!rows) throw invalid('Respuesta de accesos del usuario inesperada.');
-  return rows.map(row => {
-    if (!row || (row.kind !== 'company' && row.kind !== 'report') || typeof row.name !== 'string') throw invalid('Acceso de usuario incompleto.');
-    return { kind: row.kind, name: row.name, ...(typeof row.via === 'string' && row.via ? { via: row.via } : {}), effective: row.effective === true, reason: typeof row.reason === 'string' ? row.reason : '' };
-  });
+  const dto = data && typeof data === 'object' ? (data as UserAccessDto) : null;
+  if (!dto || !Array.isArray(dto.empresas) || !Array.isArray(dto.reportes)) throw invalid('Respuesta de accesos del usuario inesperada.');
+  const reason = (row: AccessEntryDto) => (typeof row.reason_label === 'string' && row.reason_label ? row.reason_label : typeof row.reason === 'string' ? row.reason : '');
+  const text = (value: unknown, what: string) => { if (typeof value !== 'string' || !value) throw invalid(`Acceso de usuario incompleto (${what}).`); return value; };
+  const companies = dto.empresas.map((row): UserAccess => ({ kind: 'company', name: text(row.nombre, 'empresa'), effective: row.effective === true, reason: reason(row) }));
+  const reports = dto.reportes.map((row): UserAccess => ({ kind: 'report', name: text(row.reporte_nombre, 'informe'), ...(typeof row.empresa_nombre === 'string' && row.empresa_nombre ? { via: row.empresa_nombre } : {}), effective: row.effective === true, reason: reason(row) }));
+  return [...companies, ...reports];
 }
 
 export function toCompanyDetail(dto: CompanyFormDto): CompanyDetail {

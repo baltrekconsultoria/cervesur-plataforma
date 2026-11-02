@@ -79,7 +79,7 @@ export class MockApi implements ApiClient {
     this.requireAdmin();
     const username = input.username.trim().toLowerCase(); const email = input.email.trim().toLowerCase();
     if (!input.firstName.trim() || !input.lastName.trim() || !username || !email || !input.password) throw new ApiError(400, 'Faltan campos obligatorios');
-    if (input.password.length < 6) throw new ApiError(422, 'La contraseña debe tener al menos 6 caracteres');
+    if (input.password.length < 12) throw new ApiError(422, 'La contraseña debe tener al menos 12 caracteres');
     if (this.seed.users.some(u => u.email === email)) throw new ApiError(422, 'El email ya está registrado');
     if (this.seed.users.some(u => u.username === username)) throw new ApiError(422, 'El nombre de usuario ya está en uso');
     this.seed.users.push({ id: `usr-${this.seed.users.length + 1}`, username, displayName: `${input.firstName.trim()} ${input.lastName.trim()}`, email, role: 'user', active: true, phone: input.phone.trim(), companyIds: [] });

@@ -235,7 +235,7 @@ async function desktop() {
   current = 'Aislamiento de red del navegador';
   const apiPaths = [...new Set(b.requestLog.map(r => new URL(r.url).pathname).filter(p => p.startsWith('/api')).map(p => p.replace(/\/(\d+|id-con[\w-]+)(?=\/|$)/g, '/:id')))].sort();
   ok('todas las solicitudes van al origen local de la aplicación', b.requests.every(u => u.startsWith(FRONT) || u.startsWith('data:') || u.startsWith('about:')), `${b.requests.length} solicitudes`);
-  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/:id|reportes\/id\/:id\/visor|asignacion|empresas|users|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
+  ok('solo se usan los endpoints autorizados', apiPaths.every(p => /^\/api\/(login|logout|user\/profile|reportes|reportes\/:id|reportes\/id\/:id\/visor|asignacion|empresas|users|users\/capabilities|empresa-usuario|empresa-reporte-usuario)$/.test(p)), apiPaths.join(', '));
   const lists = b.requestLog.filter(r => /\/api\/(reportes|asignacion|empresas)(\?|$)/.test(r.url));
   ok('todos los listados piden view=minimal y páginas de 100 como máximo', lists.length > 0 && lists.every(r => new URL(r.url).searchParams.get('view') === 'minimal' && Number(new URL(r.url).searchParams.get('per_page')) <= 100 && new URL(r.url).searchParams.has('page')), `${lists.length} solicitudes de listado`);
   ok('el detalle de informe pide view=minimal', b.requestLog.filter(r => /\/api\/reportes\/\d+(\?|$)/.test(r.url)).every(r => r.url.includes('view=minimal')));
@@ -279,6 +279,47 @@ async function adminFlow() {
   ok('persistió en MySQL con rol user, activo y sin elegirlos desde React', created?.role === 'user' && created?.is_active === true);
   ok('la petición de alta no envía role, is_active ni session_version', (() => { const post = b.requestLog.filter(r => r.method === 'POST' && r.url.endsWith('/api/register')).at(-1); return Boolean(post) && !/role|is_active|session_version/.test(post.postData ?? ''); })());
   await b.shot(join(shots, '33-usuario-creado.png'));
+
+  // UX-08B.3: gestión de usuarios contra PHP real. Sin el interruptor del servidor no hay botones; con él (QA_USER_ADMIN=1) se prueba el ciclo completo.
+  const clickAria = label => b.eval(`(() => { const e = [...document.querySelectorAll('button')].find(x => x.getAttribute('aria-label') === ${JSON.stringify(label)}); if (!e) return false; e.click(); return true; })()`);
+  const hasAria = label => b.eval(`[...document.querySelectorAll('button')].some(x => x.getAttribute('aria-label') === ${JSON.stringify(label)})`);
+  const userRow = () => findUser('operador.prueba');
+  if (process.env.QA_USER_ADMIN !== '1') {
+    ok('interruptor del servidor apagado: no hay botones de edición, estado ni rol (solo «Accesos»)', !(await hasAria('Editar Operador Prueba')) && !(await hasAria('Desactivar a Operador Prueba')) && await hasAria('Ver accesos de Operador Prueba'));
+    const off = await nodeApi('POST', `/api/users/${created.id}/deactivate`, adminTok, {});
+    ok('con el interruptor apagado el servidor responde 404 a la desactivación y no cambia nada', off.success === false && (await userRow())?.is_active === true);
+  } else {
+    await b.wait(600);
+    ok('interruptor encendido: aparecen los botones de gestión', await hasAria('Editar Operador Prueba') && await hasAria('Desactivar a Operador Prueba') && await hasAria('Cambiar rol de Operador Prueba'));
+    // Los usuarios del fixture comparten nombre: la propia cuenta se reconoce por la etiqueta «Usted».
+    ok('el administrador no tiene botones de estado ni de rol sobre su propia cuenta', await b.eval(`(() => { const row = [...document.querySelectorAll('tbody tr')].find(r => r.innerText.includes('Usted')); return Boolean(row) && ![...row.querySelectorAll('button')].some(x => /^(Desactivar a|Reactivar a|Cambiar rol de) /.test(x.getAttribute('aria-label') ?? '')); })()`));
+    await clickAria('Editar Operador Prueba'); await b.wait(1000);
+    ok('editar carga el detalle real del servidor', await b.eval(`document.querySelector('#ue-first')?.value === 'Operador' && document.querySelector('#ue-email')?.value === 'operador.prueba@example.invalid'`));
+    await b.type('#ue-phone', '988 777 666');
+    await b.click('.modal form button[type=submit]'); await b.wait(1200);
+    ok('edición confirmada por PHP y reflejada', (await body(b)).includes('actualizado correctamente') && (await nodeApi('GET', `/api/users/${created.id}`, adminTok)).data.phone === '988 777 666');
+    const detail = (await nodeApi('GET', `/api/users/${created.id}`, adminTok)).data;
+    ok('el detalle no expone contraseña, hash ni versión de sesión', !('password' in detail) && !('session_version' in detail) && !JSON.stringify(detail).includes('$2y$'));
+    await clickAria('Desactivar a Operador Prueba'); await b.wait(600);
+    ok('desactivar explica el efecto sobre las sesiones', (await text(b, '.modal')).includes('Se cerrarán sus sesiones'));
+    await b.click('.modal form button[type=submit]'); await b.wait(1300);
+    ok('baja lógica en MySQL (la fila existe, is_active=0)', (await userRow())?.is_active === false && (await body(b)).includes('desactivado correctamente'));
+    const blocked = await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD });
+    ok('el usuario desactivado ya no puede iniciar sesión', blocked.success !== true);
+    await b.select('#us-status', 'inactive'); await b.wait(600);
+    await clickAria('Reactivar a Operador Prueba'); await b.wait(600);
+    await b.click('.modal form button[type=submit]'); await b.wait(1300);
+    ok('reactivado: vuelve a ser activo y puede iniciar sesión con su contraseña', (await userRow())?.is_active === true && (await nodeApi('POST', '/api/login', null, { login: 'operador.prueba', password: PASSWORD })).success === true);
+    await navTo(b, 'Usuarios'); await b.wait(900);
+    await clickAria('Cambiar rol de Operador Prueba'); await b.wait(600);
+    await b.click('.modal form button[type=submit]'); await b.wait(1300);
+    ok('cambio de rol a administrador confirmado por PHP', (await userRow())?.role === 'admin');
+    await clickAria('Cambiar rol de Operador Prueba'); await b.wait(600);
+    await b.click('.modal form button[type=submit]'); await b.wait(1300);
+    ok('el rol vuelve a usuario y queda como estaba', (await userRow())?.role === 'user');
+    const writes = b.requestLog.filter(r => ['PUT', 'POST', 'DELETE'].includes(r.method) && /\/api\/(users|user)\//.test(r.url));
+    ok('todas las escrituras de usuarios se pidieron con el contrato 2', writes.length >= 5 && writes.every(r => r.contract === '2'));
+  }
 
   current = 'UX-07A · asignación de accesos';
   ok('la fila del usuario ofrece «Asignar accesos»', await b.eval(`[...document.querySelectorAll('tbody tr')].some(r => r.textContent.includes('Operador Prueba') && r.querySelector('a[href*="accesos/nueva"]'))`));
