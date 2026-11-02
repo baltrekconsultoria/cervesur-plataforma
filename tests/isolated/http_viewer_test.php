@@ -51,7 +51,7 @@ $before = (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte');
 expectCase(($d['success'] ?? true) === false && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $before && !preg_match('/SQLSTATE|grupo_id|Column|PDO/i', $GLOBALS['lastResponse']), 'before the migration a link-only report is refused without leaking database detail');
 $longToken = str_repeat('A', 400);
 [$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Enlace largo', 'enlace' => "https://app.powerbi.com/view?r=$longToken"], $admin);
-expectCase(($d['success'] ?? true) === false && stripos($d['message'] ?? '', 'migraci') !== false, 'before the migration a link longer than the column explains that the migration is required');
+expectCase(($d['success'] ?? true) === false && stripos($d['message'] ?? '', 'supera el máximo') !== false && str_contains($d['message'] ?? '', '255') && stripos($d['message'] ?? '', 'UX-07C') === false, 'before the migration a link longer than the column is refused and states the real column length (no longer recommends the UX-07C migration)');
 runSqlFile($pdo, $migration);
 expectCase(scalar($pdo, "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reporte' AND COLUMN_NAME = 'grupo_id'") === 'YES' && (int)scalar($pdo, "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reporte' AND COLUMN_NAME = 'enlace'") === 1024, 'the migration makes grupo_id optional and widens the link to 1024');
 expectCase((int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $before, 'the migration keeps every existing row');

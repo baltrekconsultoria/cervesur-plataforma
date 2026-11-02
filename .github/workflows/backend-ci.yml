@@ -199,8 +199,8 @@ jobs:
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/seed_users.php
           for spec in "appu:$appu_name:1" "appuoff:$appuoff_name:0"; do
             alias="${spec%%:*}"; rest="${spec#*:}"; name="${rest%%:*}"; flag="${rest##*:}"
-            extra=""; [ "$flag" = "1" ] && extra="--env USER_ADMIN_WRITES=1 --env REACT_STRICT_VIEWS=1"
-            docker run --detach --name "$name" --network "$network_name" --network-alias "$alias"               --read-only --tmpfs /tmp               --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work               --env DB_HOST=db --env DB_NAME=fixture_u --env DB_USER=root --env DB_PASS               --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4               --env AUDIT_LOG_MODE=required $extra               cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+            extra=(); [ "$flag" = "1" ] && extra=(--env USER_ADMIN_WRITES=1 --env REACT_STRICT_VIEWS=1)
+            docker run --detach --name "$name" --network "$network_name" --network-alias "$alias"               --read-only --tmpfs /tmp               --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work               --env DB_HOST=db --env DB_NAME=fixture_u --env DB_USER=root --env DB_PASS               --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4               --env AUDIT_LOG_MODE=required "${extra[@]}"               cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
           done
           sleep 1
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env JWT_SECRET             cervesur-ci-php:local php tests/isolated/http_users_admin_test.php
