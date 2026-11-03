@@ -38,6 +38,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 [hidden] { display: none !important; }
 h1, h2, h3, p { margin-top: 0; }
+/* Títulos largos sin espacios (p. ej. DASHBOARD_PRESUPUESTAL_CERVESUR_031) se parten en lugar de invadir a las tarjetas vecinas. */
+h1, h2, h3 { overflow-wrap: anywhere; hyphens: auto; }
 h1 { font-size: 1.2rem; margin-bottom: 0; line-height: 1.25; }
 h2 { font-size: 1.02rem; margin-bottom: .25rem; line-height: 1.3; }
 h3 { font-size: .95rem; margin-bottom: .3rem; }
@@ -94,8 +96,10 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .topbar { position: sticky; top: 0; z-index: 5; min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem clamp(1rem, 2.5vw, 2rem); background: #fff; border-bottom: 1px solid var(--line); }
 .app-shell.is-admin .topbar { border-bottom: 3px solid var(--wine-700); }
 .topbar-title { min-width: 0; }
+.topbar-title h1 { overflow-wrap: anywhere; }
 #page-title:focus { outline: none; }
 .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; min-height: 1.1rem; color: var(--ink-600); font-size: .76rem; }
+.breadcrumb > * { min-width: 0; overflow-wrap: anywhere; }
 .breadcrumb a { color: var(--brown-700); }
 .breadcrumb .sep { color: #9a968d; }
 .breadcrumb [aria-current] { color: var(--ink-900); font-weight: 650; }
@@ -120,15 +124,18 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 
 /* Tarjetas */
 .grid { display: grid; gap: .75rem; }
-.report-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.company-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.report-grid { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.company-grid { grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); }
 .metric-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .card, .table-wrap, .empty-state, .step-panel, .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.card { display: flex; flex-direction: column; gap: .5rem; padding: .85rem; }
+.card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; padding: .85rem; }
+.card > div { min-width: 0; }
+.card p { overflow-wrap: anywhere; }
 .card p { margin: 0; color: var(--ink-700); font-size: .88rem; }
 .card h2 { margin: 0; }
-.card footer { display: flex; justify-content: space-between; align-items: center; gap: .6rem; margin-top: auto; padding-top: .55rem; border-top: 1px solid var(--line); }
-.card .company { color: var(--ink-700); font-size: .8rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.card footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-top: auto; padding-top: .55rem; border-top: 1px solid var(--line); }
+.card .company { flex: 1 1 8rem; color: var(--ink-700); font-size: .8rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.card footer .btn { flex: 0 0 auto; margin-left: auto; }
 .report-card:hover { border-color: #b9ad94; box-shadow: 0 2px 8px rgba(42,35,24,.08); }
 .panel { padding: .9rem; }
 .panel + .panel { margin-top: .75rem; }
@@ -136,7 +143,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .metric:hover { border-color: #b9ad94; }
 .metric strong { display: block; font-size: 1.6rem; line-height: 1.15; }
 .metric .muted { margin: 0; }
-.tag { display: inline-flex; align-items: center; width: fit-content; padding: .1rem .5rem; border-radius: 99px; color: var(--brown-900); background: var(--gold-100); font-size: .72rem; font-weight: 750; white-space: nowrap; }
+.tag { display: inline-flex; max-width: 100%; overflow-wrap: anywhere; align-items: center; width: fit-content; padding: .1rem .5rem; border-radius: 99px; color: var(--brown-900); background: var(--gold-100); font-size: .72rem; font-weight: 750; }
 .tag--ok { color: var(--success); background: var(--success-bg); }
 .tag--off { color: var(--off); background: var(--off-bg); }
 .tag--warn { color: #633d00; background: var(--warn-bg); }
@@ -161,18 +168,28 @@ tr.is-off td:not(.actions-cell) { color: var(--ink-600); }
 /* Visor */
 .viewer { display: grid; gap: .75rem; }
 .viewer-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.viewer-head > div { flex: 1 1 18rem; min-width: 0; }
+.viewer-head .btn { flex: 0 1 auto; max-width: 100%; text-align: center; }
+.viewer-head p { overflow-wrap: anywhere; }
 .viewer-meta { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .3rem; }
 .sibling-nav { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .82rem; color: var(--ink-700); }
-.sibling-nav a { padding: .15rem .55rem; border: 1px solid var(--line); border-radius: 99px; color: var(--brown-900); background: #fff; text-decoration: none; font-weight: 650; }
+.sibling-nav a { max-width: 100%; overflow-wrap: anywhere; padding: .15rem .55rem; border: 1px solid var(--line); border-radius: 99px; color: var(--brown-900); background: #fff; text-decoration: none; font-weight: 650; }
 .sibling-nav a:hover { background: var(--gold-100); }
 .powerbi-mock { display: grid; place-items: center; min-height: clamp(280px, 52vh, 560px); overflow: hidden; border-radius: var(--radius); color: #fff; background: linear-gradient(145deg, #251809, #6f2426 56%, #b4872d); text-align: center; }
 .powerbi-mock .mock-inner { width: min(480px, 90%); padding: 1.5rem; border: 1px solid rgba(255,255,255,.38); border-radius: 12px; background: rgba(0,0,0,.2); }
 .powerbi-icon { font-size: 2rem; }
 
-/* Visor de Power BI (UX-07C) */
+/* Visor de Power BI (UX-07C). UX-07E.C: el informe ocupa el área principal (casi toda la altura de la ventana y todo el ancho disponible); los demás informes van en una ventana. */
+:root { --viewer-h: clamp(420px, calc(100vh - 12rem), 1400px); }
+.view:has(.viewer) { max-width: none; }
+.viewer { gap: .5rem; }
+.viewer-head { align-items: center; }
+.viewer-head h2 { margin: 0; }
+.viewer-head .muted { margin: 0; }
+.viewer-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-left: auto; }
 .powerbi-frame-wrap { display: grid; gap: .5rem; }
-.powerbi-frame { position: relative; min-height: clamp(320px, 62vh, 760px); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
-.powerbi-frame iframe { display: block; width: 100%; height: clamp(320px, 62vh, 760px); border: 0; background: #fff; }
+.powerbi-frame { position: relative; min-height: var(--viewer-h); overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.powerbi-frame iframe { display: block; width: 100%; height: var(--viewer-h); border: 0; background: #fff; }
 .powerbi-frame-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; margin: 0; padding: 1rem; text-align: center; color: var(--ink-700); background: rgba(255,255,255,.85); pointer-events: none; }
 .powerbi-frame[data-state="frame-loaded"] .powerbi-frame-loading { display: none; }
 .viewer-help a { font-weight: 650; }
@@ -291,3 +308,22 @@ a.metric { color: inherit; }
 .modal-error { margin: 0; padding: .5rem 1.1rem; border-top: 1px solid var(--line); background: #fbeeee; }
 .modal-body .form-note { margin-top: .1rem; }
 .config-error { max-width: 560px; margin: 4rem auto; padding: 1.5rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+
+/* Piloto visual (UX-07D.4): aviso permanente de contexto. */
+.pilot-banner { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 8px 20px; background: #fff4d6; color: #5c4400; border-bottom: 2px solid #e0b44a; font-size: 13px; line-height: 1.4; }
+.pilot-banner strong { letter-spacing: .02em; }
+@media (prefers-color-scheme: dark) { .pilot-banner { background: #3a2f10; color: #ffe9a8; border-bottom-color: #8a6a1d; } }
+
+/* «Otros informes» (UX-07E.C) */
+.modal:has(.report-picker) { width: min(780px, calc(100% - 2rem)); }
+.report-picker-count { margin: 0; font-size: .82rem; }
+.report-picker-empty { padding: 1rem; text-align: center; }
+.report-picker-list { max-height: min(55vh, 30rem); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.report-picker-list h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: .35rem .75rem; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-700); overflow-wrap: anywhere; }
+.report-picker-list ul { margin: 0; padding: 0; list-style: none; }
+.report-picker-list a { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem .8rem; padding: .55rem .75rem; border-bottom: 1px solid var(--surface-2); color: inherit; text-decoration: none; }
+.report-picker-list a:hover, .report-picker-list a:focus-visible { background: var(--gold-100); outline: none; box-shadow: inset 3px 0 0 var(--gold-500); }
+.rp-name { flex: 1 1 14rem; min-width: 0; font-weight: 650; overflow-wrap: anywhere; }
+.rp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; }
+.rp-code { font-size: .76rem; color: var(--ink-700); overflow-wrap: anywhere; }
+@media (max-width: 760px) { :root { --viewer-h: clamp(380px, calc(100vh - 11rem), 1400px); } .viewer-actions { margin-left: 0; width: 100%; } .viewer-actions .btn { flex: 1 1 100%; } }

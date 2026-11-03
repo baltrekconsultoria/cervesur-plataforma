@@ -127,7 +127,9 @@ describe('catálogo por empresa (proveedor con relación empresa–informe, sin 
     await user.click(await screen.findByRole('link', { name: 'Abrir informe Ventas regionales' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Ventas regionales' })).toBeInTheDocument();
     expect(document.querySelector('.viewer-meta')?.textContent).toContain('Empresa A · Empresa B');
-    expect(screen.getByText(/Más informes de Empresa A · Empresa B/)).toBeInTheDocument();
+    // UX-07E.C: los otros informes van en una ventana («Otros informes»), no como etiquetas encima del visor
+    expect(screen.getByRole('button', { name: /Otros informes \(\d+\)/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Más informes de/)).toBeNull();
   });
 
   it('un error al componer el catálogo no muestra resultados parciales y permite reintentar', async () => {

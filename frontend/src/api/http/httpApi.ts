@@ -46,7 +46,7 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  */
 export class HttpApiClient implements ApiClient {
   // El nombre del grupo no existe en ninguna fuente real: el filtro de grupo permanece oculto.
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: true, liveViewer: true };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: import.meta.env.VITE_PILOT_MODE !== 'admin', liveViewer: true }; // piloto administrativo (UX-07E.B): solo lectura, sin acciones de escritura en la interfaz
   private readonly baseUrl: string;
   private readonly tokens: TokenStore;
   private readonly fetchImpl: typeof fetch;

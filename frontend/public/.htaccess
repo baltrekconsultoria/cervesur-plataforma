@@ -48,7 +48,8 @@ RewriteRule ^ index.html [L]
   # frame-src: único origen externo permitido = el visor público oficial de Power BI («Publicar en web»).
   Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://app.powerbi.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
   # HSTS solo cuando la solicitud llegó por HTTPS (sin includeSubDomains: no afecta a otros subdominios, p. ej. el de Flutter).
-  <If "%{HTTPS} == 'on'">
+  # No se emite para localhost ni para direcciones IP (los navegadores ignoran HSTS en una IP; en localhost afectaría a otros túneles): HSTS es por NOMBRE (no por puerto) y obligaría al navegador a usar HTTPS en los túneles SSH de los otros portales (8088-8091).
+  <If "%{HTTPS} == 'on' && %{HTTP_HOST} !~ /^(localhost|[0-9]{1,3}(\.[0-9]{1,3}){3}|\[::1\])(:[0-9]+)?$/">
     Header always set Strict-Transport-Security "max-age=31536000"
   </If>
 </IfModule>

@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../lib/pagination.php';
 require_once __DIR__ . '/../lib/status_filter.php';
 require_once __DIR__ . '/../lib/write_support.php';
+require_once __DIR__ . '/../lib/mode.php';
 
 /**
  * Modelo para la tabla empresa
@@ -37,16 +38,24 @@ class EmpresaModel {
         return $empresa;
     }
 
+    /**
+     * Columnas de credenciales de Power BI que se leen en los listados. En modo de solo lectura/diagnóstico (UX-07D.3A) NO se leen: la cuenta de base de
+     * datos del piloto no tiene permiso sobre ellas y, además, no deben viajar a ningún cliente.
+     */
+    private function powerbiColumns() {
+        return app_mode_is_read_only() ? '' : 'e.powerbi_tenant, e.powerbi_client, ';
+    }
+
     public function getAll($user_id, $role = 'user', $pagination = null, &$total = null, $status = 'active') {
         $params = [];
-        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE ' . status_sql('e.activo', $status) . $this->visibleEmpresaSql($user_id, $role, $params);
+        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, ' . $this->powerbiColumns() . 'e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE ' . status_sql('e.activo', $status) . $this->visibleEmpresaSql($user_id, $role, $params);
         [$rows, $total] = paginated_rows($this->pdo, $sql, $params, 'e.nombre ASC, e.id ASC', $pagination);
         return array_map([$this, 'withoutSecrets'], $rows);
     }
 
     public function getById($id, $user_id, $role = 'user') {
         $params = [':id' => $id];
-        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.id = :id AND e.activo = 1' . $this->visibleEmpresaSql($user_id, $role, $params) . ' LIMIT 1';
+        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, ' . $this->powerbiColumns() . 'e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.id = :id AND e.activo = 1' . $this->visibleEmpresaSql($user_id, $role, $params) . ' LIMIT 1';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $this->withoutSecrets($stmt->fetch(PDO::FETCH_ASSOC));
@@ -224,7 +233,7 @@ class EmpresaModel {
      */
     public function search($search, $user_id, $role = 'user') {
         $params = [':search1' => "%$search%", ':search2' => "%$search%", ':search3' => "%$search%"];
-        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1 AND (e.nombre LIKE :search1 OR e.ruc LIKE :search2 OR e.razon_social LIKE :search3)' . $this->visibleEmpresaSql($user_id, $role, $params) . ' ORDER BY e.nombre ASC';
+        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, ' . $this->powerbiColumns() . 'e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1 AND (e.nombre LIKE :search1 OR e.ruc LIKE :search2 OR e.razon_social LIKE :search3)' . $this->visibleEmpresaSql($user_id, $role, $params) . ' ORDER BY e.nombre ASC';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return array_map([$this, 'withoutSecrets'], $stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -232,7 +241,7 @@ class EmpresaModel {
 
     public function getByCity($ciudad, $user_id, $role = 'user') {
         $params = [':ciudad' => $ciudad];
-        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, e.powerbi_tenant, e.powerbi_client, e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1 AND e.ciudad = :ciudad' . $this->visibleEmpresaSql($user_id, $role, $params) . ' ORDER BY e.nombre ASC';
+        $sql = 'SELECT e.id, e.nombre, e.razon_social, e.ruc, e.email, e.telefono, e.website, e.direccion, e.ciudad, e.pais, ' . $this->powerbiColumns() . 'e.logo, e.contacto_principal, e.created_by, e.updated_by, e.created_at, e.updated_at, e.activo FROM empresa e WHERE e.activo = 1 AND e.ciudad = :ciudad' . $this->visibleEmpresaSql($user_id, $role, $params) . ' ORDER BY e.nombre ASC';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return array_map([$this, 'withoutSecrets'], $stmt->fetchAll(PDO::FETCH_ASSOC));

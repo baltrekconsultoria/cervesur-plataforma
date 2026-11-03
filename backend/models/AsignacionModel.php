@@ -83,7 +83,7 @@ class AsignacionModel {
         try {
             $params = ['id' => $id];
             $scope = $this->visibleScope($userId, $role, $params);
-            $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
+            $sql = "SELECT er.id, er.empresa_id, er.reporte_id, er.notas, er.created_by, er.updated_by, er.created_at, er.updated_at, er.activo, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id
@@ -105,7 +105,7 @@ class AsignacionModel {
         try {
             $params = ['empresa_id' => $empresa_id];
             $scope = $this->visibleScope($userId, $role, $params);
-            $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
+            $sql = "SELECT er.id, er.empresa_id, er.reporte_id, er.notas, er.created_by, er.updated_by, er.created_at, er.updated_at, er.activo, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id
@@ -128,7 +128,7 @@ class AsignacionModel {
         try {
             $params = ['reporte_id' => $reporte_id];
             $scope = $this->visibleScope($userId, $role, $params);
-            $sql = "SELECT er.*, e.nombre as empresa_nombre, r.nombre as reporte_nombre
+            $sql = "SELECT er.id, er.empresa_id, er.reporte_id, er.notas, er.created_by, er.updated_by, er.created_at, er.updated_at, er.activo, e.nombre as empresa_nombre, r.nombre as reporte_nombre
                     FROM empresa_reporte er
                     INNER JOIN empresa e ON er.empresa_id = e.id
                     INNER JOIN reporte r ON er.reporte_id = r.id

@@ -1,9 +1,11 @@
-import { Link, useLocation, useParams } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useParams } from 'react-router';
 import { isApiError, isDenied } from '../../api/errors';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { DeniedState } from '../../components/DeniedState';
-import { ButtonLink, ErrorState, LoadingState, Tag } from '../../components/ui';
+import { Button, ButtonLink, ErrorState, LoadingState, Tag } from '../../components/ui';
+import { OtherReportsDialog } from '../../components/OtherReportsDialog';
 import { ViewerPanel } from './ViewerPanel';
 import { useAsync } from '../../lib/useAsync';
 
@@ -25,6 +27,10 @@ function ViewerContent({ reportId }: { reportId: string }) {
   const filtersKept = from.includes('?');
   const back = { label: backLabel, to: from };
 
+  const [picker, setPicker] = useState(false);
+  const opener = useRef<HTMLElement | null>(null);
+  // Al cerrar la ventana el foco vuelve al botón que la abrió (se hace DESPUÉS de desmontar el <dialog>: mientras es modal, el resto de la página es inerte).
+  useEffect(() => { if (!picker) opener.current?.focus(); }, [picker]);
   const data = useAsync(async () => {
     // El informe se pide primero: si el servidor lo deniega no se consulta nada más sobre él.
     const report = await api.getReport(reportId);
@@ -38,7 +44,9 @@ function ViewerContent({ reportId }: { reportId: string }) {
     return {
       report,
       companies: owned,
-      siblings: owned.length ? reports.filter(r => r.id !== report.id && r.active && r.companyIds.some(id => known.includes(id))) : []
+      // Trabajador: los otros informes de sus empresas. Administrador: todos los demás informes del catálogo (activos o no) para pasar de uno a otro sin volver al listado.
+      siblings: admin ? reports.filter(r => r.id !== report.id) : owned.length ? reports.filter(r => r.id !== report.id && r.active && r.companyIds.some(id => known.includes(id))) : [],
+      allCompanies: companies
     };
   }, [api, reportId, version]);
 
@@ -51,7 +59,7 @@ function ViewerContent({ reportId }: { reportId: string }) {
     return <Page title="Informe" crumbs={[back, { label: 'Informe' }]}><ErrorState onRetry={bump} /></Page>;
   }
 
-  const { report, companies: owners, siblings } = data.data;
+  const { report, companies: owners, siblings, allCompanies } = data.data;
   const ownerNames = owners.map(c => c.name).join(' · ');
   return (
     <Page title={report.name} crumbs={[back, ...(ownerNames ? [{ label: ownerNames }] : []), { label: report.name }]}>
@@ -62,11 +70,12 @@ function ViewerContent({ reportId }: { reportId: string }) {
             <h2>{report.name}</h2>
             <p className="muted">{report.description}</p>
           </div>
-          <ButtonLink to={from} state={{ focusId: report.id }} variant="secondary">← Volver a {backLabel}{filtersKept ? ' (filtros conservados)' : ''}</ButtonLink>
+          <div className="viewer-actions">
+            {siblings.length > 0 && <Button variant="secondary" aria-haspopup="dialog" onClick={event => { opener.current = event.currentTarget; setPicker(true); }}>Otros informes ({siblings.length})</Button>}
+            <ButtonLink to={from} state={{ focusId: report.id }} variant="secondary">← Volver a {backLabel}{filtersKept ? ' (filtros conservados)' : ''}</ButtonLink>
+          </div>
         </div>
-        {siblings.length > 0 && (
-          <div className="sibling-nav">Más informes de {ownerNames}: {siblings.map(s => <Link key={s.id} to={`/reportes/${encodeURIComponent(s.id)}`} state={{ from }}>{s.name}</Link>)}</div>
-        )}
+        {picker && <OtherReportsDialog reports={siblings} companies={allCompanies} from={from} onClose={() => setPicker(false)} />}
         <ViewerPanel reportId={report.id} title={report.name} />
       </section>
     </Page>

@@ -128,6 +128,17 @@ if ($method === 'POST' && $uri === '/api/logout') {
     // Obtener usuario autenticado (requiere header Authorization: Bearer ...)
     $user = require_auth($jwt_secret);
 
+    // Solo lectura (UX-07D.3A): el cierre de sesión NO escribe en la base de datos (no sube session_version, columna que Flutter podría compartir).
+    // El cliente descarta el token y este expira solo (JWT_EXPIRATION corto en el piloto).
+    if (app_mode_is_read_only()) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Sesión cerrada en el cliente. En modo de solo lectura el servidor no revoca tokens: expiran solos.',
+            'revoked_server_side' => false
+        ]);
+        exit;
+    }
+
     try {
         // Invalidar todas las sesiones/token de este usuario incrementando session_version
         $stmt = $pdo->prepare(

@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { initials } from '../lib/text';
 import { useApp } from './AppProvider';
 import { DemoControls } from './DemoControls';
+import { isAdminPilot, isPilotBuild, pilotBanner, pilotNote } from './pilot';
 
 interface LayoutContextValue { drawerOpen: boolean; setDrawerOpen: (open: boolean) => void }
 const LayoutContext = createContext<LayoutContextValue | null>(null);
@@ -47,7 +48,7 @@ export function AppLayout(): ReactNode {
     return () => { document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); };
   }, []);
 
-  const items = admin ? ADMIN_NAV : USER_NAV;
+  const items = admin ? (isAdminPilot() ? ADMIN_NAV.filter(item => !('to' in item) || item.to !== '/admin/asociaciones') : ADMIN_NAV) : USER_NAV;
   return (
     <LayoutContext.Provider value={{ drawerOpen, setDrawerOpen }}>
       <a className="skip-link" href="#view">Saltar al contenido</a>
@@ -69,7 +70,10 @@ export function AppLayout(): ReactNode {
             <button type="button" className="text-button" onClick={() => { void logout(); }}>Cerrar sesión</button>
           </div>
         </aside>
-        <section className="main-column"><Outlet /></section>
+        <section className="main-column">
+          {isPilotBuild() && <div className="pilot-banner" role="note"><strong>{pilotBanner()}</strong><span>{pilotNote()}</span></div>}
+          <Outlet />
+        </section>
       </div>
     </LayoutContext.Provider>
   );

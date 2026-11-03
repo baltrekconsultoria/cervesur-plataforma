@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# PREFLIGHT A · INFRAESTRUCTURA del diagnóstico de solo lectura (UX-07D.3B). SOLO LECTURA: no modifica nada y no necesita la cuenta MySQL de diagnóstico.
+#   sudo bash scripts/preflight-infra.sh
+# Código de salida: 0 = todas las comprobaciones pasan · 1 = alguna falla.
+# Comprueba: Apache y módulos, PHP y extensiones, puerto 8090 libre, ausencia de colisiones, integridad del paquete, disponibilidad de Flutter/8088/8089,
+# MySQL (activo, TCP local, versión, base de lectura existente: solo metadatos) y espacio en disco.
+set -uo pipefail
+PAQ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib.sh
+source "$PAQ/scripts/lib.sh"
+requerir_root
+verificar_no_colision
+
+errores=0
+chk() { local descripcion=$1; shift; if "$@" >/dev/null 2>&1; then ok "$descripcion"; else fallo "$descripcion"; errores=$((errores + 1)); fi; }
+sin_nada_en_puerto() { [ -z "$(ss -ltnH "sport = :$PUERTO")" ]; }
+no_existe() { [ ! -e "$1" ] && [ ! -L "$1" ]; }
+mysql_tcp_local() { local escuchas; escuchas=$(ss -ltnH 'sport = :3306' | awk '{print $4}'); grep -qE '^(127\.0\.0\.1|0\.0\.0\.0|\*|\[::\]):3306$' <<<"$escuchas"; }
+espacio_libre() { [ "$(df --output=avail -k "$1" | tail -1 | tr -d ' ')" -ge 512000 ]; }
+responde() { local c; c=$(curl -sS -m 6 -o /dev/null -w '%{http_code}' "$1" 2>/dev/null) || return 1; [ "$c" -ge 200 ] && [ "$c" -lt 500 ]; }
+version_mysql_ok() { # >= 5.7.20 (primer lanzamiento con @@session.transaction_read_only); recomendado 8.0
+  local v; v=$($MYSQL_ADMIN -N -e 'SELECT VERSION()') || return 1
+  printf '%s\n5.7.20\n' "${v%%-*}" | sort -V -C -r
+}
+base_lectura_existe() { [ -n "$($MYSQL_ADMIN -N -e "SHOW DATABASES LIKE '$DB_NOMBRE'")" ]; }
+
+echo "== Preflight A · infraestructura (solo lectura)"
+if grep -q 'VERSION_ID="24.04"' /etc/os-release; then ok "Ubuntu 24.04"; else aviso "No es Ubuntu 24.04: revise antes de continuar"; fi
+ok "sin colisión de nombres, rutas, puertos, cuenta ni cookie con Flutter (80), el React de prueba (8088) y el de compatibilidad (8089)"
+chk "Apache: configuración actual válida (configtest)" apache2ctl configtest
+chk "mod_alias activo" modulo_apache alias
+chk "PHP integrado en Apache (mod_php)" modulo_apache 'php[0-9]*'
+chk "mod_headers YA cargado (lo habilitó el instalador de 8088; este instalador no lo toca jamás)" modulo_apache headers
+# shellcheck disable=SC2016  # el código PHP va entre comillas simples a propósito
+chk "PHP con las extensiones del backend (pdo_mysql, mbstring, json, openssl)" php -r 'foreach (["pdo_mysql", "mbstring", "json", "openssl"] as $e) { if (!extension_loaded($e)) { exit(1); } }'
+chk "PHP >= 8.0 (el backend usa tipos de unión)" php -r 'exit(version_compare(PHP_VERSION, "8.0.0", ">=") ? 0 : 1);'
+chk "openssl, curl y sha256sum disponibles" bash -c "command -v openssl && command -v curl && command -v sha256sum"
+chk "MySQL local en ejecución" mysql_activo
+chk "MySQL escucha en 127.0.0.1:3306 (el backend conecta por TCP local)" mysql_tcp_local
+# shellcheck disable=SC2086
+chk "acceso de LECTURA de metadatos a MySQL (CERVESUR_MYSQL_ADMIN si no es root por socket)" $MYSQL_ADMIN -N -e 'SELECT 1'
+chk "versión de MySQL >= 5.7.20 (necesaria para la sesión de solo lectura verificable)" version_mysql_ok
+chk "la base de lectura $DB_NOMBRE existe (solo se comprueba su existencia; no se consulta)" base_lectura_existe
+for ruta in "$DIR_BACK" "$DIR_CONF" "$DIR_VAR" "$SITE_CONF" "$SITE_ENABLED"; do chk "no existe $ruta" no_existe "$ruta"; done
+chk "puerto $PUERTO libre" sin_nada_en_puerto
+chk "ninguna configuración de Apache menciona el puerto $PUERTO" bash -c "! grep -RqsE '(^|[^0-9])$PUERTO([^0-9]|\$)' /etc/apache2/ports.conf /etc/apache2/sites-enabled /etc/apache2/conf-enabled"
+chk "espacio libre suficiente en /var y /opt (>= 500 MB)" bash -c "$(declare -f espacio_libre); espacio_libre /var && espacio_libre /opt"
+chk "integridad del paquete (SHA256SUMS)" bash -c "cd '$PAQ' && sha256sum -c SHA256SUMS --quiet"
+
+echo "-- Portales existentes (solo se comprueba que responden; nunca se escriben)"
+chk "Flutter (puerto $PUERTO_FLUTTER) existe y responde" bash -c "[ -d '$FLUTTER_DIR' ] && $(declare -f responde); responde http://127.0.0.1:$PUERTO_FLUTTER/"
+if [ -e "$SITE_ENABLED_PRUEBA" ]; then chk "React de prueba (8088) instalado y responde" bash -c "$(declare -f responde); responde http://127.0.0.1:$PUERTO_PRUEBA/api/ping"; else aviso "El React de prueba (8088) no está instalado: se omite su huella"; fi
+if [ -e "$SITE_ENABLED_COMPAT" ]; then chk "React de compatibilidad (8089) instalado y responde" bash -c "$(declare -f responde); responde http://127.0.0.1:$PUERTO_COMPAT/api/ping"; else aviso "El React de compatibilidad (8089) no está instalado: se omite su huella"; fi
+
+if [ "$errores" -eq 0 ]; then echo "RESULTADO preflight A (infraestructura): PASS"; exit 0; fi
+echo "RESULTADO preflight A (infraestructura): FAIL ($errores comprobación(es)). No se modificó nada." >&2
+exit 1

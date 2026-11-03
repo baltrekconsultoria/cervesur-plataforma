@@ -14,6 +14,34 @@ function productive_fixture_ddl(PDO $pdo): void {
     $pdo->exec("CREATE TABLE empresa_usuario (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, empresa_id INT UNSIGNED, user_id INT UNSIGNED, notas TEXT, created_by INT UNSIGNED NULL, updated_by INT UNSIGNED NULL, $ts, activo TINYINT(1) NOT NULL DEFAULT 1)");
     $pdo->exec("CREATE TABLE empresa_reporte (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, empresa_id INT UNSIGNED, reporte_id INT UNSIGNED, notas TEXT, created_by INT UNSIGNED NULL, updated_by INT UNSIGNED NULL, $ts, activo TINYINT(1) NOT NULL DEFAULT 1)");
     $pdo->exec("CREATE TABLE user_empresa_reporte (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED, empresa_reporte_id INT UNSIGNED, notas TEXT, created_by INT UNSIGNED NULL, updated_by INT UNSIGNED NULL, $ts, activo TINYINT(1) NOT NULL DEFAULT 1)");
+    productive_fixture_foreign_keys($pdo);
+}
+
+/**
+ * Claves foráneas del esquema sintético. Lo que el inventario real (solo lectura) confirma, y que se reproduce aquí:
+ *   · empresa_reporte → empresa / reporte, empresa_usuario → empresa / user, user_empresa_reporte → empresa_reporte / user: ON DELETE CASCADE;
+ *   · created_by y updated_by: ON DELETE SET NULL;  · toda regla de actualización observada: NO ACTION.
+ * Lo que NO está confirmado y por eso NO se afirma: los nombres de las restricciones, QUÉ tablas llevan exactamente claves created_by/updated_by (aquí se
+ * suponen en las cinco tablas con esas columnas), las restricciones UNIQUE (este fixture solo declara la clave primaria `id`; el inventario real no se ha
+ * contrastado) y los índices. El fixture sirve para demostrar que ninguna ruta del modo de solo lectura dispara un borrado en cascada; NO prueba
+ * equivalencia exacta con el esquema real (eso lo comprueba el procedimiento estructural de solo lectura, sección 7 de
+ * database/schema/UX-07D3A-comparacion-estructural-solo-lectura.sql, ejecutado por un operador autorizado).
+ */
+function productive_fixture_foreign_keys(PDO $pdo): void {
+    $cascade = 'ON DELETE CASCADE ON UPDATE NO ACTION';
+    $setNull = 'ON DELETE SET NULL ON UPDATE NO ACTION';
+    foreach ([
+        "ALTER TABLE empresa_usuario ADD CONSTRAINT fk_eu_empresa FOREIGN KEY (empresa_id) REFERENCES empresa (id) $cascade, ADD CONSTRAINT fk_eu_user FOREIGN KEY (user_id) REFERENCES user (id) $cascade",
+        "ALTER TABLE empresa_reporte ADD CONSTRAINT fk_er_empresa FOREIGN KEY (empresa_id) REFERENCES empresa (id) $cascade, ADD CONSTRAINT fk_er_reporte FOREIGN KEY (reporte_id) REFERENCES reporte (id) $cascade",
+        "ALTER TABLE user_empresa_reporte ADD CONSTRAINT fk_uer_user FOREIGN KEY (user_id) REFERENCES user (id) $cascade, ADD CONSTRAINT fk_uer_er FOREIGN KEY (empresa_reporte_id) REFERENCES empresa_reporte (id) $cascade",
+        "ALTER TABLE reporte ADD CONSTRAINT fk_rep_creado FOREIGN KEY (created_by) REFERENCES user (id) $setNull, ADD CONSTRAINT fk_rep_editado FOREIGN KEY (updated_by) REFERENCES user (id) $setNull",
+        "ALTER TABLE empresa ADD CONSTRAINT fk_emp_creado FOREIGN KEY (created_by) REFERENCES user (id) $setNull, ADD CONSTRAINT fk_emp_editado FOREIGN KEY (updated_by) REFERENCES user (id) $setNull",
+        "ALTER TABLE empresa_usuario ADD CONSTRAINT fk_eu_creado FOREIGN KEY (created_by) REFERENCES user (id) $setNull, ADD CONSTRAINT fk_eu_editado FOREIGN KEY (updated_by) REFERENCES user (id) $setNull",
+        "ALTER TABLE empresa_reporte ADD CONSTRAINT fk_er_creado FOREIGN KEY (created_by) REFERENCES user (id) $setNull, ADD CONSTRAINT fk_er_editado FOREIGN KEY (updated_by) REFERENCES user (id) $setNull",
+        "ALTER TABLE user_empresa_reporte ADD CONSTRAINT fk_uer_creado FOREIGN KEY (created_by) REFERENCES user (id) $setNull, ADD CONSTRAINT fk_uer_editado FOREIGN KEY (updated_by) REFERENCES user (id) $setNull",
+    ] as $sql) {
+        $pdo->exec($sql);
+    }
 }
 
 /**

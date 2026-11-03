@@ -3,6 +3,9 @@ dist/
 dist-qa/
 dist-qa-real/
 dist-production/
+dist-pilot/
+dist-pilot-usuarios/
+dist-pilot-admin/
 coverage/
 .env
 .env.*
