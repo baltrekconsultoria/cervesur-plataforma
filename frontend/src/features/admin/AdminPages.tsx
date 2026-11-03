@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import type { ApiCapabilities, Assignment, Company, Report, User } from '../../api/types';
+import { canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
@@ -118,7 +118,7 @@ export function AdminUsersPage() {
   const [roleChange, setRoleChange] = useState<User | null>(null);
   const [notice, setNotice] = useState('');
   // UX-08B.3: los botones de edición, estado y rol solo aparecen si el SERVIDOR tiene habilitada la administración de usuarios.
-  const userAdmin = useAsync(async () => (capabilities.adminWrites ? api.getUserAdminEnabled().catch(() => false) : false), [api, capabilities.adminWrites]);
+  const userAdmin = useAsync(async () => (canWrite(capabilities, 'usuarios') ? api.getUserAdminEnabled().catch(() => false) : false), [api, capabilities.adminWrites, capabilities.writes]);
   const manage = userAdmin.status === 'ready' && userAdmin.data;
   const paging = usePaging(JSON.stringify(filters.values));
   if (!capabilities.adminDirectory) return <NotIntegrated title="Usuarios" what="El listado de usuarios" />;
@@ -165,7 +165,7 @@ export function AdminUsersPage() {
           { header: 'Empresas', cell: u => (u.role === 'admin' ? <span className="muted">Todas</span> : u.companyIds.map(id => companies.find(c => c.id === id)?.name.replace(/ S\.A\.C\.$/, '')).filter(Boolean).join(', ') || '—') },
           { header: 'Informes', cls: 'num', cell: u => (u.role === 'admin' ? <span className="muted">Todos</span> : accessCount(u)) },
           { header: 'Estado', cell: u => <StatusTag active={u.active} /> },
-          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (u: User) => (
+          ...(canWrite(capabilities, 'usuarios') ? [{ header: 'Acciones', cls: 'actions-cell', cell: (u: User) => (
             <>
               {u.active && u.role === 'user' && !u.loginBlocked && <><Link className="btn btn-secondary btn-sm" to={`/admin/accesos/nueva?user=${encodeURIComponent(u.id)}`} aria-label={`Asignar accesos a ${u.displayName}`}>Asignar accesos</Link>{' '}</>}
               <Button variant="secondary" size="sm" aria-label={`Ver accesos de ${u.displayName}`} onClick={() => { setNotice(''); setViewing(u); }}>Accesos</Button>
@@ -186,7 +186,7 @@ export function AdminUsersPage() {
               <SearchField id="us-q" label="Buscar usuario" placeholder="Nombre, usuario o correo" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="us-role" label="Rol" value={role} onChange={v => filters.set('role', v)} options={[['all', 'Todos'], ['user', 'Usuario'], ['admin', 'Administrador']]} />
               <SelectField id="us-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activos', 'Inactivos')} />
-              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setCreating(true); }}>Nuevo usuario</Button>}
+              {canWrite(capabilities, 'usuarios') && <Button variant="primary" onClick={() => { setNotice(''); setCreating(true); }}>Nuevo usuario</Button>}
             </div>
             <ResultBar shown={rows.length} total={users.length} noun="usuarios" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={u => u.id} rowClass={u => (u.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="usuario" onClear={filters.clear} />}
@@ -234,7 +234,7 @@ export function AdminCompaniesPage() {
           ...(capabilities.reportCompany ? [{ header: 'Informes activos', cls: 'num', cell: (c: Company) => reports.filter(r => r.companyIds.includes(c.id) && r.active).length }] : []),
           ...(capabilities.adminDirectory ? [{ header: 'Usuarios', cls: 'num', cell: (c: Company) => users.filter(u => u.active && u.role === 'user' && u.companyIds.includes(c.id)).length }] : []),
           { header: 'Estado', cell: c => <StatusTag active={c.active} on="Activa" off="Inactiva" /> },
-          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (c: Company) => (
+          ...(canWrite(capabilities, 'empresas') ? [{ header: 'Acciones', cls: 'actions-cell', cell: (c: Company) => (
             c.active ? (
               <>
                 <Button variant="secondary" size="sm" aria-label={`Editar ${c.name}`} onClick={() => { setNotice(''); setEditing(c); }}>Editar</Button>{' '}
@@ -248,7 +248,7 @@ export function AdminCompaniesPage() {
             <div className="toolbar" role="search">
               <SearchField id="ac-q" label="Buscar empresa" placeholder="Nombre, ciudad o RUC" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="ac-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={ACTIVE_OPTIONS('Activas', 'Inactivas')} />
-              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nueva empresa</Button>}
+              {canWrite(capabilities, 'empresas') && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nueva empresa</Button>}
             </div>
             <ResultBar shown={rows.length} total={companies.length} noun="empresas" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={c => c.id} rowClass={c => (c.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="empresa" onClear={filters.clear} />}
@@ -307,7 +307,7 @@ export function AdminReportsPage() {
           { header: 'Acciones', cls: 'actions-cell', cell: r => (
             <>
               {r.active && <Link className="btn btn-secondary btn-sm" to={`/reportes/${encodeURIComponent(r.id)}`} state={{ from }} data-report-id={r.id} aria-label={`Vista previa de ${r.name}`}>Ver</Link>}
-              {capabilities.adminWrites && (r.active
+              {canWrite(capabilities, 'reportes') && (r.active
                 ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Editar ${r.name}`} onClick={() => { setNotice(''); setEditing(r); }}>Editar</Button>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar ${r.name}`} onClick={() => { setNotice(''); setToggling({ report: r, to: 'off' }); }}>Desactivar</Button></>
                 : <Button variant="secondary" size="sm" aria-label={`Reactivar ${r.name}`} onClick={() => { setNotice(''); setToggling({ report: r, to: 'on' }); }}>Reactivar</Button>)}
             </>) }
@@ -320,7 +320,7 @@ export function AdminReportsPage() {
               {capabilities.reportCompany && <SelectField id="ar-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />}
               {capabilities.reportGroups && <SelectField id="ar-group" label="Grupo" value={group} onChange={v => filters.set('group', v)} options={[['all', 'Todos'], ...groups.map((g): [string, string] => [g, g])]} />}
               <SelectField id="ar-status" label="Estado" value={status} onChange={v => filters.set('status', v)} options={statusOptions} />
-              {capabilities.adminWrites && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nuevo reporte</Button>}
+              {canWrite(capabilities, 'reportes') && <Button variant="primary" onClick={() => { setNotice(''); setEditing('new'); }}>Nuevo reporte</Button>}
             </div>
             <ResultBar shown={rows.length} total={reports.length} noun="reportes" canClear={filters.active} onClear={filters.clear} />
             {rows.length ? <><DataTable columns={cols} rows={shown.rows} rowKey={r => r.id} rowClass={r => (r.active ? '' : 'is-off')} /><Pager page={shown.page} total={rows.length} onPage={paging.setPage} /></> : <NoMatches noun="reporte" onClear={filters.clear} />}
@@ -371,7 +371,7 @@ export function AdminAccessPage() {
           { header: 'Informe', cell: x => <Highlight text={x.report.name} query={q} /> },
           { header: 'Empresa', cell: x => companies.find(c => c.id === companyOf(x))?.name ?? '—' },
           { header: 'Estado', cell: x => (x.status.ok ? <Tag tone="ok">Vigente</Tag> : <Tag tone="warn">Sin efecto · {x.status.reason}</Tag>) },
-          ...(capabilities.adminWrites ? [{ header: 'Acciones', cls: 'actions-cell', cell: (x: Row) => (x.a.id && x.a.active === false
+          ...(canWrite(capabilities, 'accesos') ? [{ header: 'Acciones', cls: 'actions-cell', cell: (x: Row) => (x.a.id && x.a.active === false
             ? <Button variant="secondary" size="sm" aria-label={`Reactivar acceso de ${x.user.displayName} a ${x.report.name}`} onClick={() => { setNotice(''); setReactivating({ assignment: x.a, userName: x.user.displayName, reportName: x.report.name }); }}>Reactivar</Button>
             : x.a.id
             ? <Button variant="secondary" size="sm" aria-label={`Retirar acceso de ${x.user.displayName} a ${x.report.name}`} onClick={() => { setNotice(''); setRevoking({ assignment: x.a, userName: x.user.displayName, reportName: x.report.name, companyName: companies.find(c => c.id === companyOf(x))?.name ?? '' }); }}>Retirar</Button>
@@ -383,7 +383,7 @@ export function AdminAccessPage() {
               <SearchField id="ax-q" label="Buscar asignación" placeholder="Usuario o informe" value={q} onChange={v => filters.set('q', v)} />
               <SelectField id="ax-company" label="Empresa" value={company} onChange={v => filters.set('company', v)} options={[['all', 'Todas'], ...companies.map((c): [string, string] => [c.id, c.name])]} />
               <SelectField id="ax-effect" label="Estado" value={effect} onChange={v => filters.set('effect', v)} options={[['ok', 'Vigentes'], ['off', 'Sin efecto'], ['all', 'Todos']]} />
-              {capabilities.adminWrites && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
+              {canWrite(capabilities, 'accesos') && <ButtonLink to="/admin/accesos/nueva">Nueva asignación</ButtonLink>}
               {capabilities.adminWrites && <ButtonLink to="/admin/historial">Ver historial</ButtonLink>}
             </div>
             <ResultBar shown={rows.length} total={all.length} noun="asignaciones" canClear={filters.active} onClear={filters.clear} />

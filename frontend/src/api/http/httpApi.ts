@@ -46,7 +46,7 @@ const invalid = (message: string) => new ApiError(502, message, 'invalid_respons
  */
 export class HttpApiClient implements ApiClient {
   // El nombre del grupo no existe en ninguna fuente real: el filtro de grupo permanece oculto.
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: import.meta.env.VITE_PILOT_MODE !== 'admin', liveViewer: true }; // piloto administrativo (UX-07E.B): solo lectura, sin acciones de escritura en la interfaz
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: false, profileEdit: false, adminWrites: import.meta.env.VITE_PILOT_MODE !== 'admin' && import.meta.env.VITE_PILOT_MODE !== 'admin-write', liveViewer: true }; // piloto administrativo (UX-07E.B): solo lectura; en la compilación de escritura (UX-08H) se enciende según el servidor
   private readonly baseUrl: string;
   private readonly tokens: TokenStore;
   private readonly fetchImpl: typeof fetch;
@@ -65,6 +65,27 @@ export class HttpApiClient implements ApiClient {
     return { token: env.token, user: toUser(env.user as Parameters<typeof toUser>[0]) };
   }
 
+  /**
+   * UX-08H: en la compilación `admin-write` las acciones de escritura salen EXCLUSIVAMENTE de lo que el servidor declara (GET /api/admin/capacidades, requiere sesión).
+   * Ante cualquier error la interfaz queda en solo consulta. El servidor vuelve a comprobar cada escritura; esto solo evita ofrecer botones que fallarían.
+   */
+  async loadCapabilities(): Promise<void> {
+    if (import.meta.env.VITE_PILOT_MODE !== 'admin-write') return;
+    this.capabilities.adminWrites = false;
+    this.capabilities.writes = undefined;
+    try {
+      const env = await this.request('GET', '/api/admin/capacidades');
+      const w = (env.data as { writes?: Record<string, unknown> } | undefined)?.writes;
+      if (!w || typeof w !== 'object') return;
+      const writes = { empresas: w.empresas === true, reportes: w.reportes === true, accesos: w.accesos === true, usuarios: w.usuarios === true };
+      this.capabilities.writes = writes;
+      this.capabilities.adminWrites = writes.empresas || writes.reportes || writes.accesos || writes.usuarios;
+    } catch {
+      this.capabilities.adminWrites = false;
+      this.capabilities.writes = undefined;
+    }
+  }
+
   async logout(): Promise<void> {
     try {
       await this.request('POST', '/api/logout');
@@ -77,6 +98,7 @@ export class HttpApiClient implements ApiClient {
   async me(): Promise<User> {
     const env = await this.request('GET', '/api/user/profile');
     if (!env.profile) throw invalid('Respuesta de perfil inesperada.');
+    await this.loadCapabilities();
     return toUser(env.profile as Parameters<typeof toUser>[0]);
   }
 

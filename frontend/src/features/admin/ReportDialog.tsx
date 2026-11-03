@@ -11,10 +11,11 @@ const EMPTY: ReportInput = { name: '', description: '', link: '' };
 
 type FieldErrors = Partial<Record<keyof ReportInput, string>>;
 
-export function validateReport(value: ReportInput): FieldErrors {
+export function validateReport(value: ReportInput, linkOptional = false): FieldErrors {
   const errors: FieldErrors = {};
   if (!value.name.trim()) errors.name = 'Ingrese el nombre.';
   else if (value.name.trim().length > 100) errors.name = 'Use hasta 100 caracteres.';
+  if (linkOptional && !value.link.trim()) return errors; // enlace ya configurado en el servidor: vacío = conservar el vigente
   const link = classifyPowerBiLink(value.link);
   if (!link.ok) errors.link = link.error;
   return errors;
@@ -34,7 +35,7 @@ export function ReportDialog({ report, onClose, onSaved }: { report: Report | nu
     <Dialog title={report ? 'Editar reporte' : 'Nuevo reporte'} labelId="rp-title" onClose={onClose}>
       {detail.status === 'loading' && <div className="modal-body"><LoadingState label="Cargando datos del reporte…" /></div>}
       {detail.status === 'error' && <div className="modal-body"><ErrorState onRetry={() => setAttempt(a => a + 1)} /><div className="modal-foot"><Button variant="secondary" onClick={onClose}>Cerrar</Button></div></div>}
-      {detail.status === 'ready' && <ReportForm key={attempt} internalId={detail.data?.internalId ?? null} initial={detail.data ? { name: detail.data.name, description: detail.data.description, link: detail.data.link, ...(detail.data.version ? { version: detail.data.version } : {}) } : EMPTY} onClose={onClose} onSaved={onSaved} />}
+      {detail.status === 'ready' && <ReportForm key={attempt} internalId={detail.data?.internalId ?? null} initial={detail.data ? { name: detail.data.name, description: detail.data.description, link: detail.data.link, ...(detail.data.linkConfigured ? { linkConfigured: true } : {}), ...(detail.data.version ? { version: detail.data.version } : {}) } : EMPTY} onClose={onClose} onSaved={onSaved} />}
     </Dialog>
   );
 }
@@ -49,7 +50,7 @@ function ReportForm({ internalId, initial, onClose, onSaved }: { internalId: str
   const detected = value.link.trim() ? describeLink(classifyPowerBiLink(value.link)) : null;
 
   const save = async () => {
-    const next = validateReport(value);
+    const next = validateReport(value, Boolean(value.linkConfigured));
     setErrors(next);
     setFailure('');
     if (Object.keys(next).length) return;
@@ -78,8 +79,9 @@ function ReportForm({ internalId, initial, onClose, onSaved }: { internalId: str
             <span className="form-note">Texto breve que verán los usuarios autorizados.</span>
           </label>
         </div>
-        <label htmlFor="rp-link">Enlace de Power BI *
+        <label htmlFor="rp-link">Enlace de Power BI{value.linkConfigured ? '' : ' *'}
           <input id="rp-link" value={value.link} autoComplete="off" spellCheck={false} aria-invalid={Boolean(errors.link)} aria-describedby="rp-link-help rp-link-err" disabled={saving} onChange={set('link')} />
+          {value.linkConfigured && <span className="form-note" data-testid="link-configured"><strong>Ya hay un enlace configurado.</strong> Por seguridad no se muestra: déjelo vacío para conservarlo o pegue uno nuevo para reemplazarlo.</span>}
           <span className="form-note" id="rp-link-help">Pegue la URL (no el código iframe). Se admite «Publicar en web» (<em>app.powerbi.com/view?r=…</em>), un enlace de inserción (<em>reportEmbed?reportId=…</em>) o el enlace del informe. Es un dato técnico: no se muestra a los usuarios.</span>
           <span className="field-error" id="rp-link-err" hidden={!errors.link}>{errors.link}</span>
         </label>

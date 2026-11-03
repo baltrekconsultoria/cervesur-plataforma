@@ -89,6 +89,14 @@ class ReporteModel {
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /** Enlace vigente de un informe activo (solo para conservarlo cuando una edición no trae uno nuevo; nunca se devuelve al cliente). */
+    public function currentLink($id) {
+        $stmt = $this->pdo->prepare('SELECT enlace FROM reporte WHERE id = :id AND activo = 1 LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $value = $stmt->fetchColumn();
+        return is_string($value) ? $value : null;
+    }
+
     /** Longitud máxima real de la columna `enlace` en esta base (null si no se puede determinar). */
     public function linkMaxLength() {
         try {

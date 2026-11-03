@@ -13,7 +13,7 @@ export function DeniedState({ kind, backTo: backToIn, backLabel: backLabelIn }: 
   const { user } = useApp();
   const admin = user?.role === 'admin';
   // Piloto administrativo (UX-07E.B): un informe sin autorizar para el piloto se explica como tal y se vuelve al listado administrativo.
-  const adminPilot = pilotMode() === 'admin' && kind === 'resource';
+  const adminPilot = (pilotMode() === 'admin' || pilotMode() === 'admin-write') && kind === 'resource';
   if (admin && backTo === '/reportes') { backTo = '/admin/reportes'; backLabel = 'Reportes'; }
   const text = adminPilot
     ? 'Este informe todavía no está autorizado para mostrarse en el piloto administrativo. El responsable del piloto debe autorizarlo; el listado sigue disponible.'

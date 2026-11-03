@@ -21,6 +21,8 @@
     "build:pilot": "node scripts/build-production.mjs --pilot",
     "build:pilot-usuarios": "node scripts/build-production.mjs --pilot-usuarios",
     "build:pilot-admin": "node scripts/build-production.mjs --pilot-admin",
+    "build:admin-write": "node scripts/build-production.mjs --admin-write",
+    "verify:admin-write": "node scripts/verify-production-build.mjs dist-admin-write",
     "verify:pilot-admin": "node scripts/verify-production-build.mjs dist-pilot-admin",
     "verify:pilot-usuarios": "node scripts/verify-production-build.mjs dist-pilot-usuarios",
     "verify:pilot": "node scripts/verify-production-build.mjs dist-pilot",

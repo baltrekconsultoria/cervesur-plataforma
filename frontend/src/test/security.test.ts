@@ -63,7 +63,9 @@ describe('alcance de integración UX-06A', () => {
       // UX-08B.2: historial de operaciones (solo administradores; el servidor no envía IP ni secretos)
       '/api/auditoria?entity=',
       // UX-08B.3: administración de usuarios. El servidor las mantiene apagadas (404) salvo `USER_ADMIN_WRITES=1`; el cambio de rol usa la ruta singular existente.
-      '/api/users/capabilities', '/api/users/', '/api/user/'];
+      '/api/users/capabilities', '/api/users/', '/api/user/',
+      // UX-08H: capacidades de escritura que declara el servidor en el modo admin_escritura (solo lectura; sin ella la interfaz queda en consulta)
+      '/api/admin/capacidades'];
     // Las bajas/reactivaciones y el cambio de rol viajan por rutas con identificador (ya declaradas arriba); ninguna ruta literal contiene rol, estado ni filtros de estado distintos de `all`.
     expect(routes.filter(r => /role|activ|desactiv|status=(?!all)/i.test(r))).toEqual([]);
     expect(routes.filter(r => !allowed.includes(r)), routes.join(', ')).toEqual([]);

@@ -3,9 +3,9 @@
  * y `npm run build:pilot-usuarios` (usuarios reales con permisos individuales, VITE_PILOT_MODE=usuarios). Solo añaden contexto visible (aviso y notas de acceso); la
  * autorización y la ausencia de escrituras las aplica SIEMPRE el servidor.
  */
-export type PilotMode = 'operador' | 'usuarios' | 'admin';
+export type PilotMode = 'operador' | 'usuarios' | 'admin' | 'admin-write';
 
-export const pilotMode = (): PilotMode | null => (import.meta.env.VITE_PILOT !== 'true' ? null : import.meta.env.VITE_PILOT_MODE === 'usuarios' ? 'usuarios' : import.meta.env.VITE_PILOT_MODE === 'admin' ? 'admin' : 'operador');
+export const pilotMode = (): PilotMode | null => (import.meta.env.VITE_PILOT !== 'true' ? null : import.meta.env.VITE_PILOT_MODE === 'usuarios' ? 'usuarios' : import.meta.env.VITE_PILOT_MODE === 'admin' ? 'admin' : import.meta.env.VITE_PILOT_MODE === 'admin-write' ? 'admin-write' : 'operador');
 export const isPilotBuild = (): boolean => pilotMode() !== null;
 
 export const PILOT_BANNER = 'PILOTO · Datos reales de Cervesur · Solo consulta · Operador autorizado';
@@ -18,5 +18,10 @@ export const PILOT_BANNER_ADMIN = 'PILOTO ADMINISTRATIVO · Datos reales de Cerv
 export const PILOT_NOTE_ADMIN = 'Esta versión no crea, edita, activa, desactiva ni asigna nada: solo muestra usuarios, empresas, informes y asignaciones. Los enlaces de los informes solo se entregan para los autorizados en el piloto.';
 export const isAdminPilot = (): boolean => pilotMode() === 'admin';
 
-export const pilotBanner = (): string => (pilotMode() === 'admin' ? PILOT_BANNER_ADMIN : pilotMode() === 'usuarios' ? PILOT_BANNER_USUARIOS : PILOT_BANNER);
-export const pilotNote = (): string => (pilotMode() === 'admin' ? PILOT_NOTE_ADMIN : pilotMode() === 'usuarios' ? PILOT_NOTE_USUARIOS : PILOT_NOTE);
+// UX-08H: administración CON escrituras (`npm run build:admin-write`). Las acciones que se ofrecen salen de lo que el servidor declara habilitado; el servidor las vuelve a autorizar siempre.
+export const PILOT_BANNER_ADMIN_WRITE = 'ADMINISTRACIÓN · Datos reales de Cervesur · Los cambios se guardan y quedan registrados en el historial';
+export const PILOT_NOTE_ADMIN_WRITE = 'Solo se ofrecen las acciones que el servidor tiene habilitadas. Las bajas son lógicas (se pueden reactivar) y los enlaces de los informes nunca se muestran: solo se escriben.';
+export const isAdminWrite = (): boolean => pilotMode() === 'admin-write';
+
+export const pilotBanner = (): string => (pilotMode() === 'admin-write' ? PILOT_BANNER_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_BANNER_ADMIN : pilotMode() === 'usuarios' ? PILOT_BANNER_USUARIOS : PILOT_BANNER);
+export const pilotNote = (): string => (pilotMode() === 'admin-write' ? PILOT_NOTE_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_NOTE_ADMIN : pilotMode() === 'usuarios' ? PILOT_NOTE_USUARIOS : PILOT_NOTE);

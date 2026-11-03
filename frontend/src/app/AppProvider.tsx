@@ -78,6 +78,7 @@ export function AppProvider({ services, children }: { services?: AppServices; ch
   const login = useCallback(async (loginName: string, password: string) => {
     const response = await base.client.login({ login: loginName, password });
     base.tokens.set(response.token);
+    await base.client.loadCapabilities?.();
     dispatch({ type: 'login', user: response.user });
     setLastUsername(loginName.trim());
     return response.user;

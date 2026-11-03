@@ -130,7 +130,12 @@ class ReporteController {
                 return ['success' => false, 'message' => 'Reporte no encontrado', 'conflict' => 'notfound'];
             }
             $expectedVersion = is_array($data) && isset($data['version']) ? $data['version'] : null;
-            [$data, $error] = $this->validateReport($data, (int)$id, $this->reporteModel->internalRow((int)$id));
+            $current = $this->reporteModel->internalRow((int)$id);
+            // admin_escritura (UX-08H): el formulario nunca muestra el enlace. Si la edición no trae uno nuevo, se conserva el vigente (que el servidor revalida como siempre).
+            if (function_exists('app_mode') && app_mode() === 'admin_escritura' && is_array($data) && trim((string)($data['enlace'] ?? '')) === '') {
+                $data['enlace'] = $this->reporteModel->currentLink((int)$id);
+            }
+            [$data, $error] = $this->validateReport($data, (int)$id, $current);
             if ($error !== null) {
                 return ['success' => false, 'message' => $error] + $this->conflictOf($error);
             }

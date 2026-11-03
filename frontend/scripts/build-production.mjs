@@ -16,9 +16,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 // `--pilot` (UX-07D.4): misma compilación de servidor + aviso de contexto del piloto visual; salida en dist-pilot/. No cambia nada más.
 const PILOT_USUARIOS = process.argv.includes('--pilot-usuarios'); // UX-07D.4B: usuarios reales con permisos individuales
 const PILOT_ADMIN = process.argv.includes('--pilot-admin'); // UX-07E.B: administración de SOLO LECTURA para administradores autorizados
-const PILOT = process.argv.includes('--pilot') || PILOT_USUARIOS || PILOT_ADMIN;
-const PILOT_MODE = PILOT_ADMIN ? 'admin' : PILOT_USUARIOS ? 'usuarios' : 'operador';
-const OUT = PILOT_ADMIN ? 'dist-pilot-admin' : PILOT_USUARIOS ? 'dist-pilot-usuarios' : PILOT ? 'dist-pilot' : 'dist-production';
+const ADMIN_WRITE = process.argv.includes('--admin-write'); // UX-08H: administración CON escrituras (solo se sirve con el backend en modo admin_escritura)
+const PILOT = process.argv.includes('--pilot') || PILOT_USUARIOS || PILOT_ADMIN || ADMIN_WRITE;
+const PILOT_MODE = ADMIN_WRITE ? 'admin-write' : PILOT_ADMIN ? 'admin' : PILOT_USUARIOS ? 'usuarios' : 'operador';
+const OUT = ADMIN_WRITE ? 'dist-admin-write' : PILOT_ADMIN ? 'dist-pilot-admin' : PILOT_USUARIOS ? 'dist-pilot-usuarios' : PILOT ? 'dist-pilot' : 'dist-production';
 const fail = message => { console.error(`\nERROR: ${message}`); process.exit(1); };
 
 const hosts = (process.env.CERVESUR_ALLOWED_HOSTS ?? '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);

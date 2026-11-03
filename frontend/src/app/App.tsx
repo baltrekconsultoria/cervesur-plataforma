@@ -49,6 +49,8 @@ const PILOT = import.meta.env.VITE_PILOT === 'true';
 // Piloto ADMINISTRATIVO de solo lectura (UX-07E.B): conserva las pantallas de consulta de administración y elimina en compilación el asistente de accesos y las asociaciones empresa–informe
 // (únicas pantallas con acciones de escritura sin condición de capacidad). Es reducción de superficie: el servidor rechaza cualquier escritura con 403.
 const ADMIN_PILOT = PILOT && import.meta.env.VITE_PILOT_MODE === 'admin';
+// UX-08H: administración con escrituras: registra TODAS las pantallas de administración (los botones dependen de las capacidades que declare el servidor).
+const ADMIN_WRITE = PILOT && import.meta.env.VITE_PILOT_MODE === 'admin-write';
 
 export function App() {
   return (
@@ -62,7 +64,7 @@ export function App() {
         </Route>
         <Route path="/reportes/:reportId" element={<ViewerPage />} />
         <Route path="/perfil" element={<ProfilePage />} />
-        {(!PILOT || ADMIN_PILOT) && (
+        {(!PILOT || ADMIN_PILOT || ADMIN_WRITE) && (
         <Route element={<RequireRole role="admin" />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/usuarios" element={<AdminUsersPage />} />

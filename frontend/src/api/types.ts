@@ -105,6 +105,8 @@ export interface ReportInput {
   description: string;
   /** Enlace de Power BI (publicación web, inserción o enlace normal). Solo lo ve un administrador. */
   link: string;
+  /** UX-08H: el servidor tiene un enlace configurado pero NO lo muestra (solo se escribe). Si está en `true`, dejar el campo vacío conserva el vigente. */
+  linkConfigured?: boolean;
   /** Versión de la fila que leyó el formulario (bloqueo optimista). Solo viaja en ediciones; si cambió, el servidor responde 409. */
   version?: string;
 }
@@ -185,13 +187,31 @@ export interface ApiCapabilities {
   profileEdit: boolean;
   /** Alta de usuarios y concesión/retirada de accesos. */
   adminWrites: boolean;
+  /** UX-08H (modo `admin_escritura`): qué grupos de escritura tiene HABILITADOS el servidor. Sin este campo rige `adminWrites` para todo. */
+  writes?: WriteCapabilities;
   /** El visor consulta al servidor la configuración autorizada de cada informe (en lugar de mostrar el panel simulado). */
   liveViewer: boolean;
+}
+
+/** Grupos de escritura que el servidor puede habilitar de forma independiente (UX-08H). */
+export interface WriteCapabilities {
+  empresas: boolean;
+  reportes: boolean;
+  accesos: boolean;
+  usuarios: boolean;
+}
+export type WriteGroup = keyof WriteCapabilities;
+
+/** ¿Puede la interfaz ofrecer acciones de escritura de este grupo? (el servidor las vuelve a comprobar siempre) */
+export function canWrite(capabilities: ApiCapabilities, group: WriteGroup): boolean {
+  return capabilities.adminWrites && (capabilities.writes ? capabilities.writes[group] === true : true);
 }
 
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */
 export interface ApiClient {
   readonly capabilities: ApiCapabilities;
+  /** UX-08H: lee del servidor qué escrituras están habilitadas (solo el cliente HTTP del modo de escritura; el simulado ya las tiene todas). */
+  loadCapabilities?(): Promise<void>;
   login(request: LoginRequest): Promise<AuthResponse>;
   logout(): Promise<void>;
   me(): Promise<User>;
