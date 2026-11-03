@@ -2,6 +2,8 @@
 
 Fecha: 2026-11-04 · Rama `feat/cervesur-ux-08g-release-candidate` · Sin SSH, push, merge, deploy, migraciones ni cambios productivos. Fase 2 (escrituras) fuera de alcance; `admin_escritura` no se implementó; DB031 (72) no se habilitó.
 
+> **SUPERADO por `docs/UX-08G2-INFORME.md`** (paquetes `…2327c9cd1c1b…`, con comprobación de identidad en disco y herramientas de E1).
+
 ## 1. Paquete vigente (sustituye al de UX-08G)
 El anterior (`…36c5135…`) **queda descartado**: su `actualizar.sh` tenía el defecto de §5. Vigente, construido desde el commit `b5d6a39ab4c3` (árbol limpio), en `Desktop/Proyectos Baltrek/Cervesur/paquetes-qa/produccion-v2/`:
 
