@@ -973,6 +973,52 @@ echo "== sitios"; ls /etc/apache2/sites-enabled | grep -v '^cervesur-react-usuar
   dx('rm -rf /root/paq-ad-v3 /root/resp-corrupto8443');
   ok('cierre: el servidor está como al empezar esta sección (trabajadores, Apache sin reiniciar, portales vivos)', arbolInstalado() === P8_UT && apachePid() === P8_PID && portalesVivos());
 
+  // ---------------------------------------------------------------------------------------------------------------------------------------------
+  // UX-08G.3 · Endurecimiento del respaldo: ningún reemplazo empieza sin un respaldo creado y verificado; fallos en cada paso; reversión manual con verificación fallida.
+  // Los fallos se provocan con CERVESUR_INYECTAR_FALLO (solo ensayos: únicamente puede hacer que un paso FALLE).
+  section = 'Producción 8443 · respaldo endurecido y fallos controlados';
+  const P9_BK = '/var/backups/cervesur-react-admin';
+  const P9_sumas = () => dx(`cd ${P9_BK} 2>/dev/null && for d in actualizacion-*; do [ -f $d/SHA256SUMS ] && echo "$d $(sha256sum $d/SHA256SUMS | cut -c1-64)"; done | sort`).out;
+  const P9_previos = P9_sumas();
+  const P9_noTocados = () => P9_previos.split('\n').filter(Boolean).every(l => P9_sumas().split('\n').includes(l));
+  const P9_n = () => Number(P8_respN());
+  const P9_estadoIgual = () => P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && P8_ping();
+  const P9_correr = (fallo, extra = '') => dx(`bash ${PKA2}/scripts/actualizar.sh ${extra}`, { ...CONFIRM, ...(fallo ? { CERVESUR_INYECTAR_FALLO: fallo } : {}) });
+  const P9_n0 = P9_n();
+
+  const f1 = P9_correr('respaldo-dir');
+  ok('error al crear el directorio de respaldo: la actualización NO empieza (código ≠ 0, «Respaldo NO creado»), sin respaldo nuevo y la aplicación/backend/.env intactos', f1.code !== 0 && /Respaldo NO creado o no verificable \(no se pudo crear/.test(f1.out) && !/== Reemplazo/.test(f1.out) && P9_n() === P9_n0 && P9_estadoIgual(), f1.out.slice(-500));
+  const f2 = P9_correr('manifiesto');
+  ok('error al generar el manifiesto SHA-256: aborta ANTES de reemplazar (código ≠ 0), la carpeta parcial queda como evidencia y nada publicado cambió', f2.code !== 0 && /no se pudo generar SHA256SUMS/.test(f2.out) && !/== Reemplazo/.test(f2.out) && P9_n() === P9_n0 + 1 && P9_estadoIgual() && P9_noTocados(), f2.out.slice(-500));
+  const f3 = P9_correr('respaldo-corrupto');
+  ok('respaldo corrupto (un archivo alterado tras generar el manifiesto): la verificación SHA-256 lo detecta, aborta ANTES de reemplazar y nada publicado cambió', f3.code !== 0 && /SHA-256 de public\.tgz o backend\.tgz no coincide/.test(f3.out) && !/== Reemplazo/.test(f3.out) && P9_n() === P9_n0 + 2 && P9_estadoIgual() && P9_noTocados(), f3.out.slice(-500));
+  ok('los respaldos anteriores (y los parciales de estos fallos) siguen intactos: ninguno se borró ni se modificó', P9_noTocados() && dx(`ls -d ${P9_BK}/actualizacion-* | wc -l`).out === String(P9_n0 + 2));
+
+  const f4 = P9_correr('frontend');
+  ok('fallo al reemplazar la APLICACIÓN: vuelta automática, código ≠ 0, versión anterior restaurada y verificada, bit a bit, mismo .env', f4.code !== 0 && /se restaura la versión anterior/.test(f4.out) && /versión anterior restaurada y verificada/.test(f4.out) && P9_estadoIgual(), f4.out.slice(-600));
+  const f5 = P9_correr('backend');
+  ok('fallo al reemplazar el BACKEND (con la aplicación ya reemplazada): se deshace también la aplicación, código ≠ 0, restaurado y verificado, bit a bit', f5.code !== 0 && /se restaura la versión anterior/.test(f5.out) && /versión anterior restaurada y verificada/.test(f5.out) && P9_estadoIgual(), f5.out.slice(-600));
+  const f6 = P9_correr('verificacion');
+  ok('fallo en la verificación posterior (ambos reemplazados): reversión AUTOMÁTICA, código ≠ 0, restaurado y verificado, bit a bit', f6.code !== 0 && /se restaura la versión anterior/.test(f6.out) && /versión anterior restaurada y verificada/.test(f6.out) && P9_estadoIgual(), f6.out.slice(-600));
+  ok('cada intento con respaldo válido conservó su carpeta (3 intentos más) y los respaldos de intentos anteriores no cambiaron', P9_n() === P9_n0 + 5 && P9_noTocados());
+
+  dx(`rm -rf /root/paq-ad-roto2 && cp -a ${PKA2} /root/paq-ad-roto2 && sed -i '0,/^<?php/s//<?php\\nthrow new RuntimeException("roto");/' /root/paq-ad-roto2/backend/router/AdminRouter.php`); resum('/root/paq-ad-roto2');
+  const f7 = dx('bash /root/paq-ad-roto2/scripts/actualizar.sh', CONFIRM);
+  const P9_ultimo = dx(`ls -d ${P9_BK}/actualizacion-* | sort | tail -1`).out;
+  ok('verificación posterior REAL fallida (backend roto en ejecución): vuelve sola y deja la salida de verificar.sh como evidencia dentro del respaldo (verificacion-fallida.log, 600) sin contraseñas', f7.code !== 0 && /versión anterior restaurada y verificada/.test(f7.out) && P9_estadoIgual() && dx(`grep -c "^FAIL" ${P9_ultimo}/verificacion-fallida.log`).out !== '0' && dx(`stat -c %a ${P9_ultimo}/verificacion-fallida.log`).out === '600' && dx(`grep -ciE "password|secret|BEGIN" ${P9_ultimo}/verificacion-fallida.log`).out === '0', f7.out.slice(-500));
+  dx('rm -rf /root/paq-ad-roto2');
+
+  // reversión MANUAL con verificación fallida: se actualiza de verdad, se revierte con un fallo posterior inyectado y se comprueba el código y la evidencia
+  dx(`rm -rf /root/paq-ad-v4 && cp -a ${PKA2} /root/paq-ad-v4 && echo v4-admin > /root/paq-ad-v4/public/marca-v4.txt`); resum('/root/paq-ad-v4');
+  const u9 = dx('bash /root/paq-ad-v4/scripts/actualizar.sh', CONFIRM);
+  const r9 = /--revertir (\S+)/.exec(u9.out)?.[1] ?? '';
+  ok('actualización correcta con los nuevos controles: respaldo completo y verificado (SHA-256, estructura, nº de archivos, sin .env, 700/600) y versión nueva servida', u9.code === 0 && /SHA-256 de ambos archivos verificado, completo, permisos 700\/600, sin \.env/.test(u9.out) && cv(`${AIP}/marca-v4.txt`).out === 'v4-admin' && Boolean(r9), u9.out.slice(-500));
+  const m9 = dx(`bash /root/paq-ad-v4/scripts/actualizar.sh --revertir ${r9}`, { ...CONFIRM, CERVESUR_INYECTAR_FALLO: 'verificacion' });
+  ok('reversión manual con verificación posterior fallida: código ≠ 0, aviso explícito y EVIDENCIA conservada (log de diagnóstico + la versión reemplazada), sin borrar nada', m9.code !== 0 && /la verificación posterior FALLÓ/.test(m9.out) && dx('ls -d /var/www/cervesur-react-admin/.diagnostico-public-* /opt/cervesur-react-admin/.diagnostico-backend-* /var/backups/cervesur-react-admin/reversion-*.log | wc -l').out === '3', m9.out.slice(-600));
+  ok('...y la versión anterior SÍ quedó restaurada (bit a bit), con el mismo .env; la versión que se reemplazó está en la carpeta de diagnóstico', P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && dx('cat /var/www/cervesur-react-admin/.diagnostico-public-*/marca-v4.txt').out === 'v4-admin');
+  dx('rm -rf /var/www/cervesur-react-admin/.diagnostico-public-* /opt/cervesur-react-admin/.diagnostico-backend-* /var/backups/cervesur-react-admin/reversion-*.log /root/paq-ad-v4');
+  ok('tras todos los fallos: archivos, .env, trabajadores, Apache (sin reiniciar) y demás portales idénticos, y el administrador sigue entrando por 8443', P8_AT() === P8_AT0 && arbolInstalado() === P8_UT && apachePid() === P8_PID && portalesVivos() && /^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lAdm, GOODPW))));
+
   section = 'Publicación por IP interna · reversión total';
   const revIp = dx(`bash ${PKU2}/scripts/publicar-ip.sh revertir --trabajadores ${PKU2} --administrador ${PKA2} --ip ${IPPUB} --respaldos "${respIp}"`, CONFIRM);
   ok('publicar-ip.sh revertir retira las dos publicaciones y restaura las versiones anteriores de ambos portales', revIp.code === 0 && /publicación por IP retirada/.test(revIp.out) && !/FALLO/.test(revIp.out), revIp.out.slice(-600));
