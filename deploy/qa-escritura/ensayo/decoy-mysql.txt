@@ -1,0 +1,18 @@
+-- Bases y cuentas SEÑUELO del ensayo (solo en el contenedor desechable). Representan lo que existe en el servidor real y que el paquete jamás debe tocar.
+CREATE DATABASE cervesur_portalbi CHARACTER SET utf8mb4;
+CREATE TABLE cervesur_portalbi.clientes_senuelo (id INT PRIMARY KEY, nombre VARCHAR(50)) ENGINE=InnoDB;
+INSERT INTO cervesur_portalbi.clientes_senuelo VALUES (1, 'cliente señuelo A'), (2, 'cliente señuelo B'), (3, 'cliente señuelo C');
+CREATE TABLE cervesur_portalbi.usuarios_senuelo (id INT PRIMARY KEY, usuario VARCHAR(50)) ENGINE=InnoDB;
+INSERT INTO cervesur_portalbi.usuarios_senuelo VALUES (1, 'senuelo1'), (2, 'senuelo2');
+CREATE DATABASE cervesur_react_prueba CHARACTER SET utf8mb4;
+CREATE TABLE cervesur_react_prueba.t_senuelo (id INT PRIMARY KEY, v VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO cervesur_react_prueba.t_senuelo VALUES (1, 'a');
+CREATE DATABASE cervesur_react_compat_qa CHARACTER SET utf8mb4;
+CREATE TABLE cervesur_react_compat_qa.t_senuelo (id INT PRIMARY KEY, v VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO cervesur_react_compat_qa.t_senuelo VALUES (1, 'b');
+CREATE USER 'cervesur_portalbi_app'@'localhost' IDENTIFIED BY 'Aa1!senuelo-portalbi';
+GRANT SELECT, INSERT, UPDATE, DELETE ON cervesur_portalbi.* TO 'cervesur_portalbi_app'@'localhost';
+CREATE USER 'cervesur_react'@'localhost' IDENTIFIED BY 'Aa1!senuelo-prueba';
+GRANT ALL PRIVILEGES ON cervesur_react_prueba.* TO 'cervesur_react'@'localhost';
+CREATE USER 'cervesur_react_compat'@'127.0.0.1' IDENTIFIED BY 'Aa1!senuelo-compat';
+GRANT SELECT, INSERT, UPDATE, DELETE ON cervesur_react_compat_qa.* TO 'cervesur_react_compat'@'127.0.0.1';
