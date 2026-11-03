@@ -86,7 +86,9 @@ class SecurityStaticChecks(unittest.TestCase):
         self.assertLess(block.index("require_auth("), block.index("file_get_contents('php://input')"))
         self.assertIn("!== 'admin'", block)
         controller = source("backend/controllers/RegisterController.php")
-        self.assertIn("'role' => 'user'", controller)
+        # El rol de un alta nunca sale de la petición: lo fija new_user_role() (por defecto 'user'; 'usuario' solo por configuración del servidor).
+        self.assertIn("'role' => new_user_role()", controller)
+        self.assertIn("getenv('NEW_USER_ROLE') === 'usuario' ? 'usuario' : 'user'", source("backend/lib/roles.php"))
         self.assertNotIn("$data['role']", controller)
         self.assertNotIn("'usuario'", controller)
         self.assertIn("is_active, session_version", controller)

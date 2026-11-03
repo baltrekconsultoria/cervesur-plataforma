@@ -77,6 +77,10 @@ expectCase($s === 200 || $s === 201, 'associate a report to a company');
 [$s, $d] = requestApi('POST', '/api/register', ['first_name' => 'Min', 'last_name' => 'Priv', 'username' => 'min.priv', 'email' => 'min.priv@example.invalid', 'password' => 'una-clave-larga-123'], $admin);
 $uid = (int)($d['id'] ?? 0);
 expectCase($s === 200 && $uid > 0, 'create a user');
+// D3: esta instancia arranca con NEW_USER_ROLE=usuario; el rol sale de la configuración del servidor, no de la petición.
+expectCase(one($pdo, 'SELECT role FROM user WHERE id = ?', [$uid])['role'] === 'usuario' && tokenOf('min.priv', 'una-clave-larga-123') !== '', 'D3: a new user is created with the configured role usuario and can sign in');
+[$s] = requestApi('GET', '/api/users', null, tokenOf('min.priv', 'una-clave-larga-123'));
+expectCase($s === 403, 'D3: a usuario account has worker privileges only (403 on administrative routes)');
 [, $detail] = requestApi('GET', "/api/users/$uid", null, $admin);
 [$s] = requestApi('PUT', "/api/users/$uid", ['first_name' => 'Min', 'last_name' => 'Editado', 'phone' => '999 111 222', 'email' => 'min.priv@example.invalid', 'version' => $detail['data']['version'] ?? ''], $admin);
 expectCase($s === 200 && one($pdo, 'SELECT last_name FROM user WHERE id = ?', [$uid])['last_name'] === 'Editado', 'edit a user');

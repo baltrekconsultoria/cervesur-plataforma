@@ -8,6 +8,20 @@
  * Cualquier otro valor es inesperado: no se reconoce como rol y no concede ningún acceso.
  */
 
+if (!function_exists('new_user_role')) {
+    /**
+     * Rol con el que `POST /api/register` crea usuarios nuevos (UX-08E · D3). Nunca proviene de la petición.
+     * Por defecto 'user'. `NEW_USER_ROLE=usuario` crea el valor heredado que hoy domina los datos productivos (62 de 76), para poder
+     * validar con QA real de Flutter y React cuál es el apropiado antes de decidirlo. Cualquier otro valor se ignora ('user').
+     * Los roles ya almacenados no se modifican ni se normalizan.
+     * @return string 'user' | 'usuario'
+     */
+    function new_user_role()
+    {
+        return getenv('NEW_USER_ROLE') === 'usuario' ? 'usuario' : 'user';
+    }
+}
+
 if (!function_exists('normalize_role')) {
     /**
      * @param mixed $role Valor almacenado o recibido

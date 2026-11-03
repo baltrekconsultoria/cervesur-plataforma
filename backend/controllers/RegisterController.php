@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/write_support.php';
+require_once __DIR__ . '/../lib/roles.php';
 require_once __DIR__ . '/../models/UserModel.php';
 
 class RegisterController {
@@ -58,10 +59,10 @@ class RegisterController {
                     'phone' => $clean['phone'] ?? null,
                     'password' => $passwordHash,
                     // Fijo: el rol jamás proviene de la petición. Para otorgar 'admin' existe PUT /api/user/{id}/role.
-                    'role' => 'user'
+                    'role' => new_user_role()
                 ]);
                 $id = (int)$this->pdo->lastInsertId();
-                $row = ['role' => 'user', 'is_active' => 1, 'email' => $clean['email']];
+                $row = ['role' => new_user_role(), 'is_active' => 1, 'email' => $clean['email']];
                 audit_record($this->pdo, $actorId, 'user.create', 'user', $id, null, audit_snapshot('user', $row),
                     ['first_name_modificado' => true, 'last_name_modificado' => true, 'email_modificado' => true, 'phone_modificado' => isset($clean['phone'])]);
                 return ['success' => true, 'message' => 'Usuario registrado exitosamente', 'id' => $id];

@@ -110,6 +110,17 @@ check(classify_powerbi_link(null)['ok'] === false && classify_powerbi_link(['htt
 $refs = [generate_report_ref(), generate_report_ref()];
 check($refs[0] !== $refs[1] && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $refs[0]) === 1, 'internal report references are random UUID v4 values');
 
+// UX-08E · D3: rol de los usuarios nuevos (configuración del servidor; nunca de la petición).
+putenv('NEW_USER_ROLE');
+check(new_user_role() === 'user', 'new user role: defaults to user');
+putenv('NEW_USER_ROLE=usuario');
+check(new_user_role() === 'usuario' && normalize_role(new_user_role()) === 'user', 'new user role: usuario is available by configuration and is the same privilege level as user');
+foreach (['admin', 'ADMIN', 'superadmin', 'User', '', '1'] as $bad) {
+    putenv('NEW_USER_ROLE=' . $bad);
+    check(new_user_role() === 'user', 'new user role: invalid or elevated value ignored: ' . $bad);
+}
+putenv('NEW_USER_ROLE');
+
 // UX-08C: lista de informes del visor administrativo (configuración de servidor; falla cerrada).
 putenv('ADMIN_VIEWER_ALLOWED_REPORT_IDS');
 check(admin_viewer_allowlist() === null && admin_viewer_permits('admin', 5), 'viewer allow-list: not configured means no extra restriction');

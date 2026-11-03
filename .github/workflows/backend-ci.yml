@@ -188,7 +188,7 @@ jobs:
           # UX-08E: la API completa conectada como la cuenta de privilegios mínimos (plantilla database/privileges). Va al final: usa y limpia `fixture_w`.
           MIN_PASS="$(openssl rand -hex 12)"
           echo "::add-mask::$MIN_PASS"
-          docker run --detach --name "$appmin_name" --network "$network_name" --network-alias appmin             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_w --env DB_USER=app_admin_min --env DB_PASS="$MIN_PASS"             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             --env AUDIT_LOG_MODE=required --env REACT_STRICT_VIEWS=1 --env USER_ADMIN_WRITES=1             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          docker run --detach --name "$appmin_name" --network "$network_name" --network-alias appmin             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_w --env DB_USER=app_admin_min --env DB_PASS="$MIN_PASS"             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             --env AUDIT_LOG_MODE=required --env REACT_STRICT_VIEWS=1 --env USER_ADMIN_WRITES=1 --env NEW_USER_ROLE=usuario             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
           sleep 1
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS --env MIN_PASS="$MIN_PASS"             cervesur-ci-php:local php tests/isolated/http_min_privileges_test.php
 
