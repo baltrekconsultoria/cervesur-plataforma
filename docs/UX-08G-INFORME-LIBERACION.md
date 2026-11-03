@@ -69,7 +69,29 @@ Fases F1–F5 adaptadas a la Opción A: ver `docs/UX-08G-GUIA-DESPLIEGUE-PRODUCC
 **Prueba de rollback en entorno aislado:** ver §9 (ensayo del kit del piloto: actualizar → verificar → revertir con el paquete nuevo).
 
 ## 9. Etapa H · Resultados de QA
-{{RESULTADOS}}
+**Paquete de liberación (fase 1, solo lectura)** — construido desde el commit `36c5135452eb` (rama `feat/cervesur-ux-08g-release-candidate`, árbol limpio), fuera del repositorio, en `Desktop/Proyectos Baltrek/Cervesur/paquetes-qa/produccion/`:
+
+| Archivo | SHA-256 del `.tar.gz` |
+|---|---|
+| `cervesur-react-admin-36c5135452eb-20261103-164618Z.tar.gz` (+ `.sha256`, `.RELEASE.json`) | `57def58c8b8057b26dfe70c8880a63008843dce4265cf2faa5a97b9aa18f07c4` |
+| `cervesur-auditoria-solo-lectura-36c5135452eb-20261103-164620Z.tar.gz` (+ `.sha256`) | `e37f3c3cebc5763320c53d03af4b8dc257cf892fd12af16e11501be1495426a1` |
+
+Verificado en el paquete: `SHA256SUMS` interno correcto; hosts `localhost` y `192.168.200.12`; `pilotMode admin`; sin `.env`, claves, certificados, `syn###`, datos de QA ni migraciones; frases de confirmación `ACTUALIZAR-8093` / `REVERTIR-ACTUALIZACION-8093`; incluye `write_support.php` (inalcanzable). El preflight sobre el paquete extraído da PASS en las 7 comprobaciones del paquete; los FAIL restantes son los esperados al no existir la instalación en este equipo.
+
+| Suite (ejecutada sobre ESTA versión, en este equipo) | Resultado |
+|---|---|
+| Réplica local del paso HTTP de la CI (`backend-ci.yml` fusionado: suites UX-08 + todas las del piloto, MySQL sintético) | **1501 PASS / 0 FAIL** (exit 0) |
+| Ensayo Docker del kit del piloto (instala 8092/8093, publicación por IP 443/8443 con navegador real, **actualización reversible `ACTUALIZAR-8093` y `--revertir` bit a bit del administrador**, reversión total) | **339 PASS / 0 FAIL** |
+| Pruebas estáticas de seguridad (`test_security_static.py`, incl. `AdminPilotWriteLayerIsUnreachable`) | 95 OK |
+| `security_unit.php` / `mode_unit.php` | 0 FAIL |
+| Frontend: `tsc`, `eslint`, Vitest | limpio · 272 PASS (256 de UX-08 + 16 del piloto) |
+| Compilación `build:pilot-admin`, `verify:pilot-admin`, `scan-secrets` | OK, sin secretos |
+| Preflight de producción (`probar-preflight.sh`) | 14 PASS / 0 FAIL |
+| 14 rutas/métodos nuevos de UX-08 con sesión de administrador y `USER_ADMIN_WRITES=1` en el entorno → 403 | PASS |
+| Visor: informe inactivo → 404 sin URL aun con `TODOS`; `?id=` no altera el informe | PASS |
+| shellcheck (`-S warning`) de los scripts nuevos; PHP lint | limpio |
+
+**NO ejecutado / NO afirmado:** la **CI de GitHub no se ha ejecutado** (nada se ha subido); el E2E de navegador de las pantallas de UX-08 (`npm run test:e2e`) no se repitió sobre el árbol fusionado; **no hay QA manual con navegador real ni con Power BI real** (la lista de la guía E4 es para el operador); la QA con credenciales (45/0 en la instalación; 35 PASS / 0 FAIL / 3 omitidas sin credenciales) es del entorno **8094 (modo `read_write`, otro camino de código que producción)** y no se usa como prueba del administrador publicado; la compatibilidad con el backend real de Flutter sobre una copia no existe (fase 2). Etiqueta heredada del piloto: en `http_admin_piloto_test.php` el texto «N rutas…» imprime el número de fallos (0), no el de rutas probadas.
 
 ## 10. Entregables → archivos
 Paquete y hash (§9) · este informe · `docs/UX-08G-GUIA-DESPLIEGUE-PRODUCCION.md` (operador, PowerShell/PuTTY) · `docs/UX-08G-PLAN-ESCRITURAS-Y-MIGRACIONES.md` (migraciones, cuenta mínima, matriz R1–R5, habilitación progresiva, límites de reversión) · `deploy/produccion-admin/*` (empaquetado, preflight, referencia del piloto) · pruebas nuevas: `AdminPilotWriteLayerIsUnreachable`, ampliación de `http_admin_piloto_test.php`, `probar-preflight.sh`.
