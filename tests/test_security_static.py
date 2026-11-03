@@ -626,7 +626,10 @@ class PilotoVisualStaticChecks(unittest.TestCase):
     def test_pilot_frontend_has_no_admin_screens_and_is_a_distinct_build(self):
         app = source("frontend/src/app/App.tsx")
         self.assertIn("import.meta.env.VITE_PILOT === 'true'", app)
-        self.assertIn("{(!PILOT || ADMIN_PILOT) && (", app)  # solo el piloto administrativo (VITE_PILOT_MODE=admin) conserva las pantallas de administración
+        # solo el piloto administrativo (VITE_PILOT_MODE=admin) y la compilación de escritura (admin-write, UX-08H) conservan las pantallas de administración;
+        # los pilotos visuales (operador, usuarios) siguen sin ellas
+        self.assertIn("{(!PILOT || ADMIN_PILOT || ADMIN_WRITE) && (", app)
+        self.assertIn("const ADMIN_WRITE = PILOT && import.meta.env.VITE_PILOT_MODE === 'admin-write'", app)
         self.assertIn("const ADMIN_PILOT = PILOT && import.meta.env.VITE_PILOT_MODE === 'admin'", app)
         build = source("frontend/scripts/build-production.mjs")
         for needed in ("--pilot", "dist-pilot", "VITE_PILOT: 'true'", "pilot: true"):
