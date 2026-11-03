@@ -47,7 +47,7 @@ GRANT UPDATE (nombre, descripcion, enlace, grupo_id, reporte_id, activo, updated
     ON `{DB}`.`reporte` TO '{USER}'@'{HOST}';
 GRANT UPDATE (empresa_id, user_id, notas, activo, updated_by)
     ON `{DB}`.`empresa_usuario` TO '{USER}'@'{HOST}';
-GRANT UPDATE (empresa_id, reporte_id, notas, activo, updated_by)
+GRANT UPDATE (empresa_id, reporte_id, notas, activo, updated_by, updated_at)
     ON `{DB}`.`empresa_reporte` TO '{USER}'@'{HOST}';
 GRANT UPDATE (user_id, empresa_reporte_id, notas, activo, updated_by)
     ON `{DB}`.`user_empresa_reporte` TO '{USER}'@'{HOST}';

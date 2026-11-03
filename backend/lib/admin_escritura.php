@@ -67,7 +67,7 @@ function admin_write_routes() {
         ['POST', '~^/api/login$~D', null], ['POST', '~^/api/logout$~D', null],
         ['GET', '~^/api/ping$~D', null], ['GET', '~^/api/user/profile$~D', null], ['GET', '~^/api/admin/capacidades$~D', null],
         ['GET', '~^/api/users$~D', null], ['GET', '~^/api/users/capabilities$~D', null], ['GET', "~^/api/users/$id\$~D", null], ['GET', "~^/api/users/$id/access\$~D", null],
-        ['GET', '~^/api/empresas$~D', null], ['GET', '~^/api/reportes$~D', null], ['GET', "~^/api/reportes/$id\$~D", null], ['GET', "~^/api/reportes/id/$id/visor\$~D", null],
+        ['GET', '~^/api/empresas$~D', null], ['GET', "~^/api/empresas/$id\$~D", null], ['GET', '~^/api/reportes$~D', null], ['GET', "~^/api/reportes/$id\$~D", null], ['GET', "~^/api/reportes/id/$id/visor\$~D", null],
         ['GET', '~^/api/asignacion$~D', null], ['GET', '~^/api/empresa-usuario$~D', null], ['GET', '~^/api/empresa-reporte-usuario$~D', null], ['GET', '~^/api/auditoria$~D', null],
         // empresas
         ['POST', '~^/api/empresas$~D', 'empresas'], ['PUT', "~^/api/empresas/$id\$~D", 'empresas'], ['DELETE', "~^/api/empresas/$id\$~D", 'empresas'], ['POST', "~^/api/empresas/$id/reactivate\$~D", 'empresas'],
