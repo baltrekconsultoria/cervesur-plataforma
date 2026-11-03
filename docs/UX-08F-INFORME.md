@@ -1,5 +1,7 @@
 # UX-08F · Informe: preparación del piloto administrativo aislado (QA)
 
+> **Corrección UX-08F.1 (2026-11-03):** el puerto **8090 está ocupado** en el servidor real (Apache escucha también en 127.0.0.1:8090-8093). Donde este informe dice «8090», léase «el puerto que el operador indique con `--puerto`» (candidato 8094, pendiente de verificar). Ver `docs/UX-08F1-INFORME.md` y `docs/UX-08F1-GUIA-OPERADOR-WINDOWS.md`.
+
 **Nada se instaló ni se ejecutó en ningún servidor.** No hay push, merge ni deploy; no se tocó `cervesur_portalbi`, cuentas MySQL, Apache, Flutter, HTTPS ni VPN; el checkout de SEC-05A conserva sus 20 archivos pendientes. Todo lo «verificado» abajo se probó en Docker o en el repositorio; lo que depende del servidor real figura como **hipótesis**.
 
 Documentos: `deploy/qa-admin-aislado/README.md` (instalación), `UX-08F-DIVERGENCIA-REPO-SERVIDOR.md`, `UX-08-COMPATIBILIDAD-FLUTTER.md`, `UX-08C-COMPATIBILIDAD-DESPLEGADA.md`, `UX-08E-PRIVILEGIOS-MINIMOS.md`, `UX-08B2-PLAN-DESPLIEGUE.md` §5.

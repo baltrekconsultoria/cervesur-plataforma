@@ -2,6 +2,7 @@
 # Revierte por completo el entorno ADMINISTRATIVO DE QA (UX-08F). Idempotente; tolera instalaciones parciales.
 #   sudo bash scripts/revertir.sh                     (pide confirmación escrita)
 #   sudo bash scripts/revertir.sh --conservar-base    (deja la base y la cuenta MySQL de este entorno, con su marca)
+# El puerto es el que la instalación registró en $DIR_VAR/puerto (un CERVESUR_QA_PUERTO distinto aborta sin hacer nada).
 # Elimina ÚNICAMENTE lo que el instalador creó y registró en $DIR_VAR/estado-instalacion, y SOLO si el recurso conserva la marca de ESA instalación:
 #   sitio cervesur-react-admin-qa, /etc/apache2/cervesur-react-admin-qa, /opt/cervesur-react-admin-qa, /var/www/cervesur-react-admin-qa,
 #   /var/lib/cervesur-react-admin-qa, la base y la cuenta MySQL marcadas.
@@ -13,6 +14,7 @@ PAQ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$PAQ/scripts/lib.sh"
 requerir_root
 bloquear_ejecucion "${BASH_SOURCE[0]}"
+bloqueo_global || abortar "Hay otra instalación o reversión de este entorno en curso ($LOCK_GLOBAL). No se modificó nada."
 verificar_no_colision
 CONSERVAR_BASE=0
 [ "${1:-}" = "--conservar-base" ] && CONSERVAR_BASE=1
@@ -34,6 +36,9 @@ if ! TOKEN=$(marca_token) || [ -z "$TOKEN" ]; then
     if [ -e "$r" ] || [ -L "$r" ]; then aviso "existe $r pero no pertenece a una instalación marcada de este paquete: se deja intacto"; fi
   done
   exit 0
+fi
+if [ -n "${CERVESUR_QA_TOKEN_ESPERADO:-}" ] && [ "$CERVESUR_QA_TOKEN_ESPERADO" != "$TOKEN" ]; then
+  abortar "La instalación marcada en $DIR_VAR no es la que este proceso creó (otro proceso o intento): NO se revierte nada."
 fi
 [ -f "$DIR_VAR/$ESTADO_NOMBRE" ] || abortar "Falta $DIR_VAR/$ESTADO_NOMBRE: no se puede saber qué creó la instalación. No se elimina nada."
 mapfile -t ITEMS < "$DIR_VAR/$ESTADO_NOMBRE"
@@ -115,7 +120,8 @@ else
 fi
 
 echo "== Comprobación final"
-if [ -z "$(ss -ltnH "sport = :$PUERTO")" ]; then ok "el puerto $PUERTO ya no está en escucha"; else fallo "el puerto $PUERTO sigue en escucha"; errores=$((errores + 1)); fi
+if [ -z "$PUERTO" ]; then aviso "la instalación no registró su puerto: no se puede comprobar que haya dejado de escuchar (indique CERVESUR_QA_PUERTO=N para comprobarlo)"
+elif [ -z "$(ss -ltnH "sport = :$PUERTO")" ]; then ok "el puerto $PUERTO (el registrado por la instalación) ya no está en escucha"; else fallo "el puerto $PUERTO sigue en escucha"; errores=$((errores + 1)); fi
 if [ "$errores" -eq 0 ] && [ "${#restantes[@]}" -eq 0 ] && [ -f "$DIR_RESPALDO/linea-base-portales.txt" ]; then
   if [ "$(huella_servidor)" = "$(cat "$DIR_RESPALDO/linea-base-portales.txt")" ]; then ok "el servidor (Flutter, 443, 8443, 8088, 8089, Apache byte a byte, módulos, bases y cuentas MySQL) es IDÉNTICO a la línea base"; else fallo "la huella del servidor difiere de la línea base: revise"; errores=$((errores + 1)); fi
 fi

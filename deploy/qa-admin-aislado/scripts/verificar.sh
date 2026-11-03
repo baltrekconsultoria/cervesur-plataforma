@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verifica el entorno ADMINISTRATIVO DE QA (UX-08F) y emite GO / NO-GO.
 #   sudo bash scripts/verificar.sh
-# Consultas HTTP a 127.0.0.1:8090, metadatos de MySQL y comparación con la línea base. ESCRIBE un único cambio sintético (editar el nombre del usuario
+# Consultas HTTP a 127.0.0.1:<puerto registrado por la instalación (o CERVESUR_QA_PUERTO)>, metadatos de MySQL y comparación con la línea base. ESCRIBE un único cambio sintético (editar el nombre del usuario
 # 40 de la base de QA) para demostrar que cada escritura deja una fila en audit_log; nunca toca nada fuera de este entorno.
 # Para las pruebas autenticadas defina (instalar.sh lo hace por usted; no se guardan en ningún sitio):
 #   CERVESUR_QA_ADMIN_PASSWORD (syn001, rol admin) · CERVESUR_QA_USUARIO_PASSWORD (syn005, rol usuario) · CERVESUR_QA_USER_PASSWORD (syn007, rol user)
@@ -12,6 +12,7 @@ PAQ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib.sh
 source "$PAQ/scripts/lib.sh"
 requerir_root
+validar_puerto
 BASE="http://127.0.0.1:$PUERTO"
 BACK_ENV="$DIR_BACK/backend/.env"
 pass=0; fail=0; omitidas=0

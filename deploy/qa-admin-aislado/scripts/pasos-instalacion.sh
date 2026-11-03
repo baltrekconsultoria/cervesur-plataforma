@@ -12,8 +12,9 @@ MIGRACION_B3=0
 source "$PAQ/scripts/lib.sh"
 requerir_root
 nombre_base_valido "$DB_NOMBRE"
+validar_puerto
 
-TOKEN=$(openssl rand -hex 16)
+TOKEN=${CERVESUR_QA_TOKEN:-$(openssl rand -hex 16)}
 registrar() { printf '%s\n' "$1" >> "$DIR_VAR/$ESTADO_NOMBRE"; }   # el estado lista SOLO lo que este instalador creó
 marcar_dir() { printf 'cervesur-react-admin-qa:%s\n' "$TOKEN" > "$1/$MARCA_NOMBRE"; chmod 600 "$1/$MARCA_NOMBRE"; }
 copiar_solo_lectura() { # origen destino: root:root, directorios 755 y archivos 644
@@ -27,9 +28,11 @@ sql_archivo() { mysql_admin "$DB_NOMBRE" < "$1"; }
 sql_valor() { mysql_admin -N -B "$DB_NOMBRE" -e "$1"; }
 
 echo "== 2. Estado y sesiones PHP exclusivas (primer recurso: lleva el estado de la instalación)"
-install -d -m 755 -o root -g root "$DIR_VAR"
+# mkdir (no install -d): si la carpeta ya existe falla SIN tocar nada y sale con 3, y el instalador no revierte lo que es de otro proceso.
+mkdir -m 755 "$DIR_VAR" 2>/dev/null || { fallo "Ya existe $DIR_VAR: no se crea nada."; exit 3; }
 marcar_dir "$DIR_VAR"
 : > "$DIR_VAR/$ESTADO_NOMBRE"; chmod 600 "$DIR_VAR/$ESTADO_NOMBRE"
+printf '%s\n' "$PUERTO" > "$PUERTO_REGISTRO"; chmod 644 "$PUERTO_REGISTRO"   # lo primero tras la marca: verificar.sh y revertir.sh leen de aquí el puerto exacto
 registrar var
 install -d -m 700 -o www-data -g www-data "$DIR_SESIONES"
 ok "estado en $DIR_VAR y sesiones en $DIR_SESIONES (modo 700, propietario www-data); no se comparten con ningún otro portal"
@@ -51,7 +54,7 @@ SQL
 ok "base $DB_NOMBRE creada y marcada"
 
 SEMILLA=$(mktemp -d); chmod 700 "$SEMILLA"; trap 'rm -rf "$SEMILLA"' EXIT
-php "$PAQ/scripts/sembrar-qa-admin.php" sql "$SEMILLA/semilla.sql" "$INFORME_SINTETICO_ID" > "$CUENTAS_OUT"
+( umask 077; php "$PAQ/scripts/sembrar-qa-admin.php" sql "$SEMILLA/semilla.sql" "$INFORME_SINTETICO_ID" > "$CUENTAS_OUT" )
 sql_archivo "$SEMILLA/semilla.sql"
 rm -f "$SEMILLA/semilla.sql"
 ok "esquema productivo (tipos + UNIQUE productivos) y datos sintéticos cargados"
@@ -106,7 +109,8 @@ ok "los agregados productivos sintéticos se reproducen leyendo con la cuenta de
 echo "== 7. Apache: sitio independiente en 127.0.0.1:$PUERTO (sin habilitar ni deshabilitar módulos)"
 install -d -m 755 "$DIR_CONF"; marcar_dir "$DIR_CONF"; registrar conf
 install -m 644 -o root -g root "$PAQ/apache/react-admin-qa-common.conf" "$DIR_CONF/react-admin-qa-common.conf"
-install -m 644 -o root -g root "$PAQ/apache/cervesur-react-admin-qa.conf" "$SITE_CONF"
+sed "s/@PUERTO@/$PUERTO/g" "$PAQ/apache/cervesur-react-admin-qa.conf" > "$SITE_CONF"   # plantilla: el único valor que se sustituye es el puerto, ya validado
+chmod 644 "$SITE_CONF"; chown root:root "$SITE_CONF"
 printf '# TOKEN-INSTALACION: %s\n' "$TOKEN" >> "$SITE_CONF"
 registrar sitio
 a2ensite "$SITIO" >/dev/null

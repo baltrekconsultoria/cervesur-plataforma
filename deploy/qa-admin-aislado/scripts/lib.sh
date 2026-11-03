@@ -1,10 +1,9 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # las constantes las usan los scripts que cargan este archivo
-# Constantes y utilidades del entorno ADMINISTRATIVO DE QA aislado (UX-08F), accesible solo por túnel SSH (127.0.0.1:8090).
+# Constantes y utilidades del entorno ADMINISTRATIVO DE QA aislado (UX-08F), accesible solo por túnel SSH (127.0.0.1:<puerto elegido por el operador>).
 # Se carga con «source». No contiene contraseñas ni valores de .env. Todos los recursos son EXCLUSIVOS de este entorno.
 
 SITIO=cervesur-react-admin-qa
-PUERTO=8090
 DIR_FRONT=/var/www/cervesur-react-admin-qa
 DIR_BACK=/opt/cervesur-react-admin-qa
 DIR_CONF=/etc/apache2/cervesur-react-admin-qa
@@ -13,6 +12,8 @@ SITE_ENABLED=/etc/apache2/sites-enabled/cervesur-react-admin-qa.conf
 DIR_VAR=/var/lib/cervesur-react-admin-qa
 DIR_SESIONES=/var/lib/cervesur-react-admin-qa/sessions
 DIR_RESPALDO=/var/backups/cervesur-react-admin-qa   # NUNCA se borra: respaldos, línea base y registros de reversión
+LOCK_GLOBAL=/run/lock/cervesur-react-admin-qa.lock       # bloqueo de instalación/reversión (solo en memoria del kernel; el archivo vive en tmpfs)
+PUERTO_REGISTRO=$DIR_VAR/puerto                      # puerto de ESTA instalación: lo escribe el instalador y lo leen verificar.sh y revertir.sh
 COOKIE_SESION=CERVESUR_REACT_ADMIN_QA
 # Nombre de la base: fijo por defecto. CERVESUR_QA_DB_NOMBRE existe SOLO para el ensayo de las negativas (la base productiva se rechaza siempre).
 DB_NOMBRE=${CERVESUR_QA_DB_NOMBRE:-cervesur_qa_admin}
@@ -31,12 +32,28 @@ MYSQL_ADMIN=${CERVESUR_MYSQL_ADMIN:-mysql}
 
 # --- Recursos de los OTROS portales: solo se LEEN (huella). Jamás se escriben. ---
 PUERTO_FLUTTER=80
-PUERTOS_AJENOS=(80 443 8443 8088 8089)
+# Puertos que ya usan los portales del servidor real (Apache: 80, 443, 8443, 8088, 8089, 8090..8093) y servicios que jamás se comparten (ssh, MySQL).
+# Un puerto de esta lista se rechaza SIEMPRE, escuche algo o no en este instante.
+PUERTOS_AJENOS=(80 443 8443 8088 8089 8090 8091 8092 8093)
+PUERTOS_RESERVADOS=(22 3306 33060)
 PUERTOS_HTTP_SONDA=(80 8088 8089)      # sondeo HTTP en claro (solo si escuchan)
 PUERTOS_HTTPS_SONDA=(443 8443)         # sondeo HTTPS (curl -k, solo si escuchan)
 COOKIES_AJENAS=(CERVESUR_REACT CERVESUR_REACT_COMPAT)
 DIRS_AJENOS=(/var/www/cervesur /var/www/cervesur-react-prueba /opt/cervesur-react-prueba /var/www/cervesur-react-compat /opt/cervesur-react-compat)
 ARBOLES_HUELLA=(/var/www /opt)
+
+# --- Puerto del entorno: SIEMPRE explícito (--puerto N o CERVESUR_QA_PUERTO), nunca elegido ni cambiado en silencio ---
+# Si ya hay una instalación registrada, manda el puerto registrado y un valor distinto aborta (la reversión usa EXACTAMENTE el puerto instalado).
+PUERTO=${CERVESUR_QA_PUERTO:-}
+if [ -r "$PUERTO_REGISTRO" ]; then
+  _registrado=$(tr -d '[:space:]' < "$PUERTO_REGISTRO")
+  if [ -n "$PUERTO" ] && [ "$PUERTO" != "$_registrado" ]; then
+    printf 'FALLO  El puerto indicado (%s) no coincide con el de la instalación registrada (%s). No se hace nada.\n' "$PUERTO" "$_registrado" >&2
+    exit 1
+  fi
+  PUERTO=$_registrado
+fi
+unset _registrado
 
 ok() { printf 'OK     %s\n' "$*"; }
 aviso() { printf 'AVISO  %s\n' "$*"; }
@@ -47,6 +64,9 @@ con_systemd() { [ -d /run/systemd/system ]; }
 
 # Impide dos ejecuciones simultáneas sin crear ningún archivo (bloquea el propio script).
 bloquear_ejecucion() { exec 9<"$1"; flock -n 9 || abortar "Otra ejecución de este paquete está en curso."; }
+
+# Bloqueo global de instalación/reversión. El instalador lo hereda al revertir un intento fallido (CERVESUR_QA_BLOQUEO_HEREDADO=1).
+bloqueo_global() { [ "${CERVESUR_QA_BLOQUEO_HEREDADO:-}" = 1 ] && return 0; exec 8>"$LOCK_GLOBAL" && flock -n 8; }
 
 # Módulo de Apache cargado. La salida se captura antes de filtrar: con «pipefail», un «grep -q» en tubería puede dar un falso negativo por SIGPIPE.
 modulo_apache() { local salida; salida=$(apache2ctl -M 2>/dev/null) || true; grep -Eq " $1_module " <<<"$salida"; }
@@ -63,6 +83,17 @@ mysql_activo() {
 # shellcheck disable=SC2086  # MYSQL_ADMIN puede contener opciones
 mysql_admin() { $MYSQL_ADMIN --default-character-set=utf8mb4 "$@"; }
 
+# Puerto bien formado: entero decimal canónico de 1024 a 65535 (sin ceros a la izquierda, signos, espacios ni otros caracteres).
+puerto_valido() { [[ ${1:-} =~ ^[1-9][0-9]{3,4}$ ]] && [ "$1" -le 65535 ] && [ "$1" -ge 1024 ]; }
+puerto_conocido() { local p; for p in "${PUERTOS_AJENOS[@]}" "${PUERTOS_RESERVADOS[@]}"; do [ "$1" != "$p" ] || return 0; done; return 1; }
+validar_puerto() { # aborta si falta, es de otro portal o servicio, o está mal formado; la comprobación de «libre» es de instalar.sh
+  [ -n "$PUERTO" ] || abortar "Falta el puerto: indique --puerto N (1024-65535; candidato propuesto: 8094, pendiente de verificar en el servidor). No se elige ninguno por usted."
+  if [[ $PUERTO =~ ^[0-9]+$ ]] && puerto_conocido "$((10#$PUERTO))"; then
+    abortar "RECHAZADO: el puerto $PUERTO lo usa o reserva otro servicio del servidor (${PUERTOS_AJENOS[*]} · ${PUERTOS_RESERVADOS[*]}). Elija otro con --puerto."
+  fi
+  puerto_valido "$PUERTO" || abortar "Puerto no válido: «$PUERTO» (entero de 1024 a 65535, sin espacios ni ceros a la izquierda)."
+}
+
 # ¿$1 es igual a $2 o está contenido (como ruta) en $2, o a la inversa?
 rutas_solapadas() { case "$1/" in "$2/"*) return 0 ;; esac; case "$2/" in "$1/"*) return 0 ;; esac; return 1; }
 
@@ -76,7 +107,7 @@ nombre_base_valido() { # $1 = nombre; aborta si es la base productiva, la contie
 verificar_no_colision() {
   local propio otro p
   nombre_base_valido "$DB_NOMBRE"
-  for p in "${PUERTOS_AJENOS[@]}"; do [ "$PUERTO" != "$p" ] || abortar "Colisión de puertos: $PUERTO coincide con el de otro portal ($p)."; done
+  [ -z "$PUERTO" ] || validar_puerto
   for p in "${COOKIES_AJENAS[@]}"; do [ "$COOKIE_SESION" != "$p" ] || abortar "Colisión del nombre de cookie de sesión con otro portal ($p)."; done
   for propio in "$DIR_FRONT" "$DIR_BACK" "$DIR_CONF" "$DIR_VAR" "$DIR_RESPALDO" "$SITE_CONF" "$SITE_ENABLED"; do
     for otro in "${DIRS_AJENOS[@]}" /etc/apache2/sites-enabled/cervesur.conf /etc/apache2/sites-available/cervesur.conf; do

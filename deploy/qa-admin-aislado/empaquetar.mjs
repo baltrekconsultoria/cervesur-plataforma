@@ -56,7 +56,7 @@ copy(need(join(here, 'README.md')), 'README.md');
 for (const file of ['migrations/UX-08B-audit-log.up.sql', 'migrations/UX-08B-audit-log-immutable.up.sql', 'migrations/UX-08B3-reporte-grupo-nullable.up.sql', 'migrations/UX-08B3-reporte-grupo-nullable.down.sql', 'privileges/UX-08E-cuenta-admin-minima.sql.template']) {
   copy(need(join(REPO, 'database', file)), `database/${file}`);
 }
-writeFileSync(join(ROOT, 'VERSION'), `commit: ${commit}${dirty}\nconstruido: ${new Date().toISOString()}\nentorno: administrativo de QA aislado (127.0.0.1:8090)\nservidor-autorizado: ${info.allowedHosts.join(',')}\n`);
+writeFileSync(join(ROOT, 'VERSION'), `commit: ${commit}${dirty}\nconstruido: ${new Date().toISOString()}\nentorno: administrativo de QA aislado (127.0.0.1:<puerto elegido con --puerto; candidato 8094, pendiente de verificar en el servidor>)\nservidor-autorizado: ${info.allowedHosts.join(',')}\n`);
 
 const files = [];
 const walk = dir => { for (const entry of readdirSync(dir).sort()) { const full = join(dir, entry); statSync(full).isDirectory() ? walk(full) : files.push(full); } };

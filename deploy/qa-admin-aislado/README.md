@@ -1,4 +1,4 @@
-# Entorno React ADMINISTRATIVO DE QA, aislado (puerto 8090, solo por túnel SSH)
+# Entorno React ADMINISTRATIVO DE QA, aislado (puerto elegido por el operador, solo por túnel SSH)
 
 Paquete **instalable pero NO instalado** de un tercer entorno React: un piloto de QA con **capacidad de escritura administrativa** (usuarios, historial de
 cambios, visor de un informe). Sigue el mismo diseño ya ensayado en `deploy/tunel-ssh-compat/` (8089): loopback, acceso por túnel SSH, scripts propios,
@@ -12,8 +12,8 @@ aborta sin cambios si algo ya existe y se revierte por completo. **Nada de este 
 
 | Elemento | Valor (todos nuevos; el instalador comprueba que NO existen) |
 |---|---|
-| Puerto | `127.0.0.1:8090` (nunca `0.0.0.0`) |
-| Sitio Apache | `cervesur-react-admin-qa` (`Listen 127.0.0.1:8090` dentro del propio sitio; no se edita `ports.conf`) |
+| Puerto | `127.0.0.1:<puerto>` (nunca `0.0.0.0`), **explícito**: `--puerto N`. Candidato propuesto: **8094**, pendiente de verificar en el servidor (ver §1.1). **8090-8093 están ocupados** por otros portales |
+| Sitio Apache | `cervesur-react-admin-qa` (una directiva `Listen 127.0.0.1:<puerto>` dentro del propio sitio, generada desde una plantilla; no se edita `ports.conf`) |
 | Frontend | `/var/www/cervesur-react-admin-qa/public` (compilación de servidor, `localhost` autorizado) |
 | Backend PHP | `/opt/cervesur-react-admin-qa/backend` (fuera del DocumentRoot; `.env` 640 `root:www-data`) |
 | Snippets Apache | `/etc/apache2/cervesur-react-admin-qa/` |
@@ -22,7 +22,15 @@ aborta sin cambios si algo ya existe y se revierte por completo. **Nada de este 
 | Cuenta MySQL | `cervesur_qa_admin_w`@`127.0.0.1`, creada con `database/privileges/UX-08E-cuenta-admin-minima.sql.template` |
 | Respaldos / línea base | `/var/backups/cervesur-react-admin-qa/` (**nunca se borra**) |
 
-No colisiona con Flutter (80), React de trabajadores (443), React admin (8443), 8088 ni 8089: puertos, nombres, rutas, cookie, sesiones, base y cuenta son propios.
+No colisiona con Flutter (80), React de trabajadores (443), React admin (8443) ni los puertos 8088-8093: puertos, nombres, rutas, cookie, sesiones, base y cuenta son propios.
+
+### 1.1 Puerto
+- **Siempre explícito**: `--puerto N` o `CERVESUR_QA_PUERTO=N`. No hay valor por defecto ni cambio automático; si faltan o discrepan, aborta.
+- **Se rechaza** (con `RESULTADO: NO-GO` y sin cambios): 80, 443, 8443, 8088, 8089, **8090, 8091, 8092, 8093**, 22, 3306 y 33060; cualquier valor mal formado (no decimal canónico de 1024 a 65535); cualquier puerto
+  en el que **escuche algo** (cualquier interfaz); y cualquier puerto que **Apache mencione** (`Listen`, `VirtualHost`, `ports.conf`, `conf-*`) o que aparezca en `apache2ctl -S`.
+- El puerto instalado queda **registrado** en `/var/lib/cervesur-react-admin-qa/puerto` (lo primero que se escribe tras la marca). `verificar.sh` y `revertir.sh` usan **exactamente ese**; uno distinto aborta.
+- Verificación previa de solo lectura para el operador: `bash deploy/auditoria/puerto-candidato-solo-lectura.sh 8094` (paquete de auditoría).
+- Registrar un puerto nuevo en Apache (la directiva `Listen` del sitio nuevo y la recarga suave) es una operación que **exige aprobación expresa por separado**; no se edita ningún archivo existente de Apache.
 
 **Privilegios de la cuenta** (de la plantilla UX-08E): `SELECT` en toda la base; `INSERT` en las 6 tablas de negocio y en `audit_log`; `UPDATE` solo por columnas;
 **nunca** `ALL PRIVILEGES`, `DELETE`, `GRANT OPTION`, DDL ni `TRIGGER`; `audit_log` solo admite `INSERT` (más los triggers de solo inserción de UX-08B.2).
@@ -58,8 +66,9 @@ Ensayo completo en Docker (no toca ningún servidor): `node deploy/qa-admin-aisl
 ## 4. Instalación paso a paso (en el servidor, SOLO tras aprobación del responsable)
 1. Copiar el `.tar.gz` y su `.sha256` al servidor (`scp`, por el canal autorizado) y comprobar: `sha256sum -c *.tar.gz.sha256`.
 2. `tar xzf cervesur-react-admin-qa-*.tar.gz && cd cervesur-react-admin-qa-*`
-3. **Simulación (solo lectura):** `sudo bash scripts/instalar.sh --simular`. Debe terminar con «Modo --simular: fin». Si algún nombre, ruta, puerto, base o cuenta existe, **aborta sin cambios**.
-4. **Instalación:** `sudo bash scripts/instalar.sh` (añadir `--aplicar-migracion-grupo-nullable` solo si se quiere la QA con UX-08B3). Pide escribir `INSTALAR-QA-ADMIN`.
+3. **Simulación (solo lectura):** `sudo bash scripts/instalar.sh --simular --puerto 8094`. Imprime las comprobaciones, un **resumen** (puerto y su estado, base, cuenta, MySQL con `log_bin`, dependencias HTTP, interruptores de los portales publicados) y
+   `RESULTADO: GO` o `RESULTADO: NO-GO`; termina con «Modo --simular: fin». No escribe nada (ver §11). Si algún nombre, ruta, puerto, base o cuenta existe, o no se puede demostrar `USER_ADMIN_WRITES` apagado en los portales publicados, **aborta sin cambios**.
+4. **Instalación:** `sudo bash scripts/instalar.sh --puerto 8094` (añadir `--aplicar-migracion-grupo-nullable` solo si se quiere la QA con UX-08B3). Pide escribir `INSTALAR-QA-ADMIN`.
    El instalador: respalda `/etc/apache2` y guarda la línea base → crea carpetas con marca → crea la base y carga el esquema sintético → aplica y verifica las migraciones →
    crea la cuenta mínima con una contraseña generada → escribe el `.env` → crea el sitio y recarga Apache de forma suave → ejecuta `verificar.sh`.
 5. Se imprimen **una sola vez** las cuentas sintéticas (`syn001` admin, `syn005`/`syn006` rol `usuario`, `syn007` rol `user`). Guárdelas en un gestor de contraseñas; en la base solo hay hashes.
@@ -67,7 +76,7 @@ Ensayo completo en Docker (no toca ningún servidor): `node deploy/qa-admin-aisl
 
 ## 5. Túnel SSH (lo ejecuta el operador; este paquete no se conecta a nada)
 ```bash
-ssh -N -L 18091:127.0.0.1:8090 <usuario>@<servidor>      # y abrir http://localhost:18091
+ssh -N -L 18091:127.0.0.1:<puerto> <usuario>@<servidor>      # p. ej. 8094; y abrir http://localhost:18091
 ```
 El navegador debe usar `localhost` (el frontend solo admite ese host). Ningún puerto nuevo se abre en la red.
 
@@ -76,7 +85,7 @@ El navegador debe usar `localhost` (el frontend solo admite ese host). Ningún p
 (no se guardan en ningún sitio); sin ellas las pruebas autenticadas se **omiten** y el resultado es **NO-GO** (nunca un GO falso). Escribe un único cambio sintético (editar el nombre del usuario 40) para comprobar la auditoría.
 
 **GO solo si TODOS los grupos están en GO:**
-1. *Red:* escucha solo en `127.0.0.1:8090` (no `0.0.0.0`); `configtest` correcto.
+1. *Red:* escucha solo en `127.0.0.1:<puerto registrado>` (no `0.0.0.0`); `configtest` correcto.
 2. *Frontend y Apache:* React servido; ruta interna recarga; 404 reales; `/api/powerbi` 403; `.env` y fuentes inaccesibles; CSP/`X-Frame-Options`; cookie y sesiones propias.
 3. *Configuración del backend:* `AUDIT_LOG_MODE=required`, `REACT_STRICT_VIEWS=1`, `USER_ADMIN_WRITES=1`, lista del visor, base y cuenta propias; JWT propio; marcas de instalación.
 4. *Base de datos:* tipos productivos + 8 UNIQUE; migraciones aplicadas; los tres valores de rol; 76 usuarios (62 activos); informe sintético 31.
@@ -110,4 +119,19 @@ abrir puertos en la red; reiniciar Apache; habilitar/deshabilitar módulos; modi
 ## 10. Suposiciones sobre el servidor real que el ensayo no puede probar
 La cuenta `@127.0.0.1` debe coincidir con las conexiones TCP del cliente PHP (si el servidor resuelve nombres, la conexión podría presentarse como `localhost`); `ALTER USER ... COMMENT` requiere MySQL ≥ 8.0.21;
 los portales 443/8443 reales (TLS, nombres de archivo y rutas) se protegen con la huella genérica de todo `/etc/apache2`, no por nombre; `mod_headers` debe estar cargado;
-con `log_bin` activo, crear los triggers de UX-08B.2 puede exigir `SUPER` o `log_bin_trust_function_creators` al administrador de MySQL.
+con `log_bin` activo y `log_bin_trust_function_creators=0` (el caso del servidor real) crear los triggers de UX-08B.2 **exige `SUPER`** a la cuenta administradora (ver §11); la simulación lo comprueba leyendo sus privilegios.
+
+## 11. Triggers con binary logging, simulación y bloqueos (UX-08F.1)
+- **Triggers y `log_bin`:** el servidor real tiene `log_bin=1` y `log_bin_trust_function_creators=0`. En ese caso MySQL rechaza `CREATE TRIGGER` con **ERROR 1419** a una cuenta sin `SUPER`, aunque tenga `TRIGGER`, `CREATE` y `ALTER`
+  (demostrado en la réplica de ensayo). Las migraciones las aplica la cuenta **administradora** del operador (`root` por socket o la de `CERVESUR_MYSQL_ADMIN`), solo durante la instalación y sin conceder nada de forma permanente:
+  no se activa `log_bin_trust_function_creators`, no se concede `SUPER` a nadie y la cuenta de la aplicación (`cervesur_qa_admin_w`) jamás tiene `TRIGGER`, `DDL` ni `DELETE`. Si la cuenta administradora no tiene `SUPER`,
+  la simulación da **NO-GO** antes de crear nada; la alternativa es que un DBA con `SUPER` aplique a mano `database/migrations/UX-08B-audit-log-immutable.up.sql` (decisión aparte, no automatizada).
+- **Fallo a mitad de instalación:** si cualquier paso falla (migración de triggers, Apache…), el instalador revierte **solo lo creado por ese intento** (token propio). Si el proceso muere por la fuerza (SIGKILL), `sudo bash scripts/revertir.sh`
+  retira los restos usando el puerto registrado. Las contraseñas sintéticas se escriben dentro de la carpeta de estado (600) y se eliminan con ella; `pasos-instalacion.sh` deja además un directorio `/tmp/tmp.*` con el SQL de semilla (solo hashes) si lo matan: bórrelo.
+- **Verificador:** `verificar.sh` exige los 2 triggers (`audit_log_no_update`, `audit_log_no_delete`) y comprueba que ni siquiera el administrador puede modificar `audit_log`; un trigger ausente da **NO-GO**.
+- **`--simular` no escribe nada:** ni bases, cuentas ni privilegios, ni carpetas, ni archivos, ni Apache, ni recargas, ni archivos temporales (no usa `mktemp`; el resumen vive en memoria). El ensayo lo demuestra con la posición del registro binario de MySQL (idéntica antes y después), con
+  `find -cnewer` sobre `/etc /opt /var/www /var/backups /var/lib /usr/local /tmp /var/tmp` (vacío) y con una auditoría estática del código previo a su salida.
+- **Bloqueos:** dos ejecuciones del mismo paquete se excluyen (`flock` sobre el script); la instalación y la reversión toman además un bloqueo global (`/run/lock/cervesur-react-admin-qa.lock`, en tmpfs), de modo que dos instalaciones simultáneas
+  (aun desde copias distintas) no se solapan, y el intento perdedor no puede revertir lo del ganador (la reversión exige el token del intento que la pide).
+- **Interruptor `USER_ADMIN_WRITES`:** `scripts/interruptor-escrituras.sh` replica la regla del código (`env.php` + `write_support.php`) y emite por instancia: estado efectivo · fuente · PASS/FAIL, sin imprimir ningún valor de `.env`.
+  La simulación lo ejecuta sobre `/opt/cervesur-react-usuarios` y `/opt/cervesur-react-admin` (`CERVESUR_QA_PORTALES_PUBLICADOS` permite cambiar la lista); si no se puede demostrar apagado, **NO-GO**.

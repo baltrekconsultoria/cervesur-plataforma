@@ -5,7 +5,8 @@
 # Se ejecuta en la raíz del repositorio. No contiene secretos. Debe regenerarse en cada entrega (la primera línea registra la versión).
 set -eu
 cd "$(dirname "$0")/../.."
-OUT="deploy/auditoria"
+OUT="${MANIFIESTO_SALIDA:-deploy/auditoria}"   # MANIFIESTO_SALIDA permite generarlos fuera del repositorio (lo usa empaquetar-auditoria.mjs)
+mkdir -p "$OUT"
 VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo desconocida)"
 
 {

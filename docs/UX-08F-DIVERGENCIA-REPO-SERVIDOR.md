@@ -50,7 +50,7 @@ Compartir esos tres archivos tras revisarlos. El manifiesto debe generarse **en 
 ## 5. Política de publicación (obligatoria)
 
 1. **Prohibido** reemplazar, sincronizar con borrado o reconstruir los directorios activos de los portales publicados.
-2. UX-08 se instala **primero** en una instancia nueva y aislada (`deploy/qa-admin-aislado/`, puerto 8090 en loopback, base y cuenta propias). Los directorios publicados no se tocan.
+2. UX-08 se instala **primero** en una instancia nueva y aislada (`deploy/qa-admin-aislado/`, puerto en loopback elegido con `--puerto` —8090-8093 están ocupados; candidato 8094, UX-08F.1—, base y cuenta propias). Los directorios publicados no se tocan.
 3. La publicación posterior sobre el piloto real, si se aprueba, se hace **solo con superposición aditiva**: copiar a un directorio nuevo (`…-ux08`), no sobre el existente; conservar los componentes de §4; fusionar a mano los archivos en conflicto; conmutar con un cambio de configuración de un solo paso.
 4. Antes de conmutar: ejecutar el inventario sobre el directorio nuevo; los conteos de marcadores de seguridad (§3, sección 7) **no pueden disminuir** respecto al desplegado.
 5. Respaldo previo (directorio y `.env`), verificación posterior (§6) y reversión inmediata por conmutación inversa.
