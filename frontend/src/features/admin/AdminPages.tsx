@@ -137,7 +137,7 @@ export function AdminUsersPage() {
           onClose={() => setToggling(null)} onStale={bump}
           onDone={() => { setNotice(`Usuario «${toggling.user.displayName}» ${toggling.to === 'off' ? 'desactivado' : 'reactivado'} correctamente.`); setToggling(null); bump(); }}>
           {toggling.to === 'off'
-            ? <><p>¿Desactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Se cerrarán sus sesiones y dejará de poder ingresar; sus accesos quedarán sin efecto, pero no se borran. Podrá reactivarlo después. En Flutter, la sesión abierta dejará de funcionar en su siguiente consulta.</p></>
+            ? <><p>¿Desactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Se cerrarán sus sesiones y dejará de poder ingresar; sus accesos quedarán sin efecto, pero no se borran. Podrá reactivarlo después{capabilities.reactivateAfterHours ? `, pero solo pasadas ${capabilities.reactivateAfterHours} h (protege sesiones antiguas que pudieran seguir vigentes)` : ''}. En Flutter, la sesión abierta dejará de funcionar en su siguiente consulta.</p></>
             : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
         </ConfirmActionDialog>
       )}
@@ -172,7 +172,7 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
-                  {u.id !== me?.id && !u.loginBlocked && u.active && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
+                  {u.id !== me?.id && !u.loginBlocked && u.active && capabilities.usersSensitive !== false && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
                   {u.id !== me?.id && (u.active
                     ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'off' }); }}>Desactivar</Button></>
                     : <>{' '}<Button variant="secondary" size="sm" aria-label={`Reactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'on' }); }}>Reactivar</Button></>)}

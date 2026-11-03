@@ -41,6 +41,16 @@ describe('UX-08H · capacidades de escritura del servidor', () => {
     expect(api.capabilities.writes).toEqual({ empresas: true, reportes: true, accesos: false, usuarios: false });
   });
 
+  it('fase 2B: lee si el servidor permite rol/contraseña y la espera de reactivación; lo sensible exige «usuarios»', async () => {
+    vi.stubEnv('VITE_PILOT_MODE', 'admin-write');
+    const on = client(() => json(200, { success: true, data: { writes: { empresas: false, reportes: false, accesos: false, usuarios: true }, users_sensitive: true, reactivate_after_hours: 24 } }));
+    await on.loadCapabilities();
+    expect([on.capabilities.usersSensitive, on.capabilities.reactivateAfterHours]).toEqual([true, 24]);
+    const off = client(() => json(200, { success: true, data: { writes: { empresas: true, reportes: false, accesos: false, usuarios: false }, users_sensitive: true, reactivate_after_hours: 24 } }));
+    await off.loadCapabilities();
+    expect(off.capabilities.usersSensitive).toBe(false);
+  });
+
   it('un valor que no es exactamente true cuenta como apagado', async () => {
     vi.stubEnv('VITE_PILOT_MODE', 'admin-write');
     const api = client(() => json(200, { success: true, data: { writes: { empresas: 'true', reportes: 1, accesos: 'yes', usuarios: null } } }));

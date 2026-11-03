@@ -73,13 +73,18 @@ export class HttpApiClient implements ApiClient {
     if (import.meta.env.VITE_PILOT_MODE !== 'admin-write') return;
     this.capabilities.adminWrites = false;
     this.capabilities.writes = undefined;
+    this.capabilities.usersSensitive = false;
+    this.capabilities.reactivateAfterHours = undefined;
     try {
       const env = await this.request('GET', '/api/admin/capacidades');
-      const w = (env.data as { writes?: Record<string, unknown> } | undefined)?.writes;
+      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; reactivate_after_hours?: unknown } | undefined;
+      const w = payload?.writes;
       if (!w || typeof w !== 'object') return;
       const writes = { empresas: w.empresas === true, reportes: w.reportes === true, accesos: w.accesos === true, usuarios: w.usuarios === true };
       this.capabilities.writes = writes;
       this.capabilities.adminWrites = writes.empresas || writes.reportes || writes.accesos || writes.usuarios;
+      this.capabilities.usersSensitive = writes.usuarios && payload?.users_sensitive === true;
+      if (typeof payload?.reactivate_after_hours === 'number' && payload.reactivate_after_hours >= 0) this.capabilities.reactivateAfterHours = payload.reactivate_after_hours;
     } catch {
       this.capabilities.adminWrites = false;
       this.capabilities.writes = undefined;

@@ -189,6 +189,10 @@ export interface ApiCapabilities {
   adminWrites: boolean;
   /** UX-08H (modo `admin_escritura`): qué grupos de escritura tiene HABILITADOS el servidor. Sin este campo rige `adminWrites` para todo. */
   writes?: WriteCapabilities;
+  /** UX-08H fase 2B: el servidor permite cambiar rol y contraseña (interruptor aparte). Sin este campo (o en `false`) la interfaz no ofrece «Cambiar rol». */
+  usersSensitive?: boolean;
+  /** UX-08H fase 2B: horas que deben pasar entre desactivar y reactivar a un usuario (protege sesiones antiguas de Flutter). */
+  reactivateAfterHours?: number;
   /** El visor consulta al servidor la configuración autorizada de cada informe (en lugar de mostrar el panel simulado). */
   liveViewer: boolean;
 }
