@@ -63,8 +63,8 @@ espera_opcache() { sleep "${CERVESUR_ESPERA_OPCACHE:-4}"; }   # UX-08G.1: opcach
 # UX-08G.2: identidad EN DISCO de lo instalado frente al paquete (todo backend/ y public/ listados en su SHA256SUMS; el .env no figura).
 identidad_disco() {
   local lista
-  lista=$(grep -E '^[0-9a-f]{64} [ *]backend/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_BACK" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1 || return 1
-  lista=$(grep -E '^[0-9a-f]{64} [ *]public/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_FRONT" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1
+  lista=$(grep -E '^[0-9a-f]{64} [ *](./)?backend/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_BACK" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1 || return 1
+  lista=$(grep -E '^[0-9a-f]{64} [ *](./)?public/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_FRONT" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1
 }
 
 verificar_post() {
