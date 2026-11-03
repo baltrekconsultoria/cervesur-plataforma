@@ -69,6 +69,8 @@ Fases F1–F5 adaptadas a la Opción A: ver `docs/UX-08G-GUIA-DESPLIEGUE-PRODUCC
 **Prueba de rollback en entorno aislado:** ver §9 (ensayo del kit del piloto: actualizar → verificar → revertir con el paquete nuevo).
 
 ## 9. Etapa H · Resultados de QA
+> **SUPERADO por `docs/UX-08G1-INFORME-CIERRE.md`:** el paquete de esta tabla (`…36c5135…`) se descartó por el defecto de opcache en `actualizar.sh`; el vigente y sus hashes están en ese documento.
+
 **Paquete de liberación (fase 1, solo lectura)** — construido desde el commit `36c5135452eb` (rama `feat/cervesur-ux-08g-release-candidate`, árbol limpio), fuera del repositorio, en `Desktop/Proyectos Baltrek/Cervesur/paquetes-qa/produccion/`:
 
 | Archivo | SHA-256 del `.tar.gz` |
