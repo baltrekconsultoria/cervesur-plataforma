@@ -932,6 +932,47 @@ echo "== sitios"; ls /etc/apache2/sites-enabled | grep -v '^cervesur-react-usuar
     ok('Cerrar sesión del administrador por la IP: vuelve al acceso y /admin pide la contraseña', (await pathOf()) === '/login' && (await (async () => { await bi.goto(`${AIP}/admin`); await bi.wait(1500); return pathOf(); })()) === '/login');
   } finally { await bi.close(); proxy.close(); }
 
+  // ---------------------------------------------------------------------------------------------------------------------------------------------
+  // UX-08G.1 · Producción 8443: con el administrador YA publicado en https://IP:8443 (directorios compartidos con 8093) se ensaya la actualización in situ
+  // del release candidate: simulación sin escritura, respaldo verificable sin .env, fallo con vuelta automática, actualización, QA y reversión bit a bit.
+  section = 'Producción 8443 · actualización in situ del release candidate';
+  const P8_AT = () => `${tree('/var/www/cervesur-react-admin/public')}|${tree('/opt/cervesur-react-admin/backend')}`;
+  const P8_envSum = () => dx('sha256sum /opt/cervesur-react-admin/backend/.env').out.split(' ')[0];
+  const P8_respN = () => dx('ls -d /var/backups/cervesur-react-admin/actualizacion-* 2>/dev/null | wc -l').out;
+  const P8_AT0 = P8_AT(); const P8_ENV = P8_envSum(); const P8_UT = arbolInstalado(); const P8_PID = apachePid(); const P8_R0 = P8_respN();
+  const P8_ping = () => cv(`${AIP}/api/ping`).out.includes('pong');
+  ok('punto de partida: el administrador responde en 8443 por HTTPS con el almacén del sistema y la persona administradora entra', P8_ping() && /^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lAdm, GOODPW))));
+
+  const simu8443 = dx(`bash ${PKA2}/scripts/actualizar.sh --simular`);
+  ok('actualizar.sh --simular sobre el administrador publicado: código 0, NO escribe (mismos archivos, mismo .env, sin respaldos nuevos)', simu8443.code === 0 && /SIMULACIÓN terminada/.test(simu8443.out) && P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && P8_respN() === P8_R0, simu8443.out.slice(-400));
+
+  // (a) error de SINTAXIS: se rechaza en las precondiciones, antes de tocar nada
+  dx(`rm -rf /root/paq-ad-sint && cp -a ${PKA2} /root/paq-ad-sint && printf '<?php\\n$x = (;\\n' >> /root/paq-ad-sint/backend/router/AdminRouter.php`); resum('/root/paq-ad-sint');
+  const sint8443 = dx('bash /root/paq-ad-sint/scripts/actualizar.sh', CONFIRM);
+  ok('paquete con un error de SINTAXIS PHP: se rechaza ANTES de tocar nada (código ≠ 0, sin respaldo nuevo, archivos idénticos)', sint8443.code !== 0 && /Error de sintaxis PHP en el paquete/.test(sint8443.out) && P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && P8_respN() === P8_R0 && P8_ping(), sint8443.out.slice(-400));
+  dx('rm -rf /root/paq-ad-sint');
+  // (b) backend con sintaxis válida pero que FALLA al ejecutarse: la verificación posterior lo detecta (tras la espera de opcache) y la actualización VUELVE SOLA
+  dx(`rm -rf /root/paq-ad-roto && cp -a ${PKA2} /root/paq-ad-roto && sed -i '0,/^<?php/s//<?php\\nthrow new RuntimeException("roto");/' /root/paq-ad-roto/backend/router/AdminRouter.php && head -3 /root/paq-ad-roto/backend/router/AdminRouter.php | grep -c RuntimeException`); resum('/root/paq-ad-roto');
+  const roto8443 = dx('bash /root/paq-ad-roto/scripts/actualizar.sh', CONFIRM);
+  ok('backend de sintaxis válida pero roto en ejecución: la verificación posterior lo DETECTA, la actualización FALLA (código ≠ 0) y VUELVE SOLA a la versión anterior', roto8443.code !== 0 && /se restaura la versión anterior/.test(roto8443.out) && /versión anterior restaurada y verificada/.test(roto8443.out), roto8443.out.slice(-700));
+  ok('tras el fallo: archivos de la aplicación y del backend idénticos bit a bit a antes, mismo .env, 8443 sigue respondiendo y la persona administradora sigue entrando', P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && P8_ping() && /^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lAdm, GOODPW))));
+  ok('el fallo conservó su respaldo (nunca se borra) y no tocó Apache, trabajadores, Flutter ni los demás portales', Number(P8_respN()) === Number(P8_R0) + 1 && apachePid() === P8_PID && arbolInstalado() === P8_UT && portalesVivos());
+  dx('rm -rf /root/paq-ad-roto');
+
+  dx(`rm -rf /root/paq-ad-v3 && cp -a ${PKA2} /root/paq-ad-v3 && echo v3-admin > /root/paq-ad-v3/public/marca-v3.txt`); resum('/root/paq-ad-v3');
+  const upd8443 = dx('bash /root/paq-ad-v3/scripts/actualizar.sh', CONFIRM);
+  const resp8443 = /--revertir (\S+)/.exec(upd8443.out)?.[1] ?? '';
+  ok('actualización in situ del release candidate: respalda, reemplaza, verificar.sh sin fallos y los demás portales idénticos', upd8443.code === 0 && /ACTUALIZACIÓN COMPLETA/.test(upd8443.out) && Boolean(resp8443), upd8443.out.slice(-600));
+  ok('QA en 8443 tras actualizar: sirve la versión nueva, conserva el .env, la persona administradora entra, un trabajador NO entra al administrador y la API pública responde', cv(`${AIP}/marca-v3.txt`).out === 'v3-admin' && P8_envSum() === P8_ENV && /^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lAdm, GOODPW))) && !/^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lA, GOODPW))) && P8_ping());
+  ok('respaldo verificable: SHA256SUMS correcto, public.tgz y backend.tgz presentes y NINGÚN .env dentro; permisos 700/600', dx(`cd ${resp8443} && sha256sum -c SHA256SUMS --quiet`).code === 0 && dx(`tar tzf ${resp8443}/backend.tgz | grep -c '\\.env'`).out === '0' && dx(`tar tzf ${resp8443}/public.tgz | grep -c 'index.html'`).out !== '0' && dx(`stat -c %a ${resp8443} ${resp8443}/public.tgz`).out.replace('\n', ':') === '700:600', dx(`ls -la ${resp8443}`).out);
+  ok('tras actualizar, Flutter, trabajadores y los demás portales siguen idénticos y Apache no se reinició', arbolInstalado() === P8_UT && apachePid() === P8_PID && portalesVivos());
+  const rev8443 = dx(`bash /root/paq-ad-v3/scripts/actualizar.sh --revertir ${resp8443}`, CONFIRM);
+  ok('--revertir: la aplicación y el backend vuelven BIT A BIT a como estaban antes, el .env no cambia, la marca nueva desaparece (404) y 8443 sigue en pie', rev8443.code === 0 && P8_AT() === P8_AT0 && P8_envSum() === P8_ENV && cv(`-o /dev/null -w "%{http_code}" ${AIP}/marca-v3.txt`).out === '404' && P8_ping() && /^[0-9a-f]{64}$/.test(tokenOf(post(AIP, lAdm, GOODPW))), rev8443.out.slice(-500));
+  const corrupto8443 = dx(`cp -a ${resp8443} /root/resp-corrupto8443 && echo x >> /root/resp-corrupto8443/backend.tgz && bash /root/paq-ad-v3/scripts/actualizar.sh --revertir /root/resp-corrupto8443`, CONFIRM);
+  ok('un respaldo corrupto se rechaza (SHA256SUMS) sin tocar nada', corrupto8443.code !== 0 && /corrupto/.test(corrupto8443.out) && P8_AT() === P8_AT0 && P8_ping());
+  dx('rm -rf /root/paq-ad-v3 /root/resp-corrupto8443');
+  ok('cierre: el servidor está como al empezar esta sección (trabajadores, Apache sin reiniciar, portales vivos)', arbolInstalado() === P8_UT && apachePid() === P8_PID && portalesVivos());
+
   section = 'Publicación por IP interna · reversión total';
   const revIp = dx(`bash ${PKU2}/scripts/publicar-ip.sh revertir --trabajadores ${PKU2} --administrador ${PKA2} --ip ${IPPUB} --respaldos "${respIp}"`, CONFIRM);
   ok('publicar-ip.sh revertir retira las dos publicaciones y restaura las versiones anteriores de ambos portales', revIp.code === 0 && /publicación por IP retirada/.test(revIp.out) && !/FALLO/.test(revIp.out), revIp.out.slice(-600));

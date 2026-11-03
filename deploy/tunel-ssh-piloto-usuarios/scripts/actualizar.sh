@@ -45,6 +45,11 @@ precondiciones() {
   grep -q '"pilotMode": *"usuarios"' "$PAQ/public/build-info.json" 2>/dev/null || abortar "La aplicación del paquete no es la compilación del piloto con usuarios."
   mysql_activo || abortar "MySQL no está activo."
   curl -sS -m 10 --cacert "$CERT_FILE" --resolve "localhost:$PUERTO:127.0.0.1" "https://localhost:$PUERTO/api/ping" | grep -q '"pong":true' || abortar "El piloto actual no responde por HTTPS: no se actualiza algo que ya está caído (revise primero con verificar.sh)."
+  # UX-08G.1: sintaxis de TODO el backend del paquete ANTES de tocar nada (un archivo roto no debe llegar a producción).
+  if command -v php >/dev/null 2>&1; then
+    while IFS= read -r f; do php -l "$f" >/dev/null 2>&1 || abortar "Error de sintaxis PHP en el paquete (${f#"$PAQ"/}): no se actualiza nada."; done < <(find "$PAQ/backend" -name '*.php' -not -path '*/vendor/*' | LC_ALL=C sort)
+    ok "sintaxis PHP correcta en todo el backend del paquete"
+  else aviso "php (CLI) no disponible: no se pudo comprobar la sintaxis del backend del paquete"; fi
   ok "piloto instalado, sano y en modo piloto_usuarios; paquete íntegro y sin secretos"
   if ! cmp -s "$PAQ/apache/react-usuarios-common.conf" "$DIR_CONF/react-usuarios-common.conf" || ! cmp -s "$PAQ/apache/cervesur-react-usuarios.conf" "$SITE_CONF"; then
     aviso "la configuración de Apache del paquete DIFIERE de la instalada. Esta actualización NO la cambia (requiere aprobación específica y una recarga)."
@@ -53,7 +58,11 @@ precondiciones() {
   ok "el puerto $PUERTO sigue solo en loopback"
 }
 
+espera_opcache() { sleep "${CERVESUR_ESPERA_OPCACHE:-4}"; }   # UX-08G.1: opcache revalida cada ~2 s; hay que esperar antes de verificar CUALQUIER cambio de código
+
 verificar_post() {
+  # UX-08G.1: opcache (mod_php) revalida los archivos cada ~2 s; sin esta espera la verificación puede atender código ANTIGUO en caché y dar por buena una versión rota.
+  espera_opcache
   bash "$PAQ/scripts/verificar.sh" >"$1" 2>&1; local rc=$?
   [ "$rc" -eq 0 ] || { grep -E '^FAIL' "$1" | head -10; return 1; }
   return 0
@@ -74,7 +83,7 @@ if [ "$MODO" = "revertir" ]; then
   chown root:www-data "$ENV_FILE"; chmod 640 "$ENV_FILE"
   rm -rf "$PREV_PUBLIC" "$PREV_BACKEND"
   [ "$(huella_portales)" = "$pre" ] && ok "los demás portales siguen idénticos" || aviso "la huella de los demás portales cambió: revise (no la causa este script)."
-  bash "$PAQ/scripts/verificar.sh" >/dev/null 2>&1 && ok "versión anterior restaurada y verificada" || aviso "versión restaurada, pero verificar.sh reporta fallos: revise con la salida completa."
+  espera_opcache; bash "$PAQ/scripts/verificar.sh" >/dev/null 2>&1 && ok "versión anterior restaurada y verificada" || aviso "versión restaurada, pero verificar.sh reporta fallos: revise con la salida completa."
   exit 0
 fi
 
@@ -104,7 +113,7 @@ volver_atras() {
   [ -d "$PREV_PUBLIC" ] && { rm -rf "$DIR_PUBLIC"; mv "$PREV_PUBLIC" "$DIR_PUBLIC"; }
   [ -d "$PREV_BACKEND" ] && { rm -rf "$DIR_BACKEND"; mv "$PREV_BACKEND" "$DIR_BACKEND"; }
   rm -rf "$NUEVO_PUBLIC" "$NUEVO_BACKEND"
-  bash "$PAQ/scripts/verificar.sh" >/dev/null 2>&1 && ok "versión anterior restaurada y verificada" || fallo "versión anterior restaurada, pero verificar.sh falla: revise a mano (respaldo en $RESP)."
+  espera_opcache; bash "$PAQ/scripts/verificar.sh" >/dev/null 2>&1 && ok "versión anterior restaurada y verificada" || fallo "versión anterior restaurada, pero verificar.sh falla: revise a mano (respaldo en $RESP)."
   exit 1
 }
 

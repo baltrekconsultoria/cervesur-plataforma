@@ -51,7 +51,7 @@ $ sudo bash "$PKG/scripts/usuarios.sh" informes --listar | tee "$E/13-informes-a
 ```bash
 $ cd "$PKG" && sudo bash scripts/actualizar.sh --simular 2>&1 | tee "$E/14-simulacion-actualizar.txt"
 ```
-Debe terminar con «SIMULACIÓN terminada: no se escribió nada. Código 0 = se puede actualizar.». Comprueba: instalación sana y en `piloto_admin`, paquete íntegro y sin `.env`/claves, `pilotMode: admin`, MySQL activo, el administrador responde por HTTPS, 8093 solo en loopback, y avisa si la configuración de Apache del paquete difiere de la instalada (la actualización **no** la cambia).
+Debe terminar con «SIMULACIÓN terminada: no se escribió nada. Código 0 = se puede actualizar.». Comprueba: instalación sana y en `piloto_admin`, paquete íntegro y sin `.env`/claves, **sintaxis PHP de todo el backend del paquete (`php -l`; un archivo roto se rechaza antes de tocar nada)**, `pilotMode: admin`, MySQL activo, el administrador responde por HTTPS, 8093 solo en loopback, y avisa si la configuración de Apache del paquete difiere de la instalada (la actualización **no** la cambia).
 **Bloquea:** cualquier `FALLO`/código distinto de 0.
 
 ## E3 · ACTIVACIÓN (requiere autorización expresa y separada; no ejecutar sin ella)
@@ -63,6 +63,8 @@ $ sudo tar czf /root/cervesur-pre-ux08g/apache2-etc.tgz -C / etc/apache2
 $ sudo sha256sum /root/cervesur-pre-ux08g/* | tee "$E/15-copias-previas.sha256"
 $ sudo bash -c 'ss -ltn | sort > /root/cervesur-pre-ux08g/puertos-antes.txt; for p in 80 443 8443; do echo "== $p"; curl -sk -m 8 -o /dev/null -D - https://127.0.0.1:$p/ 2>/dev/null | head -1; done' | tee "$E/16-estado-antes.txt"
 ```
+Nota de diseño (hallazgo del ensayo UX-08G.1): `mod_php` usa opcache y revalida cada ~2 s, por eso `actualizar.sh` **espera 4 s antes de cada verificación** (también antes de verificar una restauración); sin esa espera una versión rota puede pasar la verificación atendida desde caché. No acorte la espera (`CERVESUR_ESPERA_OPCACHE`).
+
 Activación (pide escribir `ACTUALIZAR-8093`; respalda `public` y `backend` sin `.env`, reemplaza por renombrado, ejecuta `verificar.sh` y **vuelve sola** a la versión anterior si algo falla; compara la huella de los demás portales antes y después):
 ```bash
 $ cd "$PKG" && sudo bash scripts/actualizar.sh 2>&1 | tee "$E/17-actualizacion.txt"
