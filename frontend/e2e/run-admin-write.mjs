@@ -96,7 +96,7 @@ async function scenarioAll() {
     ok('la página de reportes NO muestra el enlace', !(await body(b)).includes('powerbi.com'));
     await clickText(b, 'Editar Informe E2E'); await b.wait(800);
     ok('edición: aviso «ya hay un enlace configurado» y el campo del enlace vacío', (await count(b, '[data-testid=link-configured]')) === 1 && (await b.eval(`document.querySelector('#rp-link').value`)) === '');
-    ok('edición: el DOM no contiene el enlace', !(await b.eval('document.documentElement.outerHTML')).includes('reportEmbed'));
+    ok('edición: el DOM no contiene el enlace', !(await b.eval('document.documentElement.outerHTML')).includes('eeeeeeee-0000'));
     await b.shot(join(shots, '04-informe-edicion.png'));
     await b.type('#rp-name', 'Informe E2E editado');
     await clickText(b, 'Guardar cambios'); await b.wait(1500);
@@ -146,7 +146,7 @@ async function scenarioOff() {
     }
     ok('ninguna pantalla ofrece acciones de escritura (solo consulta)', !any);
     await go(b, '/admin/empresas');
-    ok('hay una nota de solo consulta', await has(b, 'no crea, edita'));
+    ok('hay una nota de solo consulta', await has(b, 'Versión de solo consulta'));
     await b.shot(join(shots, '06-solo-consulta.png'));
   } finally { await b.close(); }
 }
