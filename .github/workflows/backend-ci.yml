@@ -395,3 +395,8 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS --env W_WRITE_PASS \
             cervesur-ci-php:local php tests/isolated/http_admin_escritura_test.php
+          # UX-08H fase 2B: compatibilidad con Flutter (referencia RECONSTRUIDA de su autenticación) sobre las mismas instancias.
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env JWT_SECRET \
+            cervesur-ci-php:local php tests/isolated/flutter_compat_test.php
