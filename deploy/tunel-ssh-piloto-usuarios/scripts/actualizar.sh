@@ -104,7 +104,8 @@ if [ "$MODO" = "revertir" ]; then
   espera_opcache
   install -d -m 700 "$DIR_RESPALDO" 2>/dev/null
   DIAG="$DIR_RESPALDO/reversion-$sello"
-  if inyectar verificacion || ! bash "$PAQ/scripts/verificar.sh" >"$DIAG.log" 2>&1; then
+  bash "$PAQ/scripts/verificar.sh" >"$DIAG.log" 2>&1; rc_verif=$?
+  if inyectar verificacion || [ "$rc_verif" -ne 0 ]; then
     # Fallo de la verificación posterior: se CONSERVA la evidencia (la versión que se reemplazó y la salida completa) y el código de salida es distinto de cero.
     mv "$PREV_PUBLIC" "$DIR_FRONT/.diagnostico-public-$sello" 2>/dev/null; mv "$PREV_BACKEND" "$DIR_BACK/.diagnostico-backend-$sello" 2>/dev/null
     chmod 600 "$DIAG.log" 2>/dev/null
