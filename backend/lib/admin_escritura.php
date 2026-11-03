@@ -15,12 +15,26 @@
 /** Tablas de negocio en las que la cuenta de escritura puede INSERT/UPDATE (audit_log: solo INSERT). */
 const ADMIN_WRITE_TABLES = ['user', 'empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte', 'audit_log'];
 const ADMIN_WRITE_CAPABILITIES = ['empresas', 'reportes', 'accesos', 'usuarios'];
+/**
+ * Fase 2B · usuarios compartidos con Flutter. `usuarios_sensible` (cambio de ROL y de CONTRASEÑA) es un interruptor APARTE y exige también `usuarios`:
+ * Flutter toma el rol del JWT y acepta tokens antiguos sin session_version, así que ni un cambio de rol ni uno de contraseña invalidan esas sesiones.
+ * Sin este interruptor, la fase 2B solo ofrece: alta, edición de datos personales, desactivar y reactivar (con espera, ver admin_user_reactivate_hours).
+ */
+const ADMIN_WRITE_GATES = ['empresas', 'reportes', 'accesos', 'usuarios', 'usuarios_sensible'];
+/** Horas mínimas entre desactivar y reactivar a un usuario (por defecto 24 = vida de un token de Flutter). Evita que reactivar reviva sesiones antiguas. */
+function admin_user_reactivate_hours() {
+    $v = getenv('ADMIN_USER_REACTIVATE_HOURS');
+    return ($v !== false && $v !== '' && ctype_digit($v) && (int)$v <= 720) ? (int)$v : 24;
+}
 
 /** Una sentencia de escritura que el guardia no admite. Hereda de PDOException para que los modelos la traten como cualquier error de BD. */
 class WriteViolation extends PDOException {}
 
 /** ¿Capacidad de escritura encendida en el servidor? Solo el valor exacto «1»; se lee del entorno en cada petición. */
 function admin_write_capability_on($capability) {
+    if ($capability === 'usuarios_sensible' && getenv('ADMIN_WRITES_USUARIOS') !== '1') {
+        return false; // lo sensible nunca funciona sin el interruptor de usuarios
+    }
     return getenv('ADMIN_WRITES_' . strtoupper((string)$capability)) === '1';
 }
 
@@ -46,11 +60,18 @@ function admin_write_config_errors(array $env) {
     if (strlen((string)($env['JWT_SECRET'] ?? '')) < 32) {
         $errors[] = 'admin_escritura exige un JWT_SECRET propio de al menos 32 caracteres (los routers de UX-08 lo comprueban aunque la identidad venga de la sesión del piloto)';
     }
-    foreach (ADMIN_WRITE_CAPABILITIES as $c) {
+    foreach (ADMIN_WRITE_GATES as $c) {
         $v = (string)($env['ADMIN_WRITES_' . strtoupper($c)] ?? '');
         if (!in_array($v, ['', '0', '1'], true)) {
             $errors[] = 'ADMIN_WRITES_' . strtoupper($c) . ' debe estar sin definir, 0 o 1';
         }
+    }
+    if ((string)($env['ADMIN_WRITES_USUARIOS_SENSIBLE'] ?? '') === '1' && (string)($env['ADMIN_WRITES_USUARIOS'] ?? '') !== '1') {
+        $errors[] = 'ADMIN_WRITES_USUARIOS_SENSIBLE=1 exige ADMIN_WRITES_USUARIOS=1';
+    }
+    $h = (string)($env['ADMIN_USER_REACTIVATE_HOURS'] ?? '');
+    if ($h !== '' && (!ctype_digit($h) || (int)$h > 720)) {
+        $errors[] = 'ADMIN_USER_REACTIVATE_HOURS debe ser un entero entre 0 y 720';
     }
     return $errors;
 }
@@ -79,7 +100,7 @@ function admin_write_routes() {
         ['POST', '~^/api/empresa-reporte-usuario$~D', 'accesos'], ['PUT', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['DELETE', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['POST', "~^/api/empresa-reporte-usuario/$id/reactivate\$~D", 'accesos'],
         // usuarios (capacidad INDEPENDIENTE; fase 2B)
         ['POST', '~^/api/register$~D', 'usuarios'], ['PUT', "~^/api/users/$id\$~D", 'usuarios'], ['POST', "~^/api/users/$id/(deactivate|reactivate)\$~D", 'usuarios'],
-        ['PUT', "~^/api/users/$id/password\$~D", 'usuarios'], ['PUT', "~^/api/user/$id/role\$~D", 'usuarios'],
+        ['PUT', "~^/api/users/$id/password\$~D", 'usuarios_sensible'], ['PUT', "~^/api/user/$id/role\$~D", 'usuarios_sensible'],
     ];
 }
 

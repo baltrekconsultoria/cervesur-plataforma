@@ -383,7 +383,8 @@ jobs:
               --env JWT_SECRET --env PHP_CLI_SERVER_WORKERS=4 "$@" \
               cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
           }
-          start_aw appaw --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1
+          start_aw appaw --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1 --env ADMIN_USER_REACTIVATE_HOURS=0
+          start_aw appawus --env ADMIN_WRITES_USUARIOS=1
           start_aw appawe --env ADMIN_WRITES_EMPRESAS=1
           start_aw appaw0
           start_aw appawna --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1

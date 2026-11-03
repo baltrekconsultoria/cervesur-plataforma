@@ -2,6 +2,7 @@
 // UX-08H · MODO «admin_escritura» (fase 2) contra el backend REAL, con la cuenta MySQL de PRIVILEGIOS MÍNIMOS (plantilla database/privileges/UX-08H-…) y datos 100 % sintéticos.
 // Instancias (todas sobre la base `fixture_aw` y la base de estado `estado_aw`):
 //   appaw   : las cuatro capacidades de escritura encendidas      appawe : SOLO empresas      appaw0 : ninguna (solo lectura efectiva)
+//   appawus : usuarios encendido SIN operaciones sensibles y con la espera de reactivación por defecto (fase 2B)
 //   appawna : empresas/reportes/accesos encendidos, usuarios apagados (interruptor independiente)
 //   appawbad: sin AUDIT_LOG_MODE=required (debe negarse a arrancar)   appawdb : clave de la cuenta de escritura equivocada (falla de conexión MySQL)
 // Entorno: TEST_DB_PASS, W_WRITE_PASS.
@@ -47,7 +48,7 @@ $root->exec('DELETE FROM user WHERE id = 90');
 $t = login('admin');
 expectCase(preg_match('/^[0-9a-f]{64}$/', $t) === 1, 'administrador de la lista: sesión opaca de 256 bits');
 [$s, $d] = api('appaw', 'GET', '/api/admin/capacidades', $t);
-expectCase($s === 200 && $d['data']['writes'] === ['empresas' => true, 'reportes' => true, 'accesos' => true, 'usuarios' => true] && $d['data']['audit'] === true && $d['data']['mode'] === 'admin_escritura', 'capacidades reales del servidor: las cuatro encendidas');
+expectCase($s === 200 && $d['data']['writes'] === ['empresas' => true, 'reportes' => true, 'accesos' => true, 'usuarios' => true] && $d['data']['audit'] === true && $d['data']['mode'] === 'admin_escritura' && $d['data']['users_sensitive'] === true && $d['data']['reactivate_after_hours'] === 0, 'capacidades reales del servidor: las cuatro encendidas, operaciones sensibles y espera visibles');
 [, $d] = api('appawe', 'GET', '/api/admin/capacidades', login('admin', 'appawe'));
 expectCase($d['data']['writes'] === ['empresas' => true, 'reportes' => false, 'accesos' => false, 'usuarios' => false], 'instancia parcial: solo empresas');
 [, $d] = api('appaw0', 'GET', '/api/admin/capacidades', login('admin', 'appaw0'));
@@ -198,6 +199,27 @@ $tn = login('nuevo.usr');
 expectCase($tn === '', 'un usuario creado aquí NO puede entrar a la instancia administrativa si no está en la lista blanca ni es del rol correcto');
 expectCase((int)one($root, "SELECT COUNT(*) FROM audit_log WHERE entity = 'user' AND entity_id = ?", [$uid]) >= 5, 'todos los cambios de usuario quedaron auditados');
 expectCase(!preg_match('/\$2y\$|long-enough-password|another-long-password/', (string)one($root, 'SELECT GROUP_CONCAT(CONCAT_WS("|", before_json, after_json)) FROM audit_log WHERE entity = "user"')), 'la auditoría de usuarios no guarda contraseñas ni hashes');
+
+echo "== Fase 2B: controles de sesión para usuarios compartidos con Flutter
+";
+$tus = login('admin', 'appawus');
+[$s, $d] = api('appawus', 'GET', '/api/admin/capacidades', $tus);
+expectCase($d['data']['writes']['usuarios'] === true && $d['data']['users_sensitive'] === false && $d['data']['reactivate_after_hours'] === 24, 'instancia 2B por defecto: usuarios sí, operaciones sensibles no, espera de 24 h');
+$nu2 = ['first_name' => 'Dos', 'last_name' => 'B', 'username' => 'usuario.2b', 'email' => 'usuario.2b@example.invalid', 'password' => 'long-enough-password'];
+[$s] = api('appawus', 'POST', '/api/register', $tus, $nu2);
+$u2 = (int)one($root, "SELECT id FROM user WHERE username = 'usuario.2b'");
+expectCase($s === 200 && $u2 > 0, 'alta de usuario permitida en 2B por defecto');
+[$s] = api('appawus', 'PUT', "/api/users/$u2", $tus, ['phone' => '555-0202']);
+expectCase($s === 200 && one($root, 'SELECT phone FROM user WHERE id = ?', [$u2]) === '555-0202', 'edición de datos personales permitida');
+[$s, $d] = api('appawus', 'PUT', "/api/user/$u2/role", $tus, ['role' => 'admin']);
+[$s2, $d2] = api('appawus', 'PUT', "/api/users/$u2/password", $tus, ['password' => 'another-long-password']);
+expectCase($s === 403 && ($d['code'] ?? '') === 'escritura_desactivada' && $s2 === 403 && ($d2['code'] ?? '') === 'escritura_desactivada' && one($root, 'SELECT role FROM user WHERE id = ?', [$u2]) !== 'admin', 'cambio de rol y de contraseña bloqueados (Flutter no invalida tokens antiguos): 403 y sin cambios');
+$sv0 = (int)one($root, 'SELECT session_version FROM user WHERE id = ?', [$u2]);
+[$s] = api('appawus', 'POST', "/api/users/$u2/deactivate", $tus, []);
+expectCase($s === 200 && (int)one($root, 'SELECT is_active FROM user WHERE id = ?', [$u2]) === 0 && (int)one($root, 'SELECT session_version FROM user WHERE id = ?', [$u2]) === $sv0 + 1, 'desactivar funciona de inmediato (Flutter lo rechaza por is_active en cada petición)');
+[$s, $d] = api('appawus', 'POST', "/api/users/$u2/reactivate", $tus, []);
+expectCase($s === 409 && (int)one($root, 'SELECT is_active FROM user WHERE id = ?', [$u2]) === 0 && str_contains(json_encode($d), '24 h'), 'reactivar antes de 24 h se rechaza (409): no revive tokens antiguos de Flutter');
+expectCase((int)one($root, "SELECT COUNT(*) FROM audit_log WHERE entity = 'user' AND entity_id = ? AND action = 'user.reactivate'", [$u2]) === 0, '…y no deja una auditoría de reactivación falsa');
 
 echo "== Atomicidad: si falla la auditoría no se confirma el cambio\n";
 $rootAdmin = new PDO('mysql:host=db;charset=utf8mb4', 'root', getenv('TEST_DB_PASS'), $opts);

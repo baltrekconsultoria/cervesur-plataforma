@@ -34,7 +34,7 @@ try {
     $GLOBALS['ADM_WRITE_USER'] = ['user_id' => $uid, 'username' => (string)$u['username'], 'email' => (string)$u['email'], 'role' => 'admin'];
 
     if ($method === 'GET' && $uri === '/api/admin/capacidades') {
-        usr_responder(200, ['success' => true, 'data' => ['writes' => admin_write_capabilities(), 'audit' => true, 'mode' => 'admin_escritura']]);
+        usr_responder(200, ['success' => true, 'data' => ['writes' => admin_write_capabilities(), 'users_sensitive' => admin_write_capability_on('usuarios_sensible'), 'reactivate_after_hours' => admin_user_reactivate_hours(), 'audit' => true, 'mode' => 'admin_escritura']]);
     }
 
     // Visor: misma política que «piloto_admin» (lista del servidor + informe ACTIVO + auditoría; nunca el enlace en otra ruta).

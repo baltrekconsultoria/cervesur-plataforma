@@ -442,6 +442,26 @@ class UserModel {
      * Desactiva (`$active = false`) o reactiva un usuario. Siempre incrementa `session_version`: los tokens anteriores no reviven.
      * Nunca borra la fila ni toca sus relaciones de acceso.
      */
+    /**
+     * admin_escritura (fase 2B): Flutter acepta tokens antiguos sin session_version, así que reactivar a un usuario podría revivir una sesión emitida antes de desactivarlo.
+     * Mientras no haya pasado la espera (ADMIN_USER_REACTIVATE_HOURS, por defecto 24 h = vida del token de Flutter) desde la última desactivación auditada, se rechaza (409).
+     */
+    private function assertReactivationWaitElapsed($userId) {
+        if (!function_exists('app_mode') || app_mode() !== 'admin_escritura') {
+            return;
+        }
+        $hours = admin_user_reactivate_hours();
+        if ($hours === 0) {
+            return;
+        }
+        $stmt = $this->pdo->prepare("SELECT TIMESTAMPDIFF(SECOND, MAX(occurred_at), CURRENT_TIMESTAMP(3)) FROM audit_log WHERE entity = 'user' AND entity_id = :id AND action = 'user.deactivate'");
+        $stmt->execute(['id' => $userId]);
+        $elapsed = $stmt->fetchColumn(); // calculado en MySQL: misma zona horaria que occurred_at; NULL = nunca se desactivó por esta vía
+        if ($elapsed !== false && $elapsed !== null && (int)$elapsed < $hours * 3600) {
+            throw new WriteConflict('state', 'Debe esperar ' . $hours . ' h desde la desactivación para reactivar a este usuario (protege sesiones antiguas que pudieran seguir vigentes)');
+        }
+    }
+
     public function setActive($id, $active, $actorId) {
         return run_write(function () use ($id, $active, $actorId) {
             return db_tx($this->pdo, function () use ($id, $active, $actorId) {
@@ -450,6 +470,7 @@ class UserModel {
                     if ((int)$target['is_active'] === 1) {
                         throw new WriteConflict('state', 'El usuario ya está activo');
                     }
+                    $this->assertReactivationWaitElapsed((int)$target['id']);
                 } else {
                     if ((int)$target['id'] === (int)$actorId) {
                         throw new WriteConflict('state', 'No puede desactivar su propia cuenta');

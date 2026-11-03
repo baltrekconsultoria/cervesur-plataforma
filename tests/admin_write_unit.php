@@ -9,7 +9,7 @@ function check($condition, $name) {
 }
 function refused(array $env) { return app_mode_evaluate($env)['mode'] === null; }
 function gate($m, $u) { return app_mode_route_gate('admin_escritura', $m, $u); }
-function caps(array $on) { foreach (['EMPRESAS', 'REPORTES', 'ACCESOS', 'USUARIOS'] as $c) { putenv('ADMIN_WRITES_' . $c . (in_array($c, $on, true) ? '=1' : '=0')); } }
+function caps(array $on) { foreach (['EMPRESAS', 'REPORTES', 'ACCESOS', 'USUARIOS', 'USUARIOS_SENSIBLE'] as $c) { putenv('ADMIN_WRITES_' . $c . (in_array($c, $on, true) ? '=1' : '=0')); } }
 $LONG = str_repeat('a', 40);
 
 // ---------------------------------------------------------------- configuración
@@ -42,7 +42,8 @@ $porCapacidad = [
     'reportes' => [['POST', '/api/reportes'], ['PUT', '/api/reportes/3'], ['DELETE', '/api/reportes/3'], ['POST', '/api/reportes/3/reactivate']],
     'accesos' => [['POST', '/api/asignacion'], ['PUT', '/api/asignacion/3'], ['DELETE', '/api/asignacion/3'], ['POST', '/api/asignacion/3/reactivate'], ['POST', '/api/empresa-usuario'], ['DELETE', '/api/empresa-usuario/3'],
         ['POST', '/api/empresa-usuario/3/reactivate'], ['POST', '/api/empresa-reporte-usuario'], ['PUT', '/api/empresa-reporte-usuario/3'], ['DELETE', '/api/empresa-reporte-usuario/3'], ['POST', '/api/empresa-reporte-usuario/3/reactivate']],
-    'usuarios' => [['POST', '/api/register'], ['PUT', '/api/users/3'], ['POST', '/api/users/3/deactivate'], ['POST', '/api/users/3/reactivate'], ['PUT', '/api/users/3/password'], ['PUT', '/api/user/3/role']],
+    'usuarios' => [['POST', '/api/register'], ['PUT', '/api/users/3'], ['POST', '/api/users/3/deactivate'], ['POST', '/api/users/3/reactivate']],
+    'usuarios_sensible' => [['PUT', '/api/users/3/password'], ['PUT', '/api/user/3/role']],
 ];
 $todas = array_merge(...array_values($porCapacidad));
 caps([]);
@@ -51,6 +52,7 @@ check($ok === count($lectura), 'con TODAS las capacidades apagadas siguen permit
 $off = 0; foreach ($todas as [$m, $u]) { $g = gate($m, $u); if (is_array($g) && $g['status'] === 403 && $g['code'] === 'escritura_desactivada') $off++; }
 check($off === count($todas), 'con TODAS las capacidades apagadas, las ' . count($todas) . ' rutas de escritura → 403 «escritura_desactivada»');
 foreach ($porCapacidad as $cap => $rutas) {
+    if ($cap === 'usuarios_sensible') { continue; } // depende además de «usuarios»: se prueba en el bloque de la fase 2B
     caps([strtoupper($cap)]);
     $mine = 0; foreach ($rutas as [$m, $u]) { if (gate($m, $u) === null) $mine++; }
     $others = 0; $nOthers = 0; foreach ($porCapacidad as $c2 => $r2) { if ($c2 === $cap) continue; foreach ($r2 as [$m, $u]) { $nOthers++; $g = gate($m, $u); if (is_array($g) && $g['code'] === 'escritura_desactivada') $others++; } }
@@ -68,7 +70,7 @@ $c = 0; $noCerradas = []; foreach ($cerradas as [$m, $path]) { $g = gate($m, $pa
 check($c === count($cerradas), 'con TODO encendido, ' . count($cerradas) . ' rutas fuera de la tabla cerrada (métodos raros, variantes, Power BI heredado, estadísticas, avatar, DELETE de usuarios…) → 403' . ($noCerradas ? ' · ABIERTAS: ' . implode(', ', $noCerradas) : ''));
 check(app_mode_route_gate('admin_escritura', 'GET', '/api/powerbi/tokens/1')['code'] === 'legacy_blocked', 'el endpoint heredado de tokens de Power BI está bloqueado con el código habitual');
 caps([]);
-putenv('ADMIN_WRITES_EMPRESAS'); putenv('ADMIN_WRITES_REPORTES'); putenv('ADMIN_WRITES_ACCESOS'); putenv('ADMIN_WRITES_USUARIOS');
+putenv('ADMIN_WRITES_EMPRESAS'); putenv('ADMIN_WRITES_REPORTES'); putenv('ADMIN_WRITES_ACCESOS'); putenv('ADMIN_WRITES_USUARIOS'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE');
 check(array_sum(array_map('intval', array_values(admin_write_capabilities()))) === 0, 'sin variables definidas, todas las capacidades están apagadas por defecto');
 putenv('ADMIN_WRITES_EMPRESAS=true'); check(admin_write_capability_on('empresas') === false, 'solo el valor exacto «1» enciende una capacidad'); putenv('ADMIN_WRITES_EMPRESAS');
 
@@ -101,5 +103,23 @@ $malos = ['con DELETE' => "GRANT SELECT, INSERT, UPDATE, DELETE ON `$db`.* TO $u
     'SUPER' => "GRANT SUPER ON *.* TO $u", 'concesión de rol' => "GRANT `rol`@`%` TO $u", 'REFERENCES' => "GRANT REFERENCES ON `$db`.`empresa` TO $u"];
 $sinDetectar = []; foreach ($malos as $nombre => $g) { if (admin_write_grants_violations([$g], $db) === []) $sinDetectar[] = $nombre; }
 check($sinDetectar === [], 'cada privilegio de más se detecta: DELETE, ALL, GRANT OPTION, UPDATE/DELETE en audit_log, DDL, TRIGGER, globales, otra base, SUPER, roles' . ($sinDetectar ? ' · NO detectados: ' . implode(', ', $sinDetectar) : ''));
+
+// ---------------------------------------------------------------- fase 2B: operaciones sensibles de usuarios y espera de reactivación
+check(refused($base + ['ADMIN_WRITES_USUARIOS_SENSIBLE' => '1']), '2B: operaciones sensibles sin el interruptor de usuarios = configuración rechazada');
+check(refused($base + ['ADMIN_WRITES_USUARIOS' => '1', 'ADMIN_WRITES_USUARIOS_SENSIBLE' => 'si']), '2B: ADMIN_WRITES_USUARIOS_SENSIBLE solo admite 0 o 1');
+foreach (['abc', '-1', '721', '1.5'] as $h) { check(refused($base + ['ADMIN_USER_REACTIVATE_HOURS' => $h]), "2B: espera de reactivación inválida («{$h}») rechazada"); }
+check(app_mode_evaluate($base + ['ADMIN_USER_REACTIVATE_HOURS' => '0'])['mode'] === 'admin_escritura' && app_mode_evaluate($base + ['ADMIN_USER_REACTIVATE_HOURS' => '720'])['mode'] === 'admin_escritura', '2B: espera de 0 a 720 h admitida');
+putenv('ADMIN_WRITES_USUARIOS=1'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=0');
+check(gate('PUT', '/api/user/5/role')['code'] === 'escritura_desactivada' && gate('PUT', '/api/users/5/password')['code'] === 'escritura_desactivada', '2B: rol y contraseña cerrados aunque usuarios esté encendido');
+check(gate('PUT', '/api/users/5') === null && gate('POST', '/api/users/5/deactivate') === null && gate('POST', '/api/register') === null, '2B: alta, edición y baja siguen disponibles');
+putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
+check(gate('PUT', '/api/user/5/role') === null && gate('PUT', '/api/users/5/password') === null, '2B: con el interruptor sensible encendido, rol y contraseña pasan la puerta');
+putenv('ADMIN_WRITES_USUARIOS=0');
+check(gate('PUT', '/api/user/5/role')['code'] === 'escritura_desactivada' && admin_write_capability_on('usuarios_sensible') === false, '2B: lo sensible nunca funciona sin usuarios');
+putenv('ADMIN_WRITES_USUARIOS'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE');
+putenv('ADMIN_USER_REACTIVATE_HOURS'); check(admin_user_reactivate_hours() === 24, '2B: sin configurar, la espera es de 24 h (la vida de un token de Flutter)');
+putenv('ADMIN_USER_REACTIVATE_HOURS=0'); check(admin_user_reactivate_hours() === 0, '2B: 0 la desactiva de forma explícita');
+putenv('ADMIN_USER_REACTIVATE_HOURS=basura'); check(admin_user_reactivate_hours() === 24, '2B: un valor inválido en tiempo de ejecución vuelve a 24 h (nunca a 0)');
+putenv('ADMIN_USER_REACTIVATE_HOURS');
 
 echo "All admin_escritura checks passed\n";
