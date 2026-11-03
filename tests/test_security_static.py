@@ -84,8 +84,11 @@ class SecurityStaticChecks(unittest.TestCase):
         text = source("backend/router/auth.php")
         block = text[text.index("$uri === '/api/register'"):text.index("/api/logout")]
         self.assertIn("require_auth(", block)
-        self.assertLess(block.index("require_auth("), block.index("file_get_contents('php://input')"))
-        self.assertIn("!== 'admin'", block)
+        # La lógica del alta vive en register_handler.php (compartida con admin_escritura): exige administrador ANTES de leer el cuerpo.
+        self.assertLess(block.index("require_auth("), block.index("handle_register_request("))
+        handler = source("backend/lib/register_handler.php")
+        self.assertIn("!== 'admin'", handler)
+        self.assertLess(handler.index("!== 'admin'"), handler.index("file_get_contents('php://input')"))
         controller = source("backend/controllers/RegisterController.php")
         # El rol de un alta nunca sale de la petición: lo fija new_user_role() (por defecto 'user'; 'usuario' solo por configuración del servidor).
         self.assertIn("'role' => new_user_role()", controller)
@@ -212,6 +215,8 @@ class ReadOnlyModeStaticChecks(unittest.TestCase):
         # UX-08B: capa común de escrituras administrativas (transacciones + audit_log). Se distribuye en la versión 1 pero NO es alcanzable: en piloto_admin la puerta de rutas
         # (app_mode_route_gate) rechaza todo método distinto de GET/login/logout y GuardedPDO rechaza todo SQL que no sea SELECT (ver AdminPilotWriteLayerIsUnreachable).
         "backend/lib/write_support.php",
+        # UX-08H: la guarda SQL de la cuenta de escritura de «admin_escritura» (solo existe en ese modo; la acota AdminEscrituraStaticChecks).
+        "backend/lib/admin_escritura.php",
     }
 
     def backend_files(self):
@@ -855,12 +860,12 @@ class PilotoAdminStaticChecks(unittest.TestCase):
         self.assertEqual(re.findall(r"'(POST)' =>", gate), ["POST"])
         self.assertIn("'~^/api/login$~D', '~^/api/logout$~D'", gate)
         index = source("backend/router/index.php")
-        self.assertIn("in_array(app_mode(), ['piloto_usuarios', 'piloto_admin'], true) && !app_https_ok(", index)
+        self.assertIn("in_array(app_mode(), ['piloto_usuarios', 'piloto_admin', 'admin_escritura'], true) && !app_https_ok(", index)
         self.assertIn("AdminRouter.php", index)
 
     def test_only_admins_enter_the_admin_pilot_and_only_workers_the_user_pilot(self):
         shared = source("backend/lib/pilot_sesion.php")
-        self.assertIn("function usr_rol_modo() { return app_mode() === 'piloto_admin' ? 'admin' : 'user'; }", shared)
+        self.assertIn("function usr_rol_modo() { return in_array(app_mode(), ['piloto_admin', 'admin_escritura'], true) ? 'admin' : 'user'; }", shared)
         self.assertIn("normalize_role($u['role'] ?? null) !== usr_rol_modo()", shared)
         cli = source("backend/cli/piloto-usuarios.php")
         self.assertIn("$rolModo = app_mode() === 'piloto_admin' ? 'admin' : 'user'", cli)
@@ -1001,3 +1006,45 @@ class AdminPilotWriteLayerIsUnreachable(unittest.TestCase):
         code = source("backend/lib/write_support.php")
         self.assertIn("getenv('USER_ADMIN_WRITES') === '1'", code)
         self.assertIn("piloto_admin", source("backend/lib/mode.php"))
+
+
+class AdminEscrituraStaticChecks(unittest.TestCase):
+    """UX-08H: el modo de escritura es explícito, cerrado y no debilita a «piloto_admin»."""
+
+    def test_pilot_admin_is_unchanged_in_its_five_layers(self):
+        mode = source("backend/lib/mode.php")
+        # piloto_admin sigue exigiendo el modo de solo lectura: la rama de escritura es otro modo con su propia puerta
+        self.assertIn("if ($mode === 'admin_escritura') {", mode)
+        self.assertIn("app_mode_write_gate($method, $uri)", mode)
+        db = source("backend/lib/db.php")
+        self.assertIn("new GuardedPDO", db)
+        self.assertIn("SET SESSION TRANSACTION READ ONLY", db)
+        # el interruptor histórico no sirve para saltarse piloto_admin
+        write_support = source("backend/lib/write_support.php")
+        self.assertIn("ADMIN_WRITES_USUARIOS", write_support)
+
+    def test_write_mode_requires_audit_and_strict_views(self):
+        text = source("backend/lib/admin_escritura.php")
+        self.assertIn("AUDIT_LOG_MODE", text)
+        self.assertIn("REACT_STRICT_VIEWS", text)
+        self.assertIn("class WriteGuardedPDO extends PDO", text)
+
+    def test_every_capability_is_off_unless_exactly_one(self):
+        text = source("backend/lib/admin_escritura.php")
+        self.assertIn("=== '1'", text)
+        self.assertNotIn("filter_var(getenv('ADMIN_WRITES", text)
+
+    def test_write_account_template_has_no_delete_ddl_or_grant_option(self):
+        tpl = source("database/privileges/UX-08H-cuenta-escritura-produccion.sql.template")
+        grants = "\n".join(l for l in tpl.splitlines() if not l.strip().startswith("--"))
+        self.assertNotRegex(grants, r"(?i)\b(DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|DROP|ALTER|CREATE ROUTINE|SUPER)\b")
+        self.assertNotRegex(grants, r"(?i)GRANT\s+SELECT\s*\([^)]*\bpassword\b")
+        self.assertNotRegex(grants, r"(?i)GRANT\s+(SELECT|INSERT|UPDATE)\s*\([^)]*powerbi_")
+        self.assertRegex(grants, r"(?i)GRANT SELECT ON `\{DB\}`\.`audit_log`")
+        self.assertRegex(grants, r"(?i)GRANT INSERT ON `\{DB\}`\.`audit_log`")
+        self.assertNotRegex(grants, r"(?i)GRANT\s+UPDATE[^;]*ON `\{DB\}`\.`audit_log`")
+
+    def test_audit_is_written_in_the_same_transaction(self):
+        text = source("backend/lib/write_support.php")
+        self.assertIn("function audit_record", text)
+        self.assertIn("function db_tx", text)
