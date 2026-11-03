@@ -45,6 +45,10 @@ clasificar() { # $1 = ref, $2 = servidor, $3 = etiqueta
 }
 clasificar "$T/ref-b" "$T/srv-b" "BACKEND (.php)"
 clasificar "$T/ref-p" "$T/srv-p" "APLICACIÓN (public/)"
+# Archivos del backend que NO son .php (el paquete original no trae ninguno; el .env se ignora): un parche local, un respaldo olvidado o un .htaccess se perderían al reemplazar.
+otros=$(cd "$BACK/.." && find "$(basename "$BACK")" -type f ! -name '*.php' ! -name '.env' 2>/dev/null | LC_ALL=C sort)
+echo; echo "== BACKEND: otros archivos que no son .php ni .env (informativo; el paquete original no incluye ninguno)"
+if [ -n "$otros" ]; then sed "s#^$(basename "$BACK")/#    backend/#" <<<"$otros"; dif=1; else echo "(ninguno)"; fi
 echo
 if [ "$dif" -eq 0 ]; then echo "RESULTADO: IDÉNTICO al piloto de referencia: la actualización in situ no pisa nada que no esté en el paquete original."; echo "(nada fue modificado)"; exit 0; fi
 echo "RESULTADO: HAY DIFERENCIAS → NO-GO para actualizar in situ hasta clasificar cada una (DISTINTO/FALTA/SOBRA)."; echo "(nada fue modificado)"; exit 1
