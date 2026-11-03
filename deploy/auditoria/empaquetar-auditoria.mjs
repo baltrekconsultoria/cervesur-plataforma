@@ -41,6 +41,12 @@ for (const file of scripts) {
 const interruptor = join(REPO, 'deploy', 'qa-admin-aislado', 'scripts', 'interruptor-escrituras.sh');
 if (!existsSync(interruptor)) fail('Falta deploy/qa-admin-aislado/scripts/interruptor-escrituras.sh');
 cpSync(interruptor, join(AUD, 'interruptor-escrituras.sh'));
+// UX-08G: preflight de liberación (solo lectura) y huellas del backend del piloto administrativo de referencia (paquete cef58da900e8), para contrastar lo desplegado.
+for (const f of ['preflight-produccion.sh', 'manifiesto-piloto-cef58da900e8.txt']) {
+  const src = join(REPO, 'deploy', 'produccion-admin', f);
+  if (!existsSync(src)) fail(`Falta deploy/produccion-admin/${f}`);
+  cpSync(src, join(AUD, f));
+}
 
 writeFileSync(join(ROOT, 'LEEME.txt'), `Cervesur · herramientas de AUDITORÍA DE SOLO LECTURA (commit ${commit}${dirty})
 Construido: ${new Date().toISOString()}
@@ -48,6 +54,8 @@ Construido: ${new Date().toISOString()}
 Nada de este paquete modifica el servidor. Ejecute desde esta carpeta (la que contiene «deploy/»):
 
   bash deploy/auditoria/puerto-candidato-solo-lectura.sh 8094            # ¿está libre el puerto candidato? (8090-8093 ya están ocupados)
+  sudo bash deploy/auditoria/preflight-produccion.sh --paquete <carpeta del paquete de liberación extraído>   # UX-08G, solo lectura
+  sudo bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-admin/backend deploy/auditoria/manifiesto-piloto-cef58da900e8.txt > divergencia-admin-vs-piloto.txt
   bash deploy/auditoria/interruptor-escrituras.sh                         # ¿USER_ADMIN_WRITES apagado en los portales publicados? (sudo si el .env es 640)
   bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-admin/backend    > divergencia-admin.txt
   bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-usuarios/backend > divergencia-usuarios.txt
