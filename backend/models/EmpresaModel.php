@@ -43,7 +43,7 @@ class EmpresaModel {
      * datos del piloto no tiene permiso sobre ellas y, además, no deben viajar a ningún cliente.
      */
     private function powerbiColumns() {
-        return app_mode_is_read_only() ? '' : 'e.powerbi_tenant, e.powerbi_client, ';
+        return (app_mode_is_read_only() || app_mode() === 'admin_escritura') ? '' : 'e.powerbi_tenant, e.powerbi_client, ';
     }
 
     public function getAll($user_id, $role = 'user', $pagination = null, &$total = null, $status = 'active') {
@@ -107,32 +107,19 @@ class EmpresaModel {
         return run_write(function () use ($data) {
             return db_tx($this->pdo, function () use ($data) {
                 $this->assertRucFree($data['ruc'], null, 'El RUC ya está registrado');
-                $sql = "INSERT INTO empresa (
-                                nombre, razon_social, ruc, email, telefono,
-                                website, direccion, ciudad, pais, powerbi_tenant,
-                                powerbi_client, powerbi_clientsecret, logo, contacto_principal, created_by
-                            ) VALUES (
-                                :nombre, :razon_social, :ruc, :email, :telefono,
-                                :website, :direccion, :ciudad, :pais, :powerbi_tenant,
-                                :powerbi_client, :powerbi_clientsecret, :logo, :contacto_principal, :created_by
-                            )";
-                $this->pdo->prepare($sql)->execute([
-                    'nombre' => $data['nombre'],
-                    'razon_social' => $data['razon_social'],
-                    'ruc' => $data['ruc'],
-                    'email' => $data['email'] ?? null,
-                    'telefono' => $data['telefono'] ?? null,
-                    'website' => $data['website'] ?? null,
-                    'direccion' => $data['direccion'] ?? null,
-                    'ciudad' => $data['ciudad'] ?? null,
-                    'pais' => $data['pais'] ?? null,
-                    'powerbi_tenant' => $data['powerbi_tenant'] ?? null,
-                    'powerbi_client' => $data['powerbi_client'] ?? null,
-                    'powerbi_clientsecret' => $data['powerbi_clientsecret'] ?? null,
-                    'logo' => $data['logo'] ?? null,
-                    'contacto_principal' => $data['contacto_principal'] ?? null,
-                    'created_by' => $data['created_by']
-                ]);
+                $cols = ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais',
+                    'powerbi_tenant', 'powerbi_client', 'powerbi_clientsecret', 'logo', 'contacto_principal'];
+                if (app_mode() === 'admin_escritura') {
+                    // La cuenta de escritura no tiene permiso sobre powerbi_*: no se incluyen en el INSERT.
+                    $cols = array_values(array_filter($cols, function ($c) { return strpos($c, 'powerbi_') !== 0; }));
+                }
+                $params = ['created_by' => $data['created_by']];
+                foreach ($cols as $c) {
+                    $params[$c] = $data[$c] ?? null;
+                }
+                $names = array_merge($cols, ['created_by']);
+                $sql = 'INSERT INTO empresa (' . implode(', ', $names) . ') VALUES (:' . implode(', :', $names) . ')';
+                $this->pdo->prepare($sql)->execute($params);
                 $id = $this->pdo->lastInsertId();
                 $powerbi = self::powerbiKeys($data);
                 audit_record($this->pdo, $data['created_by'], 'empresa.create', 'empresa', $id, null,
@@ -165,6 +152,10 @@ class EmpresaModel {
                 $fields = ['nombre', 'razon_social', 'ruc', 'email', 'telefono', 'website', 'direccion', 'ciudad', 'pais',
                     'powerbi_tenant', 'powerbi_client', 'powerbi_clientsecret', 'logo', 'contacto_principal'];
                 foreach ($fields as $field) {
+                    // admin_escritura: la cuenta de escritura no tiene permiso sobre powerbi_* (nunca se escriben desde este modo).
+                    if (app_mode() === 'admin_escritura' && strpos($field, 'powerbi_') === 0) {
+                        continue;
+                    }
                     if (isset($data[$field])) {
                         $updateFields[] = "$field = :$field";
                         $params[$field] = $data[$field];

@@ -62,6 +62,11 @@ function get_jwt_expiration() {
  * @return array|false Datos del usuario autenticado o false si no está autenticado
  */
 function authenticate_user($jwt_secret) {
+    // UX-08H: en «admin_escritura» la identidad la fija ÚNICAMENTE el router del modo, tras validar la sesión del piloto (lista blanca, rol, estado y versión en cada petición).
+    // Nunca se acepta un JWT: sin identidad fijada el resultado es «no autenticado».
+    if (function_exists('app_mode') && app_mode() === 'admin_escritura') {
+        return $GLOBALS['ADM_WRITE_USER'] ?? false;
+    }
     // Obtener el header Authorization
     $headers = getallheaders();
     $auth_header = $headers['Authorization'] ?? $headers['authorization'] ?? '';

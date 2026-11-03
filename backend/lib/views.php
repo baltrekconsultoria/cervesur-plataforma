@@ -84,7 +84,14 @@ function apply_view(array $response, $view, $resource) {
     if (isset(FORM_VERSION_FIELDS[$resource]) && is_array($response['data']) && !array_is_list($response['data'])) {
         $response['data']['version'] = row_version($response['data'], FORM_VERSION_FIELDS[$resource]);
     }
-    $response['data'] = project_view_data($response['data'], VIEW_MINIMAL_FIELDS[$resource]);
+    // UX-08H: en «admin_escritura» el formulario del informe NUNCA devuelve el enlace de Power BI (el portal solo lo entrega por el visor autorizado). El enlace es de solo escritura:
+    // se informa únicamente si está configurado. La versión (bloqueo optimista) ya se calculó con el enlace real.
+    $allowed = VIEW_MINIMAL_FIELDS[$resource];
+    if ($resource === 'reporte_form' && function_exists('app_mode') && app_mode() === 'admin_escritura' && is_array($response['data']) && !array_is_list($response['data'])) {
+        $response['data']['enlace_configurado'] = trim((string)($response['data']['enlace'] ?? '')) !== '';
+        $allowed = array_values(array_diff($allowed, ['enlace'])) + [count($allowed) => 'enlace_configurado'];
+    }
+    $response['data'] = project_view_data($response['data'], $allowed);
     return $response;
 }
 

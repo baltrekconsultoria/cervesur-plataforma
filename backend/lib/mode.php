@@ -22,7 +22,7 @@
  */
 require_once __DIR__ . '/env.php';
 
-const APP_MODES = ['read_write', 'read_only', 'diagnostico', 'piloto_visual', 'piloto_usuarios', 'piloto_admin'];
+const APP_MODES = ['read_write', 'read_only', 'diagnostico', 'piloto_visual', 'piloto_usuarios', 'piloto_admin', 'admin_escritura'];
 /** Bases de datos reales de Cervesur: jamás se abren en modo de escritura. Ampliable con CERVESUR_PRODUCTION_DBS (lista separada por comas). */
 const APP_PRODUCTION_DATABASES = ['cervesur_portalbi'];
 
@@ -98,7 +98,7 @@ function app_mode_evaluate(array $env) {
             $errors[] = 'CERVESUR_PILOT_VISOR_IDS debe ser vacío, TODOS o una lista de ids numéricos';
         }
     }
-    if ($mode === 'piloto_usuarios' || $mode === 'piloto_admin') {
+    if ($mode === 'piloto_usuarios' || $mode === 'piloto_admin' || $mode === 'admin_escritura') {
         if (strlen((string)($env['CERVESUR_PILOT_SECRET'] ?? '')) < 32) {
             $errors[] = 'El piloto con usuarios exige CERVESUR_PILOT_SECRET propio de al menos 32 caracteres';
         }
@@ -115,6 +115,10 @@ function app_mode_evaluate(array $env) {
         if (strtoupper(trim((string)($env['CERVESUR_INSECURE_TESTS'] ?? ''))) === 'SI' && $isProduction) {
             $errors[] = 'No se admite HTTP sin cifrar con una base productiva';
         }
+    }
+    if ($mode === 'admin_escritura') {
+        // UX-08H: configuración propia del modo con escrituras (auditoría obligatoria, vistas mínimas, interruptores válidos, sin cuenta con escritura por bandera).
+        $errors = array_merge($errors, admin_write_config_errors($env));
     }
     if ($mode === 'diagnostico') {
         $token = (string)($env['CERVESUR_DIAG_TOKEN'] ?? '');
@@ -161,7 +165,7 @@ function app_mode_boot() {
     if ($mode !== null) {
         return $mode;
     }
-    $keys = ['CERVESUR_MODE', 'CERVESUR_REQUIRED_MODE', 'DB_NAME', 'CERVESUR_PRODUCTION_DBS', 'CERVESUR_ALLOW_WRITABLE_DB_ACCOUNT', 'JWT_SECRET', 'CERVESUR_DIAG_TOKEN', 'CERVESUR_PILOT_OPERATOR_HASH', 'CERVESUR_PILOT_STATE_DIR', 'CERVESUR_PILOT_VISOR_IDS', 'CERVESUR_PILOT_SECRET', 'STATE_DB_NAME', 'CERVESUR_INSECURE_TESTS'];
+    $keys = ['CERVESUR_MODE', 'CERVESUR_REQUIRED_MODE', 'DB_NAME', 'CERVESUR_PRODUCTION_DBS', 'CERVESUR_ALLOW_WRITABLE_DB_ACCOUNT', 'JWT_SECRET', 'CERVESUR_DIAG_TOKEN', 'CERVESUR_PILOT_OPERATOR_HASH', 'CERVESUR_PILOT_STATE_DIR', 'CERVESUR_PILOT_VISOR_IDS', 'CERVESUR_PILOT_SECRET', 'STATE_DB_NAME', 'CERVESUR_INSECURE_TESTS', 'AUDIT_LOG_MODE', 'REACT_STRICT_VIEWS', 'ADMIN_WRITES_EMPRESAS', 'ADMIN_WRITES_REPORTES', 'ADMIN_WRITES_ACCESOS', 'ADMIN_WRITES_USUARIOS'];
     $env = [];
     foreach ($keys as $key) {
         $env[$key] = getenv($key);
@@ -189,6 +193,9 @@ function app_mode_route_gate($mode, $method, $uri) {
     $method = strtoupper((string)$method);
     if (stripos((string)$uri, '/api/powerbi') !== false) {
         return ['status' => 403, 'code' => 'legacy_blocked', 'message' => 'Endpoint no disponible en este modo'];
+    }
+    if ($mode === 'admin_escritura') {
+        return app_mode_write_gate($method, $uri);
     }
     if ($mode === 'piloto_admin') {
         // Consulta administrativa: solo GET de lectura (rutas EXACTAS, sin normalizar) y el inicio/cierre de sesión. Ninguna escritura, ningún formulario (`view=form`).
@@ -343,7 +350,7 @@ function app_mode_assert_readonly_account(PDO $pdo) {
  * Segunda comprobación, YA CONECTADO: la base realmente abierta (SELECT DATABASE()) es la que declara DB_NAME y, si es productiva, el modo no es
  * read_write; y en los modos restringidos la sesión MySQL está de verdad en solo lectura. Rehúsa servir (503) si algo no cuadra.
  */
-function app_mode_verify_connection(PDO $pdo, $mode) {
+function app_mode_verify_connection(PDO $pdo, $mode, $escritura = false) {
     $env = ['CERVESUR_PRODUCTION_DBS' => getenv('CERVESUR_PRODUCTION_DBS')];
     $actual = strtolower((string)$pdo->query('SELECT DATABASE()')->fetchColumn());
     if ($actual === '' || $actual !== strtolower((string)getenv('DB_NAME'))) {
@@ -352,7 +359,7 @@ function app_mode_verify_connection(PDO $pdo, $mode) {
     if ($mode === 'read_write' && in_array($actual, app_production_databases($env), true)) {
         app_mode_refuse(['Una base de datos productiva solo puede abrirse en modo de solo lectura (comprobado tras conectar)']);
     }
-    if ($mode !== 'read_write' && (int)$pdo->query('SELECT @@session.transaction_read_only')->fetchColumn() !== 1) {
+    if ($mode !== 'read_write' && !$escritura && (int)$pdo->query('SELECT @@session.transaction_read_only')->fetchColumn() !== 1) {
         app_mode_refuse(['La sesión de base de datos no está en solo lectura']);
     }
 }
@@ -389,3 +396,6 @@ class GuardedPDO extends PDO {
         return $fetchMode === null ? parent::query($query) : parent::query($query, $fetchMode, ...$fetchModeArgs);
     }
 }
+
+// UX-08H: modo con escrituras (puerta de rutas por capacidades, guardia de SQL de escritura, privilegios de la cuenta). Se carga al final: usa app_mode_refuse().
+require_once __DIR__ . '/admin_escritura.php';

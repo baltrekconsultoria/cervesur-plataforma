@@ -26,7 +26,7 @@ try {
     $pdoAuth->exec('SET SESSION TRANSACTION READ ONLY');
     app_mode_verify_connection($pdoAuth, $appMode);
     app_mode_assert_readonly_account($pdoAuth);
-    if ($appMode === 'piloto_admin') { require_once __DIR__ . '/admin_catalogo.php'; $pdoAuth->useCatalog(admin_auth_sentencias()); } else { $pdoAuth->useCatalog(usuarios_auth_sentencias()); }
+    if ($appMode === 'piloto_admin' || $appMode === 'admin_escritura') { require_once __DIR__ . '/admin_catalogo.php'; $pdoAuth->useCatalog(admin_auth_sentencias()); } else { $pdoAuth->useCatalog(usuarios_auth_sentencias()); }
 
     // ---- estado propio: escribe, pero solo en su base y solo con su catálogo
     $stateOptions = $options;

@@ -44,7 +44,7 @@ function usr_visor_autorizado($id) {
 }
 
 /** Rol que puede entrar en este modo: el piloto de usuarios admite SOLO «user»; el piloto administrativo (UX-07E.B) admite SOLO «admin». */
-function usr_rol_modo() { return app_mode() === 'piloto_admin' ? 'admin' : 'user'; }
+function usr_rol_modo() { return in_array(app_mode(), ['piloto_admin', 'admin_escritura'], true) ? 'admin' : 'user'; }
 
 function usr_perfil(array $u) {
     return ['id' => (string)$u['id'], 'username' => $u['username'], 'email' => $u['email'], 'first_name' => $u['first_name'], 'last_name' => $u['last_name'], 'phone' => '', 'role' => usr_rol_modo(), 'is_active' => 1];

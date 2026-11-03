@@ -15,7 +15,7 @@ ini_set('log_errors', '1');
 require_once __DIR__ . '/../lib/db.php';
 
 $existing = session_status();
-if ($existing === PHP_SESSION_NONE && !in_array(app_mode(), ['diagnostico', 'piloto_visual', 'piloto_usuarios', 'piloto_admin'], true)) { // el modo diagnóstico no tiene sesiones: ni cookie ni archivo
+if ($existing === PHP_SESSION_NONE && !in_array(app_mode(), ['diagnostico', 'piloto_visual', 'piloto_usuarios', 'piloto_admin', 'admin_escritura'], true)) { // el modo diagnóstico no tiene sesiones: ni cookie ni archivo
     session_start();
 }
 
@@ -23,7 +23,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Piloto con usuarios reales (UX-07D.4B): las credenciales solo viajan cifradas. Toda petición sin TLS se rechaza ANTES de cualquier otra cosa.
-if (in_array(app_mode(), ['piloto_usuarios', 'piloto_admin'], true) && !app_https_ok($_SERVER, getenv('CERVESUR_INSECURE_TESTS'))) {
+if (in_array(app_mode(), ['piloto_usuarios', 'piloto_admin', 'admin_escritura'], true) && !app_https_ok($_SERVER, getenv('CERVESUR_INSECURE_TESTS'))) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Este servicio exige una conexión HTTPS', 'code' => 'https_requerido']);
     exit;
@@ -40,6 +40,14 @@ if ($gate = app_mode_route_gate(app_mode(), $method, $uri)) {
 // Piloto con usuarios reales (solo en ese modo): su router propio atiende las rutas permitidas y nada más.
 if (app_mode() === 'piloto_usuarios') {
     require_once __DIR__ . '/UsuariosRouter.php';
+    http_response_code(404);
+    echo json_encode(['error' => 'Not found']);
+    exit;
+}
+
+// Administración con escrituras (UX-08H): su router propio autentica con la sesión del piloto y reutiliza los routers de UX-08 tras la puerta de rutas por capacidades.
+if (app_mode() === 'admin_escritura') {
+    require_once __DIR__ . '/AdminWriteRouter.php';
     http_response_code(404);
     echo json_encode(['error' => 'Not found']);
     exit;

@@ -3,10 +3,12 @@
 // reporte.enlace/reporte_id y las tres tablas de relación). Base desechable del MySQL aislado. Todos los valores son inventados.
 // NO crea `audit_log`: la prueba aplica la migración real (database/migrations/UX-08B-audit-log.up.sql) para verificarla.
 require __DIR__ . '/productive_fixture.php';
+$fixtureDb = getenv('FIXTURE_DB') ?: 'fixture_w';
+if (!preg_match('/^fixture_[a-z0-9_]{1,20}$/', $fixtureDb)) { fwrite(STDERR, "FIXTURE_DB inválido" . PHP_EOL); exit(2); }
 $root = new PDO('mysql:host=db;charset=utf8mb4', 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-$root->exec('DROP DATABASE IF EXISTS fixture_w');
-$root->exec('CREATE DATABASE fixture_w CHARACTER SET utf8mb4');
-$pdo = new PDO('mysql:host=db;dbname=fixture_w;charset=utf8mb4', 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+$root->exec('DROP DATABASE IF EXISTS ' . $fixtureDb);
+$root->exec('CREATE DATABASE ' . $fixtureDb . ' CHARACTER SET utf8mb4');
+$pdo = new PDO('mysql:host=db;dbname=' . $fixtureDb . ';charset=utf8mb4', 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
 productive_fixture_ddl($pdo);
 
 foreach ([

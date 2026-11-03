@@ -39,6 +39,9 @@ $options = [
 try {
     if ($appMode === 'read_write') {
         $pdo = new PDO($dsn, $user, $pass, $options);
+    } elseif ($appMode === 'admin_escritura') {
+        // UX-08H: cuenta de ESCRITURA propia y mínima (nunca la de Flutter) con guardia de SQL de escritura; sin sesión de solo lectura. Sus privilegios se auditan abajo.
+        $pdo = new WriteGuardedPDO($dsn, $user, $pass, $options);
     } else {
         // Solo lectura: guardia de SQL (capa 2) + transacción de sesión de solo lectura (capa 3) + verificación de los privilegios de la cuenta (capa 4).
         // MYSQL_ATTR_INIT_COMMAND hace que MySQL fije el solo lectura en CADA conexión nueva, antes de cualquier consulta, y no solo a través del código.
@@ -47,8 +50,10 @@ try {
         $pdo->exec('SET SESSION TRANSACTION READ ONLY');
     }
     // Con la conexión ya abierta: base realmente conectada, productiva solo en solo lectura, y sesión realmente en solo lectura.
-    app_mode_verify_connection($pdo, $appMode);
-    if ($appMode !== 'read_write') {
+    app_mode_verify_connection($pdo, $appMode, $appMode === 'admin_escritura');
+    if ($appMode === 'admin_escritura') {
+        admin_write_assert_account($pdo);
+    } elseif ($appMode !== 'read_write') {
         app_mode_assert_readonly_account($pdo);
     }
     if ($appMode === 'diagnostico') {
@@ -79,6 +84,6 @@ try {
 }
 
 // Piloto con usuarios reales: conexiones de autenticacion (tabla user) y de estado propio (UX-07D.4B). Solo en ese modo.
-if ($appMode === 'piloto_usuarios' || $appMode === 'piloto_admin') {
+if ($appMode === 'piloto_usuarios' || $appMode === 'piloto_admin' || $appMode === 'admin_escritura') {
     require_once __DIR__ . '/db_usuarios.php';
 }
