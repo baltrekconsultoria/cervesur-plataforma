@@ -18,9 +18,9 @@ nogo=0; aviso=0
 echo "################ OPCACHE DEL PHP DE APACHE (solo lectura) ################"
 
 echo "== 1. Módulo PHP de Apache y directorios de configuración"
-modulos=$(ls "$APACHE_ETC/mods-enabled" 2>/dev/null | grep -E '^php[0-9.]*\.(load|conf)$' | tr '\n' ' ')
+modulos=""; for m in "$APACHE_ETC"/mods-enabled/php*.load "$APACHE_ETC"/mods-enabled/php*.conf; do [ -e "$m" ] && modulos="$modulos$(basename "$m") "; done
 echo "   módulos habilitados: ${modulos:-(ninguno detectado)}"
-vers=$(ls "$PHP_ETC" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+$' | sort -V)
+vers=$(for d in "$PHP_ETC"/*/; do n=$(basename "$d"); [[ $n =~ ^[0-9]+[.][0-9]+$ ]] && echo "$n"; done | sort -V)
 [ -n "$vers" ] || { echo "   NO se encuentra $PHP_ETC/<versión>: no se puede determinar la configuración efectiva → NO-GO"; echo "RESULTADO: NO-GO"; exit 1; }
 v=$(printf '%s\n' "$vers" | tail -1); echo "   versiones de PHP instaladas: $(echo $vers | tr '\n' ' ')· se evalúa la más reciente con directorio apache2: "
 for cand in $(printf '%s\n' "$vers" | sort -rV); do [ -d "$PHP_ETC/$cand/apache2" ] && { v=$cand; break; }; done
