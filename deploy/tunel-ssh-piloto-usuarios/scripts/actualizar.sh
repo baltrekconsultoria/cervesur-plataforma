@@ -60,9 +60,17 @@ precondiciones() {
 
 espera_opcache() { sleep "${CERVESUR_ESPERA_OPCACHE:-4}"; }   # UX-08G.1: opcache revalida cada ~2 s; hay que esperar antes de verificar CUALQUIER cambio de código
 
+# UX-08G.2: identidad EN DISCO de lo instalado frente al paquete (todo backend/ y public/ listados en su SHA256SUMS; el .env no figura).
+identidad_disco() {
+  local lista
+  lista=$(grep -E '^[0-9a-f]{64} [ *]backend/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_BACK" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1 || return 1
+  lista=$(grep -E '^[0-9a-f]{64} [ *]public/' "$PAQ/SHA256SUMS") && [ -n "$lista" ] && (cd "$DIR_FRONT" && sha256sum -c --quiet <<<"$lista") >/dev/null 2>&1
+}
+
 verificar_post() {
   # UX-08G.1: opcache (mod_php) revalida los archivos cada ~2 s; sin esta espera la verificación puede atender código ANTIGUO en caché y dar por buena una versión rota.
   espera_opcache
+  identidad_disco || { echo "FAIL identidad en disco: lo instalado NO coincide con el SHA256SUMS del paquete" > "$1"; return 1; }
   bash "$PAQ/scripts/verificar.sh" >"$1" 2>&1; local rc=$?
   [ "$rc" -eq 0 ] || { grep -E '^FAIL' "$1" | head -10; return 1; }
   return 0

@@ -42,7 +42,7 @@ const interruptor = join(REPO, 'deploy', 'qa-admin-aislado', 'scripts', 'interru
 if (!existsSync(interruptor)) fail('Falta deploy/qa-admin-aislado/scripts/interruptor-escrituras.sh');
 cpSync(interruptor, join(AUD, 'interruptor-escrituras.sh'));
 // UX-08G: preflight de liberación (solo lectura) y huellas del backend del piloto administrativo de referencia (paquete cef58da900e8), para contrastar lo desplegado.
-for (const f of ['preflight-produccion.sh', 'manifiesto-piloto-cef58da900e8.txt']) {
+for (const f of ['preflight-produccion.sh', 'identidad-instalada-solo-lectura.sh', 'opcache-solo-lectura.sh', 'manifiesto-piloto-cef58da900e8.txt', 'manifiesto-piloto-public-cef58da900e8.txt']) {
   const src = join(REPO, 'deploy', 'produccion-admin', f);
   if (!existsSync(src)) fail(`Falta deploy/produccion-admin/${f}`);
   cpSync(src, join(AUD, f));
@@ -55,7 +55,8 @@ Nada de este paquete modifica el servidor. Ejecute desde esta carpeta (la que co
 
   bash deploy/auditoria/puerto-candidato-solo-lectura.sh 8094            # ¿está libre el puerto candidato? (8090-8093 ya están ocupados)
   sudo bash deploy/auditoria/preflight-produccion.sh --paquete <carpeta del paquete de liberación extraído>   # UX-08G, solo lectura
-  sudo bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-admin/backend deploy/auditoria/manifiesto-piloto-cef58da900e8.txt > divergencia-admin-vs-piloto.txt
+  sudo bash deploy/auditoria/identidad-instalada-solo-lectura.sh > identidad-admin-vs-piloto.txt     # hash a hash: backend y aplicación instalados frente al piloto cef58da900e8
+  sudo bash deploy/auditoria/opcache-solo-lectura.sh --paquete <paquete extraído> > opcache.txt        # ¿se sirve el código nuevo tras actualizar?
   bash deploy/auditoria/interruptor-escrituras.sh                         # ¿USER_ADMIN_WRITES apagado en los portales publicados? (sudo si el .env es 640)
   bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-admin/backend    > divergencia-admin.txt
   bash deploy/auditoria/inventario-divergencia.sh /opt/cervesur-react-usuarios/backend > divergencia-usuarios.txt

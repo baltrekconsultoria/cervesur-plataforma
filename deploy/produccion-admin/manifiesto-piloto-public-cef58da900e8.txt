@@ -1,0 +1,8 @@
+# Referencia: aplicación (public/) del PAQUETE del piloto administrativo cef58da900e8, hash de los bytes. Formato: sha256  public/ruta
+7c4fe6273cf4ca6f48c5198b78c286915ece260f6b8cdca40e4dbe3b44097f78  public/.htaccess
+eff4beae567d6f1997f5c8f94727ad0b28d049d2f3cfd2bdcb3db6bb211a7ffe  public/assets/index-Dl7tH-Xb.css
+5fd0c3e52c795aae0b71abda41dab8615b40a715b125a2038808b8f7ad792a33  public/assets/index-XdasKS8E.js
+a5372350a97a8275160ff9b5165f3a4261b4f0d421d89b9c7bdc00399bf86a00  public/branding/logo-cervesur-horizontal.png
+1b3fec5a0f45e345e75a18a8f87155bcb17e4e665b151ad57d97e6eaad09eef4  public/branding/logo-cervesur-vertical.png
+479e09c421b43d8091a0a5c1acc5dcd3ae1132e87b5456126db9688496bfca9d  public/build-info.json
+39e8884e225eaddac6bd41bcfa92f69f76829b9a7d0fdfe10ba44f6a02e6b01e  public/index.html
