@@ -52,3 +52,4 @@ Thumbs.db
 
 # Paquete de instalación de prueba por túnel SSH (UX-07D.1B): artefacto generado, no se versiona
 dist-paquete/
+!deploy/qa-admin-aislado/.env.qa-admin.example
