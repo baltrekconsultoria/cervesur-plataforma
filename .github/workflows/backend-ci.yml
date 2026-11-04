@@ -369,7 +369,7 @@ jobs:
             cervesur-ci-php:local php tests/isolated/seed_writes.php
           docker run --rm --network "$network_name" \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
-            --env TEST_DB_PASS --env W_AUTH_PASS --env W_CAT_PASS --env W_STATE_PASS --env W_WRITE_PASS \
+            --env TEST_DB_PASS --env W_AUTH_PASS --env W_CAT_PASS --env W_STATE_PASS --env W_WRITE_PASS --env W_WRITE2A_PASS \
             cervesur-ci-php:local php tests/isolated/setup_admin_write.php
           start_aw() {
             local name="$1"; shift
