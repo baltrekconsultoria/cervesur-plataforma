@@ -1,5 +1,7 @@
 # UX-08H · Liberación a producción de la Fase 2 (procedimientos 2A y 2B por separado)
 
+> **Actualización UX-08H.1:** se descartó el QA aislado (8095); la ruta vigente hacia producción está en `docs/UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md`. Fase 2B (Usuarios) está **bloqueada por código** sobre la base productiva. Las secciones sobre el kit QA de este documento son históricas.
+
 > **Estado: PREPARADO, NO EJECUTADO.** Nada de este documento se ha corrido en ningún servidor. Cada paso que toca producción **exige autorización expresa por separado** del responsable. No se modifica Flutter, Apache, `cervesur_portalbi` (salvo las dos migraciones aditivas de §2), ni el administrador publicado en 8443 hasta el paso indicado.
 
 ## 0. Principios

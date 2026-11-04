@@ -1,5 +1,7 @@
 # UX-08H · Plan de la Fase 2 — administración productiva con escrituras
 
+> **Actualización UX-08H.1:** se descartó el QA aislado (8095); la ruta vigente hacia producción está en `docs/UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md`. Fase 2B (Usuarios) está **bloqueada por código** sobre la base productiva. Las secciones sobre el kit QA de este documento son históricas.
+
 Rama `feat/cervesur-ux-08h-admin-writes` (desde `e1d7567`, el RC de UX-08G.3 ya liberado como Fase 1). **Nada de esto está desplegado.** Sin SSH, push, merge, cambios en producción, Apache, `cervesur_portalbi`, cuentas reales, Flutter, el administrador publicado en 8443, QA 8094 ni DB031.
 
 ## 1. Qué es y qué no es

@@ -1,5 +1,7 @@
 # UX-08H · Informe de QA de la Fase 2
 
+> **Actualización UX-08H.1:** se descartó el QA aislado (8095); la ruta vigente hacia producción está en `docs/UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md`. Fase 2B (Usuarios) está **bloqueada por código** sobre la base productiva. Las secciones sobre el kit QA de este documento son históricas.
+
 Rama `feat/cervesur-ux-08h-admin-writes`. Todo se ejecutó en **Docker aislado con datos sintéticos** (MySQL 8.0 desechable, red interna). **No se tocó** producción, SSH, Apache, `cervesur_portalbi`, Flutter, 8443, QA 8094 ni DB031. Lo no ejecutado está marcado como **pendiente**.
 
 ## 1. Resultados observados

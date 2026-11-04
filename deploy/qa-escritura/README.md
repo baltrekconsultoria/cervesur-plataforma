@@ -1,5 +1,8 @@
 # Entorno React de ESCRITURA ADMINISTRATIVA de QA (modo `admin_escritura`), aislado, solo por túnel SSH
 
+> **DESCARTADO (UX-08H.1).** Por decisión del proyecto **no se instala** este entorno QA (puerto 8095) ni su paquete. Se conserva solo como referencia técnica. La liberación sigue `docs/UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md` (E0 → migraciones → publicación con escrituras apagadas → activación gradual en 8443).
+
+
 Paquete **instalable pero NO instalado** del entorno de QA para el modo de backend `admin_escritura` (UX-08H, fase 2): administración **con escrituras** (empresas, informes, accesos,
 usuarios), cada una tras su propio interruptor, con auditoría obligatoria. Es una bifurcación del kit ya ensayado `deploy/qa-admin-aislado/` (mismas puertas de seguridad: puerto explícito,
 aborta sin cambios, marcas de instalación, nunca borra respaldos, reversión completa). Los datos son **100 % sintéticos**: nada usa ni toca `cervesur_portalbi`.
