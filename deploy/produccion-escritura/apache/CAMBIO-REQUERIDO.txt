@@ -1,0 +1,8 @@
+APACHE · cambio requerido para el Paso B (NO forma parte de A1 ni de A2; requiere autorización propia)
+
+Archivo:  /etc/apache2/cervesur-react-admin/react-usuarios-common.conf   (lo incluyen el sitio 8093 y la publicación 8443)
+Hoy:      <Location "/"> <LimitExcept GET POST> Require all denied </LimitExcept> </Location>
+Cambio:   <LimitExcept GET POST>  ->  <LimitExcept GET POST PUT DELETE>
+Motivo:   la interfaz usa PUT (editar empresas e informes) y DELETE (bajas y revocaciones). Con "GET POST" Apache les responde 403 antes de llegar a PHP.
+No cambia: PATCH, OPTIONS y TRACE siguen rechazados; la restricción de redes del 8443 (Require ip, AuthMerging And) sigue aplicándose.
+Cómo:     sudo bash scripts/apache-metodos-escritura.sh --simular   y luego sin --simular   (respaldo SHA-256, configtest, recarga suave, verificación, vuelta atrás automática; --revertir lo deshace)

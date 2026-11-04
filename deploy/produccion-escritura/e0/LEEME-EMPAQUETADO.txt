@@ -1,0 +1,44 @@
+E0 · kit de inspección de SOLO LECTURA previo a la fase 2A · notas para quien EMPAQUETA y para quien EJECUTA
+==========================================================================================================
+
+1. Qué copiar al paquete de producción
+--------------------------------------
+Copie TODA la carpeta deploy/produccion-escritura/e0/ EXCEPTO la subcarpeta ensayo/ (arneses de Docker del equipo de desarrollo; no son para el servidor):
+
+    e0-auditoria-fase2a.sh   orquestador (único script que se ejecuta)
+    lib-e0.sh                guardia de SQL, sanitizador, autoverificación
+    lib-esquema.sh           comparación de esquema (copia IDÉNTICA de migraciones/lib-esquema.sh)
+    esquema-esperado.tsv     columnas esperadas (copia IDÉNTICA de migraciones/esquema-esperado.tsv)
+    sanear.sed, sanear.awk   sanitizador de salida;  sanear.sh = filtro autónomo (stdin → stdout)
+    prohibidas.regex         patrones de escritura que la autoverificación busca en el propio kit
+    probar-e0.sh             pruebas estáticas (no necesitan MySQL): bash probar-e0.sh
+    sql/*.sql                todo el SQL del kit (SELECT / SHOW solamente)
+    repo/                    ver el punto 2
+
+2. Archivos del repositorio que el empaquetador debe copiar en e0/repo/
+----------------------------------------------------------------------
+    database/migrations/UX-08B-audit-log-immutable.up.sql   →  e0/repo/UX-08B-audit-log-immutable.up.sql
+(sirve para comparar la definición de los triggers de audit_log, si ya existieran, con la migración del repositorio. Si falta, el ítem 6 queda en WARN «sin archivo de referencia».)
+
+Conserve los permisos de ejecución (chmod 755 *.sh) y finales de línea LF.
+
+3. Cómo se ejecuta (PuTTY, con sudo)
+-----------------------------------
+    cd /ruta/del/paquete/e0
+    bash probar-e0.sh                      # opcional: pruebas estáticas, no tocan nada
+    sudo bash e0-auditoria-fase2a.sh --esperado-sha 3f859210c5c4 --paquete /ruta/al/backend-candidato
+    # evidencia: ~/cervesur-qa-evidencia/<fecha>-E0/  (01-… a 12-…, 98-…, 99-resumen-E0.txt)
+
+Opciones: bash e0-auditoria-fase2a.sh --ayuda
+El kit se NIEGA a correr (código 3) si su autoverificación detecta cualquier sentencia que no sea SELECT/SHOW/EXPLAIN/USE o una orden que modifique el sistema.
+
+4. Qué NO hace
+--------------
+No escribe en la base, no cambia permisos, servicios ni archivos del servidor (solo crea su carpeta de evidencia y un directorio temporal que borra al terminar),
+no envía peticiones HTTP, no lee valores del .env salvo una lista blanca de modos/nombres no secretos, y toda su salida pasa por el sanitizador antes de escribirse.
+Revise igualmente la carpeta de evidencia antes de compartirla; el archivo 98-residuos-sensibles.txt dice si el sanitizador detectó algo.
+
+5. Dependencias del servidor
+----------------------------
+bash, awk, sed, grep, find, stat, sha256sum, df, ss (o netstat), mysql (cliente), php (para el ítem 11), sudo.
+Variable opcional CERVESUR_MYSQL_CMD (por omisión «sudo mysql»; como root, «mysql») para apuntar a otro MySQL, p. ej. en un ensayo.

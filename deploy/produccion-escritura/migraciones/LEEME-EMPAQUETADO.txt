@@ -1,0 +1,54 @@
+Migraciones de la fase 2A · notas para quien EMPAQUETA y para el DBA que EJECUTA
+===============================================================================
+NADIE ha ejecutado estos scripts contra un servidor real. Se ensayaron solo en Docker (MySQL 8.0 con log_bin=1 y log_bin_trust_function_creators=0, como producción).
+
+1. Qué copiar al paquete de producción
+--------------------------------------
+Copie TODA la carpeta deploy/produccion-escritura/migraciones/ (incluida esta nota y RECUPERACION.txt):
+
+    aplicar-migraciones.sh   runner (--simular | --aplicar | --verificar | --revertir-cuenta | --revertir-auditoria)
+    crear-respaldo.sh        respaldo verificable de las seis tablas + manifiesto (SHA-256, estructura, filas, CHECKSUM TABLE)
+    lib-comun.sh             guardia de lectura, utilidades, plantilla → privilegios esperados
+    lib-esquema.sh           comparación de esquema (copia IDÉNTICA de e0/lib-esquema.sh)
+    esquema-esperado.tsv     columnas esperadas (copia IDÉNTICA de e0/esquema-esperado.tsv)
+    probar-migraciones.sh    pruebas estáticas (no necesitan MySQL)
+    RECUPERACION.txt         qué hacer si algo sale mal (léala ANTES de aplicar)
+    repo/                    ver el punto 2
+
+2. Archivos del repositorio que el empaquetador debe copiar en migraciones/repo/ (nombres PLANOS, sin subcarpetas)
+------------------------------------------------------------------------------------------------------------------
+    database/migrations/UX-08B-audit-log.up.sql                      →  repo/UX-08B-audit-log.up.sql
+    database/migrations/UX-08B-audit-log.down.sql                    →  repo/UX-08B-audit-log.down.sql
+    database/migrations/UX-08B-audit-log-immutable.up.sql            →  repo/UX-08B-audit-log-immutable.up.sql
+    database/migrations/UX-08B-audit-log-immutable.down.sql          →  repo/UX-08B-audit-log-immutable.down.sql
+    database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template →  repo/UX-08H1-cuenta-escritura-fase2a.sql.template
+NO copie UX-08H-cuenta-escritura-produccion.sql.template (concede escritura sobre `user`; la fase 2B sigue bloqueada).
+
+Después genere la suma de verificación (el runner la exige para --aplicar y la comprueba contra los archivos copiados):
+
+    cd repo && sha256sum UX-08B-audit-log.up.sql UX-08B-audit-log.down.sql UX-08B-audit-log-immutable.up.sql \
+        UX-08B-audit-log-immutable.down.sql UX-08H1-cuenta-escritura-fase2a.sql.template > SHA256SUMS
+
+Conserve finales de línea LF y permisos de ejecución (chmod 755 *.sh). El kit E0 necesita además una copia de UX-08B-audit-log-immutable.up.sql en e0/repo/ (ver e0/LEEME-EMPAQUETADO.txt).
+
+3. Orden de ejecución (el DBA, por PuTTY, con sudo)
+---------------------------------------------------
+    cd /ruta/del/paquete/migraciones
+    bash probar-migraciones.sh                                            # opcional, estático
+    sudo bash crear-respaldo.sh --probar-restauracion                     # respaldo + manifiesto (en /var/backups/cervesur-react-admin/respaldos-fase2a/)
+    sudo bash aplicar-migraciones.sh --simular                            # NO escribe nada; muestra exactamente qué se ejecutaría
+    sudo bash aplicar-migraciones.sh --aplicar --respaldo <archivo.sql.gz> --confirmo-autorizacion "<quién autorizó y cuándo>"
+    sudo bash aplicar-migraciones.sh --verificar                          # opcional, repetible (su prueba termina siempre en ROLLBACK)
+
+La contraseña de la cuenta de escritura se genera en el servidor y se guarda SOLO en /var/backups/cervesur-react-admin/secretos/cervesur_escritura_adm.clave (700/600, root).
+El script imprime la ruta, nunca el contenido. El operador la copia al .env del admin 8443 (DB_USER / DB_PASS) y la elimina cuando ya no la necesite.
+
+4. Dependencias del servidor
+----------------------------
+bash, awk, sed, grep, gzip/zcat, sha256sum, openssl, mysql y mysqldump (cliente), sudo. Variables opcionales: CERVESUR_MYSQL_CMD, CERVESUR_MYSQLDUMP_CMD (por omisión «sudo mysql» / «sudo mysqldump»; como root, sin sudo).
+CERVESUR_INYECTAR_FALLO existe SOLO para ensayos: provoca el fallo de un paso, jamás relaja una comprobación. No la defina en producción.
+
+5. Lo que estos scripts NO hacen
+--------------------------------
+No cambian variables globales de MySQL (log_bin_trust_function_creators, etc.); no tocan el .env ni el código del admin; no activan ADMIN_WRITES_*; no crean cuentas con permisos sobre `user` más allá de UPDATE(last_login);
+no borran respaldos; no borran audit_log (evidencia) sin dos confirmaciones explícitas y un volcado previo.

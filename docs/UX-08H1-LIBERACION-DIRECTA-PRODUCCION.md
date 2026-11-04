@@ -36,11 +36,15 @@ Ver `docs/UX-08H-INFORME-QA.md`. Añadido en UX-08H.1: unitarias del bloqueo (gu
 | **E3** | **Migraciones** M1, M2 y cuenta mínima (`aplicar-migraciones.sh`, DBA) | **sí (BD)**, aditivas | ver §10 |
 | **A1** | Publicar el código nuevo **con el `.env` sin cambios** (sigue `piloto_admin`) | sí (código) | sí, automático |
 | **A2** | Cambiar el `.env` a `admin_escritura` con **todo apagado** (`modo-escritura.sh`) | sí (`.env`) | sí, automático |
+| **B0** | **Apache: permitir PUT y DELETE** (único cambio de Apache; `scripts/apache-metodos-escritura.sh`, ver §4.1) | **sí (Apache)** | sí, automático (`--revertir`) |
 | **B1** | Habilitar **Empresas** + una operación autorizada + comprobar auditoría | sí (datos reales) | apagar interruptor |
 | **B2** | Habilitar **Reportes** (tras verificar B1) | idem | idem |
 | **B3** | Habilitar **Accesos** (tras verificar B2) | idem | idem |
 
 Los scripts imponen el orden: no se habilita el siguiente módulo hasta marcar el anterior como verificado con evidencia.
+
+### 4.1 Hallazgo: Apache bloquea PUT y DELETE hoy
+La configuración común del administrador (`/etc/apache2/cervesur-react-admin/react-usuarios-common.conf`, incluida por 8093 y 8443) tiene `<LimitExcept GET POST> Require all denied`. Con eso, **editar** (PUT) y **dar de baja/revocar** (DELETE) reciben 403 de Apache antes de llegar a PHP; A1 y A2 **no** lo necesitan, Paso B sí. El cambio mínimo es una línea (`GET POST` → `GET POST PUT DELETE`; PATCH, OPTIONS, TRACE y la restricción de redes del 8443 siguen igual). Va en un script **aparte y opcional** (`apache-metodos-escritura.sh`, con `--simular`, respaldo SHA-256, `configtest`, recarga suave, verificación y `--revertir`) que **ningún otro script llama** y que `interruptores.sh --habilitar` exige ya aplicado. **Es un cambio de Apache: requiere autorización expresa y separada** (la restricción actual "no modificar Apache" rige hasta que la den). E0 lo confirma leyendo el archivo real.
 
 ### Por qué A1 antes que A2 (y no “publicar ya en modo nuevo, apagado”)
 El modo `admin_escritura` necesita su cuenta MySQL de escritura **para arrancar** (verifica `SHOW GRANTS`). Arrancarlo con otra cuenta sería arrancar con más privilegios de los necesarios. Por eso: **A1** publica el código con el modo viejo (cero cambio de comportamiento: el bundle nuevo, al no encontrar `/api/admin/capacidades` en `piloto_admin`, queda en solo consulta y su aviso lo dice), y **A2** cambia el modo solo cuando existen las migraciones y la cuenta mínima ya verificada. `piloto_admin` **no** se convierte implícitamente en modo escritura en ningún momento.
@@ -111,6 +115,7 @@ Marcar por etapa con evidencia (`verificar-posdespliegue.sh --etapa …`):
 | Cuenta mínima: sin DELETE/DDL/ALL/GRANT OPTION; sin escritura en `user` salvo `last_login` | requerido | — | requerido | requerido |
 | Etapa anterior verificada con evidencia | — | requerido | requerido | **requerido** (una por módulo) |
 | Operación real autorizada por escrito, sin datos ficticios | — | — | — | **requerido** |
+| Apache permite PUT/DELETE (B0 autorizado, aplicado y verificado) | — | — | — | **requerido** |
 | Usuarios (2B) bloqueados y comprobado en el servidor | — | — | requerido | requerido |
 | Autorización expresa y separada de cada etapa | requerido | requerido | requerido | requerido |
 **Resultado hoy: NO-GO para ejecutar cualquier etapa de producción** hasta completar E0/E1. Lo único que está “listo” es el paquete y su documentación.
@@ -123,7 +128,8 @@ Marcar por etapa con evidencia (`verificar-posdespliegue.sh --etapa …`):
 5. Ventana para **A1** (código) y para **A2** (`.env`); confirmar que el `.env` actual se respalda.
 6. Qué **operación real** autorizada se usará para verificar Empresas, Reportes y Accesos (registro concreto, quién la aprueba, cómo se deshace) — **una por módulo**.
 7. Criterio para apagar de inmediato (quién decide y cómo se avisa).
-8. Reiterar que **Usuarios (2B)** sigue bloqueado y que cualquier desbloqueo es otra versión y otra autorización.
+8. **Permitir PUT y DELETE en Apache** (B0, §4.1): autorización separada, ventana y quién lo ejecuta.
+9. Reiterar que **Usuarios (2B)** sigue bloqueado y que cualquier desbloqueo es otra versión y otra autorización.
 
 ## 14. Evidencia de esta preparación
 {{EVIDENCIA}}

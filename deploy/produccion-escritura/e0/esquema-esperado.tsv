@@ -1,0 +1,83 @@
+# grupo	tabla	columna	column_type	is_nullable	critico
+negocio	user	id	int unsigned	NO	1
+negocio	user	username	varchar(50)	NO	1
+negocio	user	email	varchar(100)	YES	0
+negocio	user	password	varchar(255)	YES	0
+negocio	user	first_name	varchar(50)	YES	0
+negocio	user	last_name	varchar(50)	YES	0
+negocio	user	phone	varchar(30)	YES	0
+negocio	user	avatar	varchar(255)	YES	0
+negocio	user	role	varchar(30)	NO	1
+negocio	user	is_active	tinyint(1)	NO	1
+negocio	user	session_version	int unsigned	NO	1
+negocio	user	last_login	datetime	YES	0
+negocio	user	created_at	datetime	YES	0
+negocio	user	updated_at	datetime	YES	0
+negocio	empresa	id	int unsigned	NO	1
+negocio	empresa	nombre	varchar(100)	YES	0
+negocio	empresa	razon_social	varchar(100)	YES	0
+negocio	empresa	email	varchar(100)	YES	0
+negocio	empresa	website	varchar(100)	YES	0
+negocio	empresa	direccion	varchar(100)	YES	0
+negocio	empresa	ciudad	varchar(100)	YES	0
+negocio	empresa	powerbi_tenant	varchar(100)	YES	0
+negocio	empresa	powerbi_client	varchar(100)	YES	0
+negocio	empresa	powerbi_clientsecret	varchar(100)	YES	0
+negocio	empresa	logo	varchar(100)	YES	0
+negocio	empresa	contacto_principal	varchar(100)	YES	0
+negocio	empresa	ruc	varchar(20)	YES	1
+negocio	empresa	telefono	varchar(30)	YES	0
+negocio	empresa	pais	varchar(50)	YES	0
+negocio	empresa	created_by	int unsigned	YES	1
+negocio	empresa	updated_by	int unsigned	YES	1
+negocio	empresa	created_at	datetime	YES	0
+negocio	empresa	updated_at	datetime	YES	0
+negocio	empresa	activo	tinyint(1)	NO	1
+negocio	reporte	id	int unsigned	NO	1
+negocio	reporte	nombre	varchar(100)	YES	0
+negocio	reporte	descripcion	text	YES	0
+negocio	reporte	enlace	varchar(500)	NO	1
+negocio	reporte	grupo_id	varchar(50)	NO	1
+negocio	reporte	reporte_id	varchar(50)	NO	1
+negocio	reporte	created_by	int unsigned	YES	1
+negocio	reporte	updated_by	int unsigned	YES	1
+negocio	reporte	created_at	datetime	YES	0
+negocio	reporte	updated_at	datetime	YES	0
+negocio	reporte	activo	tinyint(1)	NO	1
+negocio	empresa_usuario	id	int unsigned	NO	1
+negocio	empresa_usuario	empresa_id	int unsigned	YES	1
+negocio	empresa_usuario	user_id	int unsigned	YES	1
+negocio	empresa_usuario	notas	text	YES	0
+negocio	empresa_usuario	created_by	int unsigned	YES	1
+negocio	empresa_usuario	updated_by	int unsigned	YES	1
+negocio	empresa_usuario	created_at	datetime	YES	0
+negocio	empresa_usuario	updated_at	datetime	YES	0
+negocio	empresa_usuario	activo	tinyint(1)	NO	1
+negocio	empresa_reporte	id	int unsigned	NO	1
+negocio	empresa_reporte	empresa_id	int unsigned	YES	1
+negocio	empresa_reporte	reporte_id	int unsigned	YES	1
+negocio	empresa_reporte	notas	text	YES	0
+negocio	empresa_reporte	created_by	int unsigned	YES	1
+negocio	empresa_reporte	updated_by	int unsigned	YES	1
+negocio	empresa_reporte	created_at	datetime	YES	0
+negocio	empresa_reporte	updated_at	datetime	YES	0
+negocio	empresa_reporte	activo	tinyint(1)	NO	1
+negocio	user_empresa_reporte	id	int unsigned	NO	1
+negocio	user_empresa_reporte	user_id	int unsigned	YES	1
+negocio	user_empresa_reporte	empresa_reporte_id	int unsigned	YES	1
+negocio	user_empresa_reporte	notas	text	YES	0
+negocio	user_empresa_reporte	created_by	int unsigned	YES	1
+negocio	user_empresa_reporte	updated_by	int unsigned	YES	1
+negocio	user_empresa_reporte	created_at	datetime	YES	0
+negocio	user_empresa_reporte	updated_at	datetime	YES	0
+negocio	user_empresa_reporte	activo	tinyint(1)	NO	1
+auditoria	audit_log	id	bigint unsigned	NO	1
+auditoria	audit_log	correlation_id	char(32)	NO	1
+auditoria	audit_log	occurred_at	datetime(3)	NO	1
+auditoria	audit_log	actor_user_id	int unsigned	NO	1
+auditoria	audit_log	action	varchar(40)	NO	1
+auditoria	audit_log	entity	varchar(40)	NO	1
+auditoria	audit_log	entity_id	int unsigned	NO	1
+auditoria	audit_log	before_json	json	YES	1
+auditoria	audit_log	after_json	json	YES	1
+auditoria	audit_log	request_ip	varchar(45)	YES	1

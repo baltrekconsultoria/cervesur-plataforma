@@ -1,0 +1,66 @@
+RECUPERACIÓN · fase 2A de escrituras (empresas, informes y accesos)
+==================================================================
+Lea esto ANTES de aplicar. Hay cuatro cosas distintas que se pueden «deshacer»; no se mezclan:
+
+  (1) restaurar el CÓDIGO            →  vuelve la versión anterior del admin 8443.     No toca la base de datos.
+  (2) APAGAR las escrituras          →  el admin vuelve a ser solo lectura.            No toca ni la base ni el código.
+  (3) recuperar los DATOS            →  se restauran filas desde el respaldo.          Es lo más pesado y el último recurso.
+  (4) revertir las MIGRACIONES       →  quitar la cuenta, los triggers o audit_log.    Cada una tiene su .down.sql / modo.
+
+Regla de oro: en caso de duda, primero (2) APAGAR; después se investiga. Apagar es inmediato y no pierde nada.
+
+1. Restaurar el código (lo hace el equipo de despliegue, con su propio script de reversión)
+------------------------------------------------------------------------------------------
+Vuelva al paquete anterior del admin 8443 (el que figura en /var/backups/cervesur-react-admin/ y cuyo SHA256SUMS conoce el equipo) y confirme con
+    sha256sum -c SHA256SUMS
+No cambia el esquema ni las cuentas MySQL. Si la nueva versión del código ya escribió filas (empresas, informes, accesos, auditoría), esas filas SE QUEDAN: el código antiguo simplemente no las usa.
+
+2. Apagar las escrituras (inmediato, reversible)
+------------------------------------------------
+En el .env del admin 8443 ponga ADMIN_WRITES_EMPRESAS=0, ADMIN_WRITES_REPORTES=0, ADMIN_WRITES_ACCESOS=0 (y ADMIN_WRITES_USUARIOS sin definir; USER_ADMIN_WRITES NO debe existir)
+y recargue el servicio del admin con el procedimiento del equipo de despliegue. Las capacidades se leen del entorno en CADA petición: las rutas de escritura responden 403 y la interfaz oculta los botones.
+Además, en la base, la cuenta de escritura sigue existiendo pero nadie la usa. Si quiere cortar también ese camino: sección 4.A.
+Esto NO deshace ningún dato ya escrito.
+
+3. Recuperar datos desde el respaldo (solo si hay datos dañados que NO se pueden corregir a mano)
+-----------------------------------------------------------------------------------------------
+El respaldo lo creó crear-respaldo.sh:  /var/backups/cervesur-react-admin/respaldos-fase2a/negocio6-<base>-<sello>.sql.gz (+ .manifest + .sha256, modo 600).
+  a) Congele las escrituras (sección 2) y pida a quien opere Flutter que no haya escrituras durante la restauración (Flutter escribe en estas mismas tablas con su cuenta amplia).
+  b) Verifique el respaldo:  sha256sum -c <archivo>.sha256   y   gzip -t <archivo>   y compare las filas del .manifest.
+  c) ENSAYE primero en un esquema temporal:  mysql -e "CREATE DATABASE cervesur_ensayo"  ;  zcat <archivo> | mysql cervesur_ensayo  ;  compare CHECKSUM TABLE con el manifiesto.  Elimine el esquema temporal al terminar.
+  d) La restauración real REEMPLAZA las seis tablas (el volcado trae DROP TABLE IF EXISTS / CREATE TABLE / INSERT): se pierde todo lo escrito en ellas DESPUÉS del respaldo, también lo que escribió Flutter.
+     Hágala con autorización expresa:  zcat <archivo> | sudo mysql cervesur_portalbi
+  e) audit_log NO forma parte de ese volcado (es una tabla de soporte; se conserva). Una restauración de las seis tablas puede dejar filas de audit_log que hacen referencia a ids que ya no existen: es evidencia, no se borra.
+Si el respaldo es de antes de las migraciones, la restauración no deshace M1/M2/cuenta; use la sección 4.
+
+4. Qué hace cada reversión de las migraciones
+---------------------------------------------
+A) aplicar-migraciones.sh --revertir-cuenta --confirmo-autorizacion "<texto>"
+   Ejecuta  DROP USER 'cervesur_escritura_adm'@'127.0.0.1'  (según --usuario/--host-cuenta).  Es la plantilla UX-08H1 «hacia atrás»: no toca datos de negocio ni audit_log.
+   Cierra el acceso de escritura de la fase 2A a nivel de base de datos. El archivo de clave se renombra a .revocada-<sello> (no se borra). Las conexiones ya abiertas de esa cuenta se cierran al soltar la sesión.
+
+B) aplicar-migraciones.sh --revertir-auditoria --confirmo-autorizacion "<texto>"
+   Ejecuta  UX-08B-audit-log-immutable.down.sql :  DROP TRIGGER IF EXISTS audit_log_no_update;  DROP TRIGGER IF EXISTS audit_log_no_delete;
+   Quita SOLO los triggers. La tabla audit_log y sus filas quedan intactas (siguen siendo evidencia). Se NIEGA si la cuenta de escritura existe (haga antes A): sin triggers, esa cuenta podría tener una bitácora modificable en teoría
+   (la cuenta no tiene UPDATE ni DELETE sobre audit_log, pero la defensa en profundidad exige quitar primero la cuenta).
+
+C) UX-08B-audit-log.down.sql  (DROP TABLE IF EXISTS audit_log)
+   audit_log ES EVIDENCIA. Este runner NUNCA la borra con las banderas normales. Solo con la segunda confirmación explícita:
+       --revertir-auditoria --tambien-borrar-tabla-auditoria --segundo-confirmo "BORRAR LA EVIDENCIA DE AUDITORIA"
+   y siempre DESPUÉS de volcarla a <bitácora>/audit_log-antes-de-borrar-<sello>.sql.gz (si el volcado falla, no se borra). Úselo solo con instrucción escrita de quien responde por la auditoría.
+
+D) Tablas de negocio: ninguna migración las modifica; no hay .down.sql para ellas. Para datos: sección 3.
+
+5. Problemas frecuentes al aplicar
+----------------------------------
+- «CREATE TRIGGER … error 1419 (You do not have the SUPER privilege and binary logging is enabled)»: ocurre cuando log_bin=1, log_bin_trust_function_creators=0 y la cuenta SIN SUPER.
+  El runner lo detecta ANTES de escribir (bloqueo 3). No cambia variables globales por su cuenta. Opciones del DBA: (a) ejecutar el runner como root del sistema (sudo mysql → auth_socket, root tiene SUPER);
+  (b) conceder SUPER temporalmente; (c) SET GLOBAL log_bin_trust_function_creators=1 solo durante M2 y devolverlo a 0 (afecta a todo el servidor; anótelo en la bitácora).
+- «ESTADO PARCIAL» (código de salida 20): una sentencia falló a mitad. NO relance a ciegas. Abra la bitácora (/var/backups/cervesur-react-admin/migraciones-<sello>/bitacora.log): dice qué sentencias terminaron.
+  M1 y M2 son idempotentes (CREATE TABLE IF NOT EXISTS / DROP TRIGGER IF EXISTS + CREATE): el runner detecta lo ya aplicado y lo omite. Si falló la cuenta, la clave pendiente se elimina sola; relance --aplicar.
+- «La cuenta YA EXISTE»: no se recrea. Para cambiar solo su contraseña use --rotar-clave (actualiza el archivo de clave; el anterior queda como .anterior-<sello>).
+- «las tablas cambiaron desde el respaldo»: alguien (normalmente Flutter) escribió. Cree un respaldo NUEVO con crear-respaldo.sh; la tolerancia es cero por diseño.
+
+6. Qué conservar como evidencia
+-------------------------------
+La carpeta migraciones-<sello>/ completa (bitácora con cada sentencia y resultado), el respaldo con su manifiesto y las salidas de --simular y --verificar. Nunca incluya el archivo .clave en la evidencia.
