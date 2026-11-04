@@ -140,9 +140,10 @@ Marcar por etapa con evidencia (`verificar-posdespliegue.sh --etapa …`):
 | Suite HTTP Fase 2A con base productiva simulada y cuenta 2A (bloqueo de Usuarios en 3 capas, 2A completa) | incluida en las 1619; pasa |
 | Vitest | **292 PASS**; `tsc` y ESLint limpios |
 | E2E de navegador (build `admin-write`, backend real) | **22 PASS / 0 FAIL** (alta con doble envío, duplicado, informe con enlace de solo escritura, botones según capacidades, aviso de solo consulta) |
-| Ensayo Docker del **paquete productivo** (`deploy/produccion-escritura/ensayo-docker.mjs`): instala la Fase 1 real, preflight, `--simular`, A1 con inyecciones de fallo, migraciones y cuenta, A2, Apache, Paso B por módulos con una escritura real y su auditoría, Usuarios rechazado (script y backend), apagado, reversión de código, Fase 1 de nuevo; Flutter/trabajadores/QA 8094 señuelo idénticos | **155 PASS / 0 FAIL** |
+| Ensayo Docker del **paquete productivo** (`deploy/produccion-escritura/ensayo-docker.mjs`): instala la Fase 1 real, preflight, `--simular`, A1 con inyecciones de fallo, migraciones y cuenta, A2, Apache, Paso B por módulos con una escritura real y su auditoría, Usuarios rechazado (script y backend), apagado, reversión de código, Fase 1 de nuevo; Flutter/trabajadores/QA 8094 señuelo idénticos | **162 PASS / 0 FAIL** (incluye: rutas definitivas de `migraciones/repo` y `e0/repo`, `aplicar-migraciones.sh --simular` real, y el 443 de trabajadores solo en la IP corporativa) |
 | Ensayo Docker de **E0 y migraciones** (`e0/ensayo/ensayo-docker.sh`): E0 sin escribir (checksums y objetos idénticos), respaldo con restauración de prueba, `--aplicar` real con prueba transaccional como la cuenta nueva, fallos inyectados, idempotencia, reversión | **48 OK / 0 FALLO** |
 | `shellcheck -S warning -x` sobre todos los scripts del paquete | rc=0 |
+| Pruebas de empaquetado (`probar-empaquetado.mjs`: carpetas incorrectas, archivos o manifiestos ausentes, plantilla, URL de trabajadores) | **34 PASS**; además **fallan** contra el paquete `70a14f2` |
 **No** está validado: el servidor real (E0 pendiente), el MySQL/Apache reales, ni el QA productivo.
 
 ## 15. Riesgos pendientes
