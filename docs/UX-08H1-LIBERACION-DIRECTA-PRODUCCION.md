@@ -151,3 +151,24 @@ Marcar por etapa con evidencia (`verificar-posdespliegue.sh --etapa …`):
 - `session_version` compartido con Flutter: cerrar sesión en Flutter cierra la sesión React del mismo administrador.
 - La verificación en producción usa datos reales: se limita a una operación autorizada por módulo.
 - Las pruebas usan MySQL 8.0 de Docker; la corrida contra el MySQL real es parte de E3.
+
+## 16. Correctivo del paquete: cómo sustituir con seguridad el RC `70a14f2`
+El RC `70a14f2` se transfirió y verificó en el servidor pero **no se desplegó nada** (ni migraciones, ni `.env`, ni código). Tenía dos defectos que este correctivo resuelve:
+1. **Estructura de migraciones:** los 5 SQL quedaban en `repo/` (raíz del paquete) y `migraciones/repo/` y `e0/repo/` estaban vacíos, sin `SHA256SUMS`. Ahora `migraciones/repo/` lleva los 5 archivos y su `SHA256SUMS`, `e0/repo/` lleva `UX-08B-audit-log-immutable.up.sql` (idéntico al de migraciones), y el empaquetador **se niega a construir** si falta algo o hay una carpeta `repo/` o `database/` en la raíz (`lib-empaquetado.mjs`, 34 pruebas en `probar-empaquetado.mjs`, que además FALLAN contra el paquete `70a14f2`).
+2. **Portal de trabajadores:** `comprobar-otros-portales.sh` consultaba `https://127.0.0.1:443/`, pero ese portal escucha **solo** en `192.168.200.12:443`. Ahora el valor por defecto es `https://192.168.200.12:443/` (`CERVESUR_IP_CORPORATIVA` y `CERVESUR_URL_TRABAJADORES` lo sobrescriben). El ensayo Docker reproduce la realidad (Apache en esa IP, nada en loopback:443) y comprueba que la URL antigua falla y la nueva funciona. Lo usan preflight, A1, A2 y la reversión de código.
+
+**Sustitución segura (sin borrar nada):**
+```bash
+# 1. En Windows: verificar y subir el paquete NUEVO (el viejo no se toca)
+Get-FileHash -Algorithm SHA256 .\cervesur-react-admin-fase2a-<commit12>-<fecha>Z.tar.gz     # debe coincidir con el SHA-256 externo informado
+pscp -P 22 -i "<clave.ppk>" <tar.gz> <tar.gz.sha256> <usuario>@192.168.200.12:/home/<usuario>/cervesur-qa-transferencia/
+# 2. En el servidor: verificar, extraer en una carpeta NUEVA y comprobar la estructura
+cd ~/cervesur-qa-transferencia && sha256sum -c cervesur-react-admin-fase2a-<commit12>-*.sha256          # OK
+D=$(mktemp -d ~/cervesur-qa-trabajo/fase2a-rc2-XXXX); tar -xzf cervesur-react-admin-fase2a-<commit12>-*.tar.gz -C "$D"
+PK=$(ls -d "$D"/cervesur-react-admin-fase2a-<commit12>-*/); (cd "$PK" && sha256sum -c SHA256SUMS --quiet && echo "PKG OK")
+(cd "$PK/migraciones/repo" && ls && sha256sum -c SHA256SUMS && cmp "$PK/e0/repo/UX-08B-audit-log-immutable.up.sql" UX-08B-audit-log-immutable.up.sql && echo "SQL OK")
+test ! -e "$PK/repo" && test ! -e "$PK/database" && echo "sin carpetas sueltas"
+# 3. Repetir con el paquete NUEVO lo que ya se hizo con el viejo: preflight y `actualizar.sh --simular`
+#    (el 70a14f2 queda en su carpeta, sin usar; nunca se borra ni se edita; basta no ejecutar sus scripts)
+```
+Desde ese momento **todo** (E0, migraciones, A1…) se ejecuta desde `$PK` nuevo. No mezclar carpetas de ambos paquetes.
