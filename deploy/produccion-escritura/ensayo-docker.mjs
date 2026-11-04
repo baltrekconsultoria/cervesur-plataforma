@@ -154,7 +154,7 @@ try {
 tree() { if [ -d "$1" ]; then (cd "$1" && find . -type f -printf '%p %s %m %u:%g\n' | LC_ALL=C sort | sha256sum | cut -c1-64; find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64); else echo ausente; fi; }
 for d in /var/www/cervesur /var/www/cervesur-react-trabajadores /opt/cervesur-react-trabajadores /var/www/cervesur-qa-8094 /opt/cervesur-qa-8094; do echo "[$d]"; tree $d; done
 sha256sum /etc/apache2/sites-available/cervesur.conf /etc/apache2/sites-available/cervesur-react-trabajadores.conf /etc/apache2/sites-available/cervesur-qa-8094.conf /var/www/cervesur/.htaccess 2>/dev/null
-for u in http://127.0.0.1/ http://127.0.0.1/ruta/profunda https://127.0.0.1:443/ http://127.0.0.1:8094/ https://127.0.0.1:8092/ http://127.0.0.1:8090/; do echo "$u"; curl -k -sS -m 6 -o /dev/null -D - "$u" | tr -d '\r' | awk 'NR==1{print;next} /^[A-Za-z-]+:/{print tolower($0)}' | grep -v -E '^(date|etag|last-modified):' | LC_ALL=C sort; curl -k -sS -m 6 "$u" | sha256sum; done
+for u in http://127.0.0.1/ http://127.0.0.1/ruta/profunda https://192.168.200.12:443/ http://127.0.0.1:8094/ https://127.0.0.1:8092/ http://127.0.0.1:8090/; do echo "$u"; curl -k -sS -m 6 -o /dev/null -D - "$u" | tr -d '\r' | awk 'NR==1{print;next} /^[A-Za-z-]+:/{print tolower($0)}' | grep -v -E '^(date|etag|last-modified):' | LC_ALL=C sort; curl -k -sS -m 6 "$u" | sha256sum; done
 mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
 `;
   put('/root/snap.sh', SNAP);
