@@ -1051,3 +1051,20 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
         text = source("backend/lib/write_support.php")
         self.assertIn("function audit_record", text)
         self.assertIn("function db_tx", text)
+
+    def test_phase_2a_account_has_no_user_writes_except_last_login_and_2b_is_locked(self):
+        tpl = source("database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template")
+        grants = "\n".join(l for l in tpl.splitlines() if not l.strip().startswith("--"))
+        self.assertNotRegex(grants, r"(?i)\b(DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|DROP|ALTER|CREATE ROUTINE|SUPER)\b")
+        self.assertNotRegex(grants, r"(?i)GRANT\s+SELECT\s*\([^)]*\bpassword\b")
+        self.assertNotRegex(grants, r"(?i)GRANT\s+(SELECT|INSERT|UPDATE)\s*\([^)]*powerbi_")
+        for line in re.findall(r"(?is)GRANT\s+(?:INSERT|UPDATE)[^;]*?ON `\{DB\}`\.`user`", grants):
+            self.assertRegex(line, r"(?is)UPDATE\s*\(\s*last_login\s*\)")
+        self.assertNotRegex(grants, r"(?is)GRANT\s+INSERT[^;]*ON `\{DB\}`\.`user`\s+TO")
+        text = source("backend/lib/admin_escritura.php")
+        self.assertIn("function admin_users_locked()", text)
+        guard = text[text.index("function app_sql_write_guard"):]
+        self.assertGreaterEqual(guard.count("admin_users_locked()"), 2)  # INSERT y UPDATE de `user`
+        gate = text[text.index("function app_mode_write_gate"):text.index("function app_sql_write_guard")]
+        self.assertIn("admin_users_locked()", gate)
+        self.assertIn("fase_2b_bloqueada", text)

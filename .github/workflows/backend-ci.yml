@@ -360,9 +360,9 @@ jobs:
             cervesur-ci-php:local php tests/isolated/http_admin_piloto_test.php
 
           # UX-08H: modo «admin_escritura» (fase 2) con la cuenta de escritura de PRIVILEGIOS MÍNIMOS (plantilla database/privileges/UX-08H-…) sobre datos sintéticos (`fixture_aw`).
-          W_AUTH_PASS="$(gen_pass)"; W_CAT_PASS="$(gen_pass)"; W_STATE_PASS="$(gen_pass)"; W_WRITE_PASS="$(gen_pass)"; WS1="$(openssl rand -hex 24)"
-          export W_AUTH_PASS W_CAT_PASS W_STATE_PASS W_WRITE_PASS
-          for v in "$W_AUTH_PASS" "$W_CAT_PASS" "$W_STATE_PASS" "$W_WRITE_PASS" "$WS1"; do echo "::add-mask::$v"; done
+          W_AUTH_PASS="$(gen_pass)"; W_CAT_PASS="$(gen_pass)"; W_STATE_PASS="$(gen_pass)"; W_WRITE_PASS="$(gen_pass)"; W_WRITE2A_PASS="$(gen_pass)"; WS1="$(openssl rand -hex 24)"
+          export W_AUTH_PASS W_CAT_PASS W_STATE_PASS W_WRITE_PASS W_WRITE2A_PASS
+          for v in "$W_AUTH_PASS" "$W_CAT_PASS" "$W_STATE_PASS" "$W_WRITE_PASS" "$W_WRITE2A_PASS" "$WS1"; do echo "::add-mask::$v"; done
           docker run --rm --network "$network_name" \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS --env FIXTURE_DB=fixture_aw \
@@ -385,6 +385,8 @@ jobs:
           }
           start_aw appaw --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1 --env ADMIN_USER_REACTIVATE_HOURS=0
           start_aw appawus --env ADMIN_WRITES_USUARIOS=1
+          # UX-08H.1: base marcada como productiva + cuenta de la fase 2A; sin CERVESUR_INSECURE_TESTS (una base productiva lo rechaza): la prueba corre DENTRO del contenedor, por loopback.
+          start_aw appawp --env DB_USER=cervesur_escritura2a_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1
           start_aw appawe --env ADMIN_WRITES_EMPRESAS=1
           start_aw appaw0
           start_aw appawna --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1
@@ -400,3 +402,4 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             --env TEST_DB_PASS --env JWT_SECRET \
             cervesur-ci-php:local php tests/isolated/flutter_compat_test.php
+          docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawp" php tests/isolated/http_admin_escritura_fase2a_test.php

@@ -22,7 +22,7 @@ foreach (['UX-08B-audit-log.up.sql', 'UX-08B-audit-log-immutable.up.sql'] as $fi
     foreach ($statements((string)file_get_contents(__DIR__ . '/../../database/migrations/' . $file)) as $s) { $root->exec($s); $n++; }
 }
 // 2) Cuentas de lectura y base de estado propias (renombradas con sufijo _aw).
-foreach (['cervesur_ro_auth_aw', 'cervesur_ro_catalogo_aw', 'cervesur_react_estado_aw', 'cervesur_escritura_aw'] as $u) { $root->exec("DROP USER IF EXISTS '$u'@'%'"); }
+foreach (['cervesur_ro_auth_aw', 'cervesur_ro_catalogo_aw', 'cervesur_react_estado_aw', 'cervesur_escritura_aw', 'cervesur_escritura2a_aw'] as $u) { $root->exec("DROP USER IF EXISTS '$u'@'%'"); }
 $root->exec("DROP DATABASE IF EXISTS `$estado`");
 $map = ['__BASE__' => $base, '__BASE_ESTADO__' => $estado, '__HOST__' => '%', '__CLAVE_AUTH__' => getenv('W_AUTH_PASS'), '__CLAVE_CATALOGO__' => getenv('W_CAT_PASS'), '__CLAVE_ESTADO__' => getenv('W_STATE_PASS')];
 foreach (['01-cuentas-lectura.sql', '02-estado-base-y-cuenta.sql'] as $file) {
@@ -34,6 +34,12 @@ foreach (['01-cuentas-lectura.sql', '02-estado-base-y-cuenta.sql'] as $file) {
 $tpl = strtr((string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08H-cuenta-escritura-produccion.sql.template'),
     ['{DB}' => $base, '{USER}' => 'cervesur_escritura_aw', '{HOST}' => '%', '{PASS}' => getenv('W_WRITE_PASS')]);
 foreach ($statements($tpl) as $s) { $root->exec($s); $n++; }
+// 3b) UX-08H.1: cuenta de la FASE 2A (sin escritura sobre `user`), desde su plantilla real. Opcional: solo si llega W_WRITE2A_PASS.
+if ((string)getenv('W_WRITE2A_PASS') !== '') {
+    $tpl2a = strtr((string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template'),
+        ['{DB}' => $base, '{USER}' => 'cervesur_escritura2a_aw', '{HOST}' => '%', '{PASS}' => getenv('W_WRITE2A_PASS')]);
+    foreach ($statements($tpl2a) as $s) { $root->exec($s); $n++; }
+}
 // 4) Lista blanca de la instancia.
 $st = new PDO("mysql:host=db;dbname=$estado;charset=utf8mb4", 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $st->exec("INSERT INTO usuarios_piloto (user_id, nota, activo, creado_en, creado_por) VALUES (1, 'prueba', 1, UTC_TIMESTAMP(), 'test')");

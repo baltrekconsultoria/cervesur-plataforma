@@ -30,8 +30,22 @@ function admin_user_reactivate_hours() {
 /** Una sentencia de escritura que el guardia no admite. Hereda de PDOException para que los modelos la traten como cualquier error de BD. */
 class WriteViolation extends PDOException {}
 
+/**
+ * FASE 2B BLOQUEADA SOBRE LA BASE PRODUCTIVA (UX-08H.1). Con la base de negocio real (cervesur_portalbi o CERVESUR_PRODUCTION_DBS) toda escritura sobre `user` queda negada
+ * en TRES capas, sin importar qué interruptores haya en el .env: (1) la puerta de rutas (403 `fase_2b_bloqueada`), (2) el guardia de SQL (ni INSERT ni UPDATE de `user`) y
+ * (3) la cuenta de la fase 2A, que ni siquiera tiene INSERT/UPDATE sobre `user` (database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template).
+ * Se desbloquea solo con una versión posterior del código, nunca con configuración. En bases desechables de prueba no aplica.
+ */
+function admin_users_locked() {
+    $production = app_production_databases(['CERVESUR_PRODUCTION_DBS' => getenv('CERVESUR_PRODUCTION_DBS')]);
+    return in_array(strtolower(trim((string)getenv('DB_NAME'))), $production, true);
+}
+
 /** ¿Capacidad de escritura encendida en el servidor? Solo el valor exacto «1»; se lee del entorno en cada petición. */
 function admin_write_capability_on($capability) {
+    if (($capability === 'usuarios' || $capability === 'usuarios_sensible') && admin_users_locked()) {
+        return false; // fase 2B bloqueada sobre la base productiva
+    }
     if ($capability === 'usuarios_sensible' && getenv('ADMIN_WRITES_USUARIOS') !== '1') {
         return false; // lo sensible nunca funciona sin el interruptor de usuarios
     }
@@ -112,6 +126,9 @@ function app_mode_write_gate($method, $uri) {
     }
     foreach (admin_write_routes() as [$m, $pattern, $capability]) {
         if ($m === $method && preg_match($pattern, $uri)) {
+            if (($capability === 'usuarios' || $capability === 'usuarios_sensible') && admin_users_locked()) {
+                return ['status' => 403, 'code' => 'fase_2b_bloqueada', 'message' => 'La administración de usuarios no está disponible en esta versión'];
+            }
             if ($capability !== null && !admin_write_capability_on($capability)) {
                 return ['status' => 403, 'code' => 'escritura_desactivada', 'message' => 'Esta operación está desactivada en el servidor'];
             }
@@ -180,12 +197,14 @@ function app_sql_write_guard($sql) {
     }
     if (preg_match('/^INSERT INTO `?([a-z_]+)`?[ (]/i', $n, $m)) {
         if (!in_array(strtolower($m[1]), ADMIN_WRITE_TABLES, true)) { $reject('tabla no permitida para INSERT: ' . $m[1]); }
+        if (strtolower($m[1]) === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
         if (preg_match('/\bon\s+duplicate\b|\bselect\b/i', $n)) { $reject('INSERT ... SELECT / ON DUPLICATE no permitidos'); }
         return;
     }
     if (preg_match('/^UPDATE `?([a-z_]+)`? SET /i', $n, $m)) {
         $t = strtolower($m[1]);
         if (!in_array($t, ADMIN_WRITE_TABLES, true) || $t === 'audit_log') { $reject('tabla no permitida para UPDATE: ' . $m[1]); }
+        if ($t === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
         if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
         return;
     }

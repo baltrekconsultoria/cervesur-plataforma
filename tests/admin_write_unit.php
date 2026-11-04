@@ -122,4 +122,24 @@ putenv('ADMIN_USER_REACTIVATE_HOURS=0'); check(admin_user_reactivate_hours() ===
 putenv('ADMIN_USER_REACTIVATE_HOURS=basura'); check(admin_user_reactivate_hours() === 24, '2B: un valor inválido en tiempo de ejecución vuelve a 24 h (nunca a 0)');
 putenv('ADMIN_USER_REACTIVATE_HOURS');
 
+// ---------------------------------------------------------------- UX-08H.1: fase 2B bloqueada sobre la base productiva
+putenv('DB_NAME=cervesur_portalbi'); putenv('ADMIN_WRITES_USUARIOS=1'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
+check(admin_users_locked() === true, '2B: cervesur_portalbi cuenta como base productiva (usuarios bloqueados)');
+check(admin_write_capability_on('usuarios') === false && admin_write_capability_on('usuarios_sensible') === false && admin_write_capabilities()['usuarios'] === false, '2B: con los interruptores en 1, las capacidades de usuarios siguen en false');
+foreach ([['POST', '/api/register'], ['PUT', '/api/users/3'], ['POST', '/api/users/3/deactivate'], ['POST', '/api/users/3/reactivate'], ['PUT', '/api/user/3/role'], ['PUT', '/api/users/3/password']] as [$m, $u]) {
+    $g = gate($m, $u); check(is_array($g) && $g['status'] === 403 && $g['code'] === 'fase_2b_bloqueada', "2B bloqueada: $m $u → 403 fase_2b_bloqueada");
+}
+putenv('ADMIN_WRITES_EMPRESAS=1'); putenv('ADMIN_WRITES_REPORTES=1'); putenv('ADMIN_WRITES_ACCESOS=1');
+check(gate('POST', '/api/empresas') === null && gate('POST', '/api/reportes') === null && gate('POST', '/api/asignacion') === null && gate('GET', '/api/users') === null, '2A sigue funcionando y la lectura de usuarios también');
+foreach (["INSERT INTO user (username) VALUES (?)", "UPDATE user SET is_active = 0 WHERE id = ?", "UPDATE user SET role = ? WHERE id = ?", "UPDATE user SET session_version = session_version + 1 WHERE id = ?"] as $sql) {
+    $rejected = false; try { app_sql_write_guard($sql); } catch (WriteViolation $e) { $rejected = true; }
+    check($rejected, 'capa 2 (guardia de SQL) sobre la base productiva: ' . substr($sql, 0, 40));
+}
+$ok = true; try { app_sql_write_guard('INSERT INTO empresa (nombre) VALUES (?)'); app_sql_write_guard('UPDATE empresa_reporte SET activo = 0 WHERE id = ?'); } catch (WriteViolation $e) { $ok = false; }
+check($ok, 'el guardia sigue admitiendo las escrituras de la fase 2A');
+putenv('DB_NAME=fixture_x'); $ok = true; try { app_sql_write_guard('UPDATE user SET is_active = 0 WHERE id = ?'); } catch (WriteViolation $e) { $ok = false; }
+check($ok && admin_users_locked() === false, 'en una base desechable el bloqueo no aplica (las pruebas de la fase 2B siguen posibles)');
+putenv('CERVESUR_PRODUCTION_DBS=fixture_x'); check(admin_users_locked() === true, 'CERVESUR_PRODUCTION_DBS amplía las bases bloqueadas');
+foreach (['DB_NAME', 'CERVESUR_PRODUCTION_DBS', 'ADMIN_WRITES_USUARIOS', 'ADMIN_WRITES_USUARIOS_SENSIBLE', 'ADMIN_WRITES_EMPRESAS', 'ADMIN_WRITES_REPORTES', 'ADMIN_WRITES_ACCESOS'] as $k) { putenv($k); }
+
 echo "All admin_escritura checks passed\n";

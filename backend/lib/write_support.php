@@ -25,7 +25,7 @@ const FORM_VERSION_FIELDS = [
 function user_admin_writes_enabled() {
     // UX-08H: en «admin_escritura» manda la capacidad independiente ADMIN_WRITES_USUARIOS (USER_ADMIN_WRITES no interviene).
     if (function_exists('app_mode') && app_mode() === 'admin_escritura') {
-        return getenv('ADMIN_WRITES_USUARIOS') === '1';
+        return getenv('ADMIN_WRITES_USUARIOS') === '1' && !admin_users_locked();
     }
     return getenv('USER_ADMIN_WRITES') === '1';
 }

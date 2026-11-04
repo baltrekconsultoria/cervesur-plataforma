@@ -23,5 +23,8 @@ export const PILOT_BANNER_ADMIN_WRITE = 'ADMINISTRACIÓN · Datos reales de Cerv
 export const PILOT_NOTE_ADMIN_WRITE = 'Solo se ofrecen las acciones que el servidor tiene habilitadas. Las bajas son lógicas (se pueden reactivar) y los enlaces de los informes nunca se muestran: solo se escriben.';
 export const isAdminWrite = (): boolean => pilotMode() === 'admin-write';
 
-export const pilotBanner = (): string => (pilotMode() === 'admin-write' ? PILOT_BANNER_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_BANNER_ADMIN : pilotMode() === 'usuarios' ? PILOT_BANNER_USUARIOS : PILOT_BANNER);
-export const pilotNote = (): string => (pilotMode() === 'admin-write' ? PILOT_NOTE_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_NOTE_ADMIN : pilotMode() === 'usuarios' ? PILOT_NOTE_USUARIOS : PILOT_NOTE);
+/** UX-08H.1: la compilación de escritura publicada con el servidor aún en solo lectura (o con todo apagado) debe decirlo: nunca anunciar que se guardan cambios si no es cierto. */
+export const adminWriteReadOnly = (writesEnabled: boolean): boolean => pilotMode() === 'admin-write' && !writesEnabled;
+
+export const pilotBanner = (writesEnabled = true): string => (adminWriteReadOnly(writesEnabled) ? PILOT_BANNER_ADMIN : pilotMode() === 'admin-write' ? PILOT_BANNER_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_BANNER_ADMIN : pilotMode() === 'usuarios' ? PILOT_BANNER_USUARIOS : PILOT_BANNER);
+export const pilotNote = (writesEnabled = true): string => (adminWriteReadOnly(writesEnabled) ? PILOT_NOTE_ADMIN : pilotMode() === 'admin-write' ? PILOT_NOTE_ADMIN_WRITE : pilotMode() === 'admin' ? PILOT_NOTE_ADMIN : pilotMode() === 'usuarios' ? PILOT_NOTE_USUARIOS : PILOT_NOTE);

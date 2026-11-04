@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { initials } from '../lib/text';
 import { useApp } from './AppProvider';
 import { DemoControls } from './DemoControls';
-import { isAdminPilot, isPilotBuild, pilotBanner, pilotNote } from './pilot';
+import { adminWriteReadOnly, isAdminPilot, isPilotBuild, pilotBanner, pilotNote } from './pilot';
 
 interface LayoutContextValue { drawerOpen: boolean; setDrawerOpen: (open: boolean) => void }
 const LayoutContext = createContext<LayoutContextValue | null>(null);
@@ -30,7 +30,7 @@ const ADMIN_NAV: NavItem[] = [
 ];
 
 export function AppLayout(): ReactNode {
-  const { user, logout } = useApp();
+  const { user, logout, capabilities } = useApp();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -48,7 +48,7 @@ export function AppLayout(): ReactNode {
     return () => { document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); };
   }, []);
 
-  const items = admin ? (isAdminPilot() ? ADMIN_NAV.filter(item => !('to' in item) || item.to !== '/admin/asociaciones') : ADMIN_NAV) : USER_NAV;
+  const items = admin ? (isAdminPilot() || adminWriteReadOnly(capabilities.adminWrites) ? ADMIN_NAV.filter(item => !('to' in item) || item.to !== '/admin/asociaciones') : ADMIN_NAV) : USER_NAV;
   return (
     <LayoutContext.Provider value={{ drawerOpen, setDrawerOpen }}>
       <a className="skip-link" href="#view">Saltar al contenido</a>
@@ -71,7 +71,7 @@ export function AppLayout(): ReactNode {
           </div>
         </aside>
         <section className="main-column">
-          {isPilotBuild() && <div className="pilot-banner" role="note"><strong>{pilotBanner()}</strong><span>{pilotNote()}</span></div>}
+          {isPilotBuild() && <div className="pilot-banner" role="note"><strong>{pilotBanner(capabilities.adminWrites)}</strong><span>{pilotNote(capabilities.adminWrites)}</span></div>}
           <Outlet />
         </section>
       </div>
