@@ -202,6 +202,7 @@ huella_portales() { huella_servidor; }
 lista_escrituras_valida() {
   local x vistos=" "
   [ -n "$1" ] || return 1
+  case "$1" in ,*|*,|*,,*) return 1 ;; esac
   IFS=, read -ra _l <<<"$1"
   for x in "${_l[@]}"; do
     case "$x" in empresas|reportes|accesos|usuarios) ;; *) return 1 ;; esac

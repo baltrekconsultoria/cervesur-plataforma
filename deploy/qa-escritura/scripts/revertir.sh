@@ -85,20 +85,24 @@ for item in "${REVERSA[@]}"; do
       borrar_marcado "$DIR_CONF" /etc/apache2/cervesur-react-escritura-qa
       if apache2ctl configtest >/dev/null 2>&1; then apache_recargar && ok "configuración válida y recarga suave de Apache (sin reinicio)"; else refusal "configtest falló tras revertir: NO se recargó Apache; revise /etc/apache2 (hay respaldo en $DIR_RESPALDO)"; fi ;;
     usuario)
-      if [ "$CONSERVAR_BASE" -eq 1 ]; then aviso "se conserva la cuenta $DB_USUARIO@$DB_HOST_USUARIO"; restantes+=(usuario)
-      elif ! mysql_activo; then refusal "MySQL no está activo: no se eliminó la cuenta"
+      if [ "$CONSERVAR_BASE" -eq 1 ]; then aviso "se conservan las cuentas ${USUARIOS_QA[*]}"; restantes+=(usuario)
+      elif ! mysql_activo; then refusal "MySQL no está activo: no se eliminaron las cuentas"
       else
-        atributo=$(mysql_admin -N -e "SELECT ATTRIBUTE FROM information_schema.USER_ATTRIBUTES WHERE USER = '$DB_USUARIO' AND HOST = '$DB_HOST_USUARIO'" 2>/dev/null)
-        if [ -z "$atributo" ]; then ok "la cuenta $DB_USUARIO@$DB_HOST_USUARIO ya no existe (o no tiene marca)"
-        elif grep -qF "cervesur-react-escritura-qa:$TOKEN" <<<"$atributo"; then mysql_admin -e "DROP USER '$DB_USUARIO'@'$DB_HOST_USUARIO'" && ok "cuenta $DB_USUARIO@$DB_HOST_USUARIO eliminada"
-        else refusal "NO se elimina la cuenta $DB_USUARIO@$DB_HOST_USUARIO: no tiene la marca de esta instalación."; fi
+        for cuenta in "${USUARIOS_QA[@]}"; do
+          atributo=$(mysql_admin -N -e "SELECT ATTRIBUTE FROM information_schema.USER_ATTRIBUTES WHERE USER = '$cuenta' AND HOST = '$DB_HOST_USUARIO'" 2>/dev/null)
+          if [ -z "$atributo" ]; then ok "la cuenta $cuenta@$DB_HOST_USUARIO ya no existe (o no tiene marca)"
+          elif grep -qF "cervesur-react-escritura-qa:$TOKEN" <<<"$atributo"; then mysql_admin -e "DROP USER '$cuenta'@'$DB_HOST_USUARIO'" && ok "cuenta $cuenta@$DB_HOST_USUARIO eliminada"
+          else refusal "NO se elimina la cuenta $cuenta@$DB_HOST_USUARIO: no tiene la marca de esta instalación."; fi
+        done
       fi ;;
-    db)
-      if [ "$CONSERVAR_BASE" -eq 1 ]; then aviso "se conserva la base $DB_NOMBRE"; restantes+=(db)
-      elif ! mysql_activo; then refusal "MySQL no está activo: no se eliminó la base"
-      elif [ -z "$(mysql_admin -N -e "SHOW DATABASES LIKE '$DB_NOMBRE'")" ]; then ok "la base $DB_NOMBRE ya no existe"
-      elif [ "$(mysql_admin -N -e "SELECT token FROM \`$DB_NOMBRE\`.$TABLA_MARCA" 2>/dev/null)" = "$TOKEN" ]; then mysql_admin -e "DROP DATABASE \`$DB_NOMBRE\`" && ok "base $DB_NOMBRE eliminada"
-      else refusal "NO se elimina la base $DB_NOMBRE: no tiene la marca de esta instalación."; fi ;;
+    db|estado)
+      if [ "$item" = db ]; then bd=$DB_NOMBRE; else bd=$DB_ESTADO; fi
+      if [ "$CONSERVAR_BASE" -eq 1 ]; then aviso "se conserva la base $bd"; restantes+=("$item")
+      elif ! mysql_activo; then refusal "MySQL no está activo: no se eliminó la base $bd"
+      elif [ -z "$(mysql_admin -N -e "SHOW DATABASES LIKE '$bd'")" ]; then ok "la base $bd ya no existe"
+      elif [ "$(mysql_admin -N -e "SELECT token FROM \`$bd\`.$TABLA_MARCA" 2>/dev/null)" = "$TOKEN" ]; then mysql_admin -e "DROP DATABASE \`$bd\`" && ok "base $bd eliminada"
+      else refusal "NO se elimina la base $bd: no tiene la marca de esta instalación."; fi ;;
+
     back) borrar_marcado "$DIR_BACK" /opt/cervesur-react-escritura-qa ;;
     front) borrar_marcado "$DIR_FRONT" /var/www/cervesur-react-escritura-qa ;;
     var) : ;;   # se procesa al final: contiene la marca y el estado

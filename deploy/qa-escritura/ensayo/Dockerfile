@@ -11,7 +11,7 @@ FROM ${BASE}
 RUN a2enmod headers ssl >/dev/null \
  && openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/ssl/private/senuelo.key -out /etc/ssl/certs/senuelo.crt -days 30 -subj "/CN=localhost" >/dev/null 2>&1
 COPY decoys/ /etc/apache2/sites-available/
-COPY decoy-mysql.sql /root/decoy-mysql.sql
+COPY decoy-mysql.txt /root/decoy-mysql.sql
 RUN for n in prueba compat admin trabajadores usuarios; do \
       mkdir -p /var/www/cervesur-react-$n/public /opt/cervesur-react-$n/backend \
       && echo "SENUELO-$n" > /var/www/cervesur-react-$n/public/index.html \

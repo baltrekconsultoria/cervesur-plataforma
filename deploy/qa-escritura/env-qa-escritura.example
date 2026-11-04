@@ -1,0 +1,28 @@
+# Plantilla SIN VALORES del .env del entorno de QA «admin_escritura» (la genera pasos-instalacion.sh en el servidor; jamás se guarda ni se imprime).
+# No es un .env: el instalador no lo lee. Sirve para saber qué claves existen.
+CERVESUR_MODE=admin_escritura
+CERVESUR_REQUIRED_MODE=admin_escritura
+CERVESUR_INSECURE_TESTS=SI            # SOLO QA (HTTP de loopback por túnel SSH) y nunca con cervesur_portalbi
+DB_HOST=127.0.0.1
+DB_NAME=cervesur_qa_escritura
+DB_USER=cervesur_qa_esc_w             # cuenta de ESCRITURA (plantilla UX-08H)
+DB_PASS=<generada-en-el-servidor>
+DB_CHARSET=utf8mb4
+AUTH_DB_USER=cervesur_qa_esc_auth
+AUTH_DB_PASS=<generada-en-el-servidor>
+STATE_DB_NAME=cervesur_qa_escritura_estado
+STATE_DB_USER=cervesur_qa_esc_estado
+STATE_DB_PASS=<generada-en-el-servidor>
+CERVESUR_PILOT_SECRET=<generado-en-el-servidor>
+CERVESUR_PILOT_VISOR_IDS=31
+JWT_SECRET=<generado-en-el-servidor>
+JWT_EXPIRATION=3600
+AUDIT_LOG_MODE=required
+REACT_STRICT_VIEWS=1
+ADMIN_WRITES_EMPRESAS=0
+ADMIN_WRITES_REPORTES=0
+ADMIN_WRITES_ACCESOS=0
+ADMIN_WRITES_USUARIOS=1
+ADMIN_WRITES_USUARIOS_SENSIBLE=0
+ADMIN_USER_REACTIVATE_HOURS=24
+# USER_ADMIN_WRITES NO debe existir en este archivo.

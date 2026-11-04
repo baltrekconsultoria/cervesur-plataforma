@@ -14,7 +14,7 @@ Rama `feat/cervesur-ux-08h-admin-writes`. Todo se ejecutó en **Docker aislado c
 | `tsc --noEmit`, ESLint (`--max-warnings 0`) | tipos y estilo | limpios |
 | Build `build:pilot-admin` y `build:admin-write` + `verify` + `scan:secrets` | las dos compilaciones; sin secretos; el bundle de `piloto_admin` no contiene la llamada a `/api/admin/capacidades` | OK |
 | E2E de navegador `frontend/e2e/run-admin-write.mjs` (Edge/CDP → build `admin-write` → backend real en 3 instancias) | alta con **doble envío** (1 sola fila), RUC duplicado con mensaje comprensible, informe con enlace, edición **sin ver ni reenviar el enlace**, listado sin enlaces, botones según capacidades reales (todo / solo empresas / nada), ruta directa sin capacidad ⇒ 403, nota de solo consulta | **22 PASS / 0 FAIL** |
-| Kit QA instalable `deploy/qa-escritura/` | ensayo Docker de instalar/verificar/actualizar/revertir | ver §5 |
+| Kit QA instalable `deploy/qa-escritura/` | ensayo Docker completo (`node deploy/qa-escritura/ensayo-docker.mjs`) | **93 PASS / 0 FAIL**; shellcheck `-S warning` limpio (re-verificado) |
 
 ### Defectos encontrados y corregidos por estas pruebas
 1. `usr_rol_modo()` trataba `admin_escritura` como rol `user` ⇒ el administrador no podía iniciar sesión.
@@ -52,7 +52,7 @@ Rama `feat/cervesur-ux-08h-admin-writes`. Todo se ejecutó en **Docker aislado c
 1. **Flutter real sin probar** (bloquea Usuarios, ver plan §7). 2. R2–R4 solo se **mitigan** (espera, interruptor sensible), no se eliminan: se cierran del lado de Flutter. 3. Flutter escribe las mismas tablas sin transacciones y con una cuenta amplia: sin coordinación de escrituras simultáneas. 4. `log_bin_trust_function_creators=0` exige `SUPER` para crear los triggers (M2). 5. La espera se calcula con la bitácora: un usuario desactivado fuera de React no tiene fila y no queda sujeto a espera. 6. Las pruebas usan datos sintéticos y MySQL 8.0 de Docker; falta la corrida en el MySQL del servidor.
 
 ## 5. Kit QA y ensayos de actualización/reversión
-Ver `deploy/qa-escritura/README.md` y el resultado del ensayo Docker (instalar → verificar → escritura real → apagar interruptor ⇒ 403 → `actualizar --simular` → actualizar → fallo de verificación forzado ⇒ reversión automática → `revertir`, con los portales señuelo idénticos antes y después). *Resultado: ver sección final de este archivo.*
+Ver `deploy/qa-escritura/README.md` y el resultado del ensayo Docker (instalar → verificar → escritura real → apagar interruptor ⇒ 403 → `actualizar --simular` → actualizar → fallo de verificación forzado ⇒ reversión automática → `revertir`, con los portales señuelo idénticos antes y después). **Resultado observado: 93 PASS / 0 FAIL.** Cubre instalar, `verificar` en GO, una escritura real con su fila de auditoría, 403 con el interruptor apagado, `actualizar --simular`, actualización real, fallo de verificación forzado con reversión automática, fallos forzados al reemplazar frontend/backend, respaldo corrupto, paquete PHP roto, `--revertir` manual y desinstalación; Flutter, los directorios señuelo de 443/8443 y la base señuelo de `cervesur_portalbi` quedan **idénticos byte a byte**. Puerto candidato 8095 (el 8094 queda reservado al otro QA). Límites: el ensayo corre en Docker; no se probó contra el MySQL ni el Apache reales (log_bin/SUPER, resolución de la cuenta `@127.0.0.1`). El ensayo tarda 5–8 min.
 
 ## 6. Cómo repetir las pruebas (sin tocar nada real)
 ```bash
