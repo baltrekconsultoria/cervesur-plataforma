@@ -3,13 +3,15 @@
 #   bash comprobar-otros-portales.sh                      muestra, por portal, el código HTTP y el SHA-256 de su página estática de entrada
 #   bash comprobar-otros-portales.sh --guardar ARCHIVO     guarda esa huella (ANTES de una etapa)
 #   bash comprobar-otros-portales.sh --comparar ARCHIVO    la compara con la guardada (DESPUÉS); código 1 si algo cambió o dejó de responder
-# Solo hace GET a la raíz «/» de cada portal por loopback; no imprime el contenido. Variables de apoyo (ensayos): CERVESUR_URL_FLUTTER, CERVESUR_URL_TRABAJADORES, CERVESUR_URL_QA.
+# Solo hace GET a la raíz «/» de cada portal; no imprime el contenido. Flutter (80) y la QA (8094) se consultan por loopback; el React de TRABAJADORES escucha en la IP CORPORATIVA
+# (192.168.200.12:443), NO en 127.0.0.1:443, así que se consulta por esa IP. Variables (ensayos u otra IP): CERVESUR_IP_CORPORATIVA, CERVESUR_URL_FLUTTER, CERVESUR_URL_TRABAJADORES, CERVESUR_URL_QA.
 # Una página de entrada que cambie por sí sola (por ejemplo, un nonce dinámico) se verá como diferencia: revísela a mano, este script no lo oculta.
 set -uo pipefail
 case ${1:-} in --ayuda|-h|--help) sed -n '2,/^set -/{/^set -/!s/^# \{0,1\}//p}' "${BASH_SOURCE[0]}"; exit 0 ;; esac
 
 URL_FLUTTER=${CERVESUR_URL_FLUTTER:-http://127.0.0.1:80/}
-URL_TRABAJADORES=${CERVESUR_URL_TRABAJADORES:-https://127.0.0.1:443/}
+IP_CORPORATIVA=${CERVESUR_IP_CORPORATIVA:-192.168.200.12}
+URL_TRABAJADORES=${CERVESUR_URL_TRABAJADORES:-https://${IP_CORPORATIVA}:443/}
 URL_QA=${CERVESUR_URL_QA:-http://127.0.0.1:8094/}
 MODO=mostrar; ARCHIVO=""
 while [ $# -gt 0 ]; do

@@ -1,5 +1,7 @@
 #!/bin/bash
 # MySQL y Apache locales de la réplica de ensayo de la fase 2A. Política de contraseñas IGUAL a la del servidor real (validate_password MEDIUM). Solo en la réplica.
+# La IP corporativa del servidor real, como alias de loopback (el contenedor se lanza con NET_ADMIN SOLO en el ensayo)
+ip addr add 192.168.200.12/32 dev lo >/dev/null 2>&1 || true
 service mysql start >/dev/null 2>&1
 for _ in $(seq 1 60); do mysqladmin ping --silent >/dev/null 2>&1 && break; sleep 1; done
 mysql -e "INSTALL COMPONENT 'file://component_validate_password'" >/dev/null 2>&1

@@ -58,10 +58,15 @@ jobs:
           docker run --rm --network none \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             cervesur-ci-php:local php tests/mode_unit.php
-          docker run --rm --network none \n            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \n            cervesur-ci-php:local php tests/admin_write_unit.php
+          docker run --rm --network none \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            cervesur-ci-php:local php tests/admin_write_unit.php
 
       - name: Run static security tests
         run: python -m unittest discover -s tests -v
+
+      - name: Run production packaging tests (UX-08H.1)
+        run: node deploy/produccion-escritura/probar-empaquetado.mjs
 
       - name: Run HTTP tests with synthetic MySQL
         shell: bash

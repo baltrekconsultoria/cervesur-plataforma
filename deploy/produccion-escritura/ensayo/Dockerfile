@@ -6,6 +6,8 @@ ARG BASE=cervesur-ensayo-ubuntu:local
 FROM ${BASE}
 RUN a2enmod headers ssl >/dev/null \
  && openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/ssl/private/senuelo.key -out /etc/ssl/certs/senuelo.crt -days 30 -subj "/CN=localhost" >/dev/null 2>&1
+# El 443 del servidor real escucha solo en la IP corporativa: se anula el «Listen 443» genérico de mod_ssl y lo declara el señuelo
+RUN sed -i 's/^\([[:space:]]*\)Listen 443/# Listen 443/' /etc/apache2/ports.conf
 COPY decoys/ /etc/apache2/sites-available/
 RUN mkdir -p /var/www/cervesur-react-trabajadores/public /opt/cervesur-react-trabajadores/backend /var/www/cervesur-qa-8094/public /opt/cervesur-qa-8094/backend \
  && echo "SENUELO-trabajadores" > /var/www/cervesur-react-trabajadores/public/index.html && echo "JWT_SECRET=senuelo-trabajadores-no-es-un-secreto" > /opt/cervesur-react-trabajadores/backend/.env \

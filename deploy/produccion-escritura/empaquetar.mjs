@@ -13,6 +13,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { colocarBaseDeDatos, validarEstructura } from './lib-empaquetado.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(here, '..', '..');
@@ -90,23 +91,10 @@ for (const d of ['e0', 'migraciones']) {
   if (existsSync(join(here, d))) { copy(join(here, d), d, src => !EXCLUIR.includes(basename(src)) && !/^probar-/.test(basename(src))); notas.push(`${d}/ incluido (sin ensayo/ ni probar-*)`); }
   else notas.push(`${d}/ NO existe todavía: no se incluye`);
 }
-// Archivos de base de datos (solo las migraciones aditivas de audit_log, sus .down y la plantilla de la cuenta 2A; NO UX-08B3)
-const DB_ARCHIVOS = ['migrations/UX-08B-audit-log.up.sql', 'migrations/UX-08B-audit-log.down.sql', 'migrations/UX-08B-audit-log-immutable.up.sql', 'migrations/UX-08B-audit-log-immutable.down.sql', 'privileges/UX-08H1-cuenta-escritura-fase2a.sql.template'];
-// Destino: lo que pida migraciones/LEEME-EMPAQUETADO.txt (líneas «origen -> destino»); si no existe o no dice nada, el reflejo del repositorio dentro de migraciones/repo/ (carpeta que reserva ese kit)
-let destinos = new Map(DB_ARCHIVOS.map(f => [f, `database/${f}`]));
-const leeme = join(here, 'migraciones', 'LEEME-EMPAQUETADO.txt');
-if (existsSync(join(here, 'migraciones'))) {
-  destinos = new Map(DB_ARCHIVOS.map(f => [f, `migraciones/repo/database/${f}`]));
-  if (existsSync(leeme)) {
-    let pedidas = 0;
-    for (const linea of readFileSync(leeme, 'utf8').split(/\r?\n/)) {
-      const m = linea.match(/^\s*(?:database\/)?((?:migrations|privileges)\/[A-Za-z0-9_.-]+)\s*(?:->|→|=>)\s*(\S+)\s*$/);
-      if (m && DB_ARCHIVOS.includes(m[1])) { destinos.set(m[1], m[2].replace(/^\.?\//, '')); pedidas++; }
-    }
-    notas.push(`LEEME-EMPAQUETADO.txt leído (${pedidas} destinos pedidos)`);
-  } else notas.push('migraciones/LEEME-EMPAQUETADO.txt no existe: se usa migraciones/repo/database/…');
-}
-for (const f of DB_ARCHIVOS) { const to = destinos.get(f); if (to.includes('..') || to.startsWith('/')) fail(`Destino no válido para ${f}: ${to}`); copy(need(join(REPO, 'database', f)), to); }
+// Archivos de base de datos (solo las migraciones aditivas de audit_log, sus .down y la plantilla de la cuenta 2A; NO UX-08B3) en SUS RUTAS DEFINITIVAS:
+// migraciones/repo/ (con SHA256SUMS) y e0/repo/ (ver lib-empaquetado.mjs). Defecto del RC 70a14f2: el LEEME decía «repo/…» y se copiaba a la raíz del paquete.
+colocarBaseDeDatos(ROOT, REPO, fail);
+notas.push('SQL colocados en migraciones/repo/ (con SHA256SUMS de 5 archivos) y e0/repo/');
 for (const doc of ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md']) if (existsSync(join(REPO, 'docs', doc))) copy(join(REPO, 'docs', doc), `docs/${doc}`); else notas.push(`docs/${doc} no existe: no se incluye`);
 
 // Manifiesto de lo instalado en la fase 1 (backend/ y public/ de su SHA256SUMS): lo usan preflight y actualizar.sh para exigir que lo instalado ES la fase 1
@@ -125,7 +113,7 @@ writeFileSync(join(ROOT, 'VERSION'), `commit: ${short}${dirty}\nrama: ${branch}\
 
 // 5. Inspección del contenido
 let files = walk(ROOT);
-const problems = [];
+const problems = [...validarEstructura(ROOT).map(m => `estructura del paquete: ${m}`)];
 for (const file of files) {
   const r = rel(ROOT, file);
   if (basename(file).startsWith('.env')) problems.push(`.env: ${r}`);

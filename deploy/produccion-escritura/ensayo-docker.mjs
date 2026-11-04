@@ -79,7 +79,9 @@ try {
   ok('bash -n correcto en todos los scripts', scripts.every(f => spawnSync('bash', ['-n', join(here, 'scripts', f)]).status === 0));
   const sc = docker(['run', '--rm', '--volume', `${here}:/mnt:ro`, '--workdir', '/mnt', 'koalaman/shellcheck:latest', '-S', 'warning', '-x', '-P', 'scripts', ...scripts.map(f => `scripts/${f}`), 'ensayo/entrypoint.sh']);
   ok('shellcheck -S warning -x sin avisos en todos los scripts', sc.code === 0, sc.out.slice(0, 800));
-  ok('node --check de empaquetar.mjs y de este ensayo', ['empaquetar.mjs', 'ensayo-docker.mjs'].every(f => spawnSync(process.execPath, ['--check', join(here, f)]).status === 0));
+  const prueba = spawnSync(process.execPath, [join(here, 'probar-empaquetado.mjs')], { encoding: 'utf8' });
+  ok('probar-empaquetado.mjs: rutas de migraciones/repo y e0/repo, SHA256SUMS, plantilla y URL de trabajadores (fallan ante carpetas incorrectas o manifiestos ausentes)', prueba.status === 0, (prueba.stdout || '').split(String.fromCharCode(10)).filter(l => l.startsWith('FAIL')).join(' | '));
+  ok('node --check de empaquetar.mjs, lib-empaquetado.mjs, probar-empaquetado.mjs y de este ensayo', ['empaquetar.mjs', 'lib-empaquetado.mjs', 'probar-empaquetado.mjs', 'ensayo-docker.mjs'].every(f => spawnSync(process.execPath, ['--check', join(here, f)]).status === 0));
   ok('ayuda (--ayuda) disponible en todos los scripts ejecutables', scripts.filter(f => !['lib.sh', 'tls.sh', 'verificar-fase1.sh'].includes(f)).every(f => { const r = spawnSync('bash', [join(here, 'scripts', f), '--ayuda'], { encoding: 'utf8' }); return r.status === 0 && r.stdout.length > 200; }));
 
   // ------------------------------------------------------------------------------------------------ Paquete
@@ -105,8 +107,10 @@ try {
   section = 'Réplica del servidor';
   if (docker(['image', 'inspect', BASE_IMAGE]).code !== 0) docker(['build', '--quiet', '--tag', BASE_IMAGE, '--file', join(REPO, 'deploy', 'qa-escritura', 'ensayo', 'Dockerfile.base'), join(REPO, 'deploy', 'qa-escritura', 'ensayo')], { allowFail: false });
   docker(['build', '--quiet', '--build-arg', `BASE=${BASE_IMAGE}`, '--tag', IMAGE, join(here, 'ensayo')], { allowFail: false });
-  docker(['run', '--detach', '--name', NAME, IMAGE], { allowFail: false });
-  for (let i = 0; ; i++) { if (dx('curl -fs http://127.0.0.1/ >/dev/null && curl -ksf https://127.0.0.1:443/ >/dev/null && curl -fs http://127.0.0.1:8094/ >/dev/null && mysqladmin ping --silent').code === 0) break; if (i > 90) throw new Error('El contenedor no arrancó'); await sleep(1000); }
+  // NET_ADMIN SOLO en el ensayo: el entrypoint añade 192.168.200.12 como alias de loopback (el 443 de trabajadores escucha solo en esa IP, como en el servidor real)
+  docker(['run', '--detach', '--cap-add', 'NET_ADMIN', '--name', NAME, IMAGE], { allowFail: false });
+  for (let i = 0; ; i++) { if (dx('curl -fs http://127.0.0.1/ >/dev/null && curl -ksf https://192.168.200.12:443/ >/dev/null && curl -fs http://127.0.0.1:8094/ >/dev/null && mysqladmin ping --silent').code === 0) break; if (i > 90) throw new Error('El contenedor no arrancó'); await sleep(1000); }
+  ok('REALIDAD DEL SERVIDOR: el 443 de trabajadores escucha SOLO en 192.168.200.12 (en 127.0.0.1:443 no hay nada)', dx('curl -ksf -m 4 https://192.168.200.12:443/ >/dev/null').code === 0 && dx('curl -ksf -m 4 https://127.0.0.1:443/ >/dev/null').code !== 0);
   ok('arranca con Flutter (80), señuelos 443 (TLS) y 8094 y MySQL con validate_password', dx("mysql -N -e \"SHOW VARIABLES LIKE 'validate_password.policy'\"").out.includes('MEDIUM'));
   docker(['cp', BASE_TGZ, `${NAME}:/root/base.tar.gz`], { allowFail: false });
   docker(['cp', tgz, `${NAME}:/root/nuevo.tar.gz`], { allowFail: false });
@@ -116,6 +120,11 @@ try {
   const PKB = `/root/${first('cd /root && tar xzf base.tar.gz && ls -d cervesur-react-admin-3f859210c5c4-*/ | tr -d /')}`;
   const PK = `/root/${first('cd /root && tar xzf nuevo.tar.gz && ls -d cervesur-react-admin-fase2a-*/ | tr -d /')}`;
   ok('ambos paquetes se extraen y su SHA256SUMS interno es válido', dx(`cd ${PKB} && sha256sum -c SHA256SUMS --quiet`).code === 0 && dx(`cd ${PK} && sha256sum -c SHA256SUMS --quiet`).code === 0);
+  ok('RUTAS DEFINITIVAS: migraciones/repo/ tiene los 5 archivos y su SHA256SUMS verifica; e0/repo/ tiene M2 idéntica a la de migraciones; no hay repo/ ni database/ en la raíz',
+    dx(`cd ${PK}/migraciones/repo && for f in UX-08B-audit-log.up.sql UX-08B-audit-log.down.sql UX-08B-audit-log-immutable.up.sql UX-08B-audit-log-immutable.down.sql UX-08H1-cuenta-escritura-fase2a.sql.template SHA256SUMS; do [ -s $f ] || exit 1; done && [ "$(wc -l < SHA256SUMS)" = 5 ] && sha256sum -c SHA256SUMS --quiet && [ "$(ls | wc -l)" = 6 ] && cmp -s ${PK}/e0/repo/UX-08B-audit-log-immutable.up.sql UX-08B-audit-log-immutable.up.sql && [ ! -e ${PK}/repo ] && [ ! -e ${PK}/database ]`).code === 0);
+  ok('CONTINUIDAD: con su URL por defecto (https://192.168.200.12:443/) el verificador compartido ve Flutter, trabajadores y QA', dx(`bash ${PK}/scripts/comprobar-otros-portales.sh`).code === 0);
+  ok('…y con la URL ANTIGUA (loopback:443) falla: el ensayo reproduce el defecto real', dx(`CERVESUR_URL_TRABAJADORES=https://127.0.0.1:443/ bash ${PK}/scripts/comprobar-otros-portales.sh`).code !== 0);
+  ok('CERVESUR_URL_TRABAJADORES sigue pudiendo sobrescribir la URL', dx(`CERVESUR_URL_TRABAJADORES=https://192.168.200.12:443/ bash ${PK}/scripts/comprobar-otros-portales.sh`).code === 0);
   ok('paquete 2A: LF en scripts, sin .env/claves/certificados/pruebas/QA/syn###, public admin-write con localhost y 192.168.200.12, con base/, scripts, README y VERSION', dx(`! grep -rlI $'\\r' ${PK}/scripts && [ -z "$(find ${PK} \\( -name '.env*' -o -name '*.key' -o -name '*.pem' -o -name '*.crt' \\) -print -quit)" ] && [ -z "$(find ${PK} -ipath '*/tests/*' -print -quit)" ] && [ -z "$(grep -rIlE -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' ${PK})" ] && [ -z "$(grep -rIlE '\\bsyn[0-9]{3}\\b' ${PK}/backend ${PK}/public ${PK}/scripts)" ] && grep -q '"pilotMode": "admin-write"' ${PK}/public/build-info.json && grep -q 192.168.200.12 ${PK}/public/build-info.json && grep -q localhost ${PK}/public/build-info.json && ls ${PK}/base/MANIFIESTO-FASE1-3f859210c5c4.sha256 ${PK}/README.md ${PK}/VERSION ${PK}/RELEASE.json >/dev/null`).code === 0);
   ok('el paquete NO incluye UX-08B3 (grupo_id NULL) ni el revertir.sh del piloto (desinstalador) ni el kit QA', dx(`[ -z "$(find ${PK} -name '*UX-08B3*' -o -name 'revertir.sh' -o -name 'instalar.sh' -o -name '*qa-escritura*' | head -1)" ]`).code === 0);
 
@@ -219,9 +228,12 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   const a2sin = run(`bash ${PK}/scripts/modo-escritura.sh --simular --archivo-clave /root/clave-mal.txt`, CE);
   ok('A2 se NIEGA si audit_log no existe (migraciones sin aplicar) y no modifica nada', a2sin.code !== 0 && /audit_log no existe/.test(a2sin.out) && envSha() === ENV0);
   section = 'A2 · migraciones y cuenta aplicadas por el DBA (ensayo)';
-  const mig = dx(`for f in $(find ${PK} -name 'UX-08B-audit-log.up.sql') $(find ${PK} -name 'UX-08B-audit-log-immutable.up.sql'); do mysql ${DB} < $f || exit 1; done`);
+  // RUN del runner real en modo SIMULAR sobre el entorno preparado: no escribe nada (ni bitácora) y no debe bloquear con una base y un esquema correctos
+  const simu = dx(`cd ${PK}/migraciones && CERVESUR_MYSQL_CMD=mysql bash aplicar-migraciones.sh --simular --db ${DB} --bitacora-base /root/bitacora-simulada`);
+  ok('aplicar-migraciones.sh --simular (runner real del paquete, rutas migraciones/repo/) no bloquea y no crea bitácora', simu.code === 0 && dx('[ ! -e /root/bitacora-simulada ]').code === 0, simu.out.slice(-700));
+  const mig = dx(`for f in ${PK}/migraciones/repo/UX-08B-audit-log.up.sql ${PK}/migraciones/repo/UX-08B-audit-log-immutable.up.sql; do mysql ${DB} < $f || exit 1; done`);
   ok('M1 (audit_log) y M2 (2 triggers de solo inserción) aplicadas con los SQL del paquete', mig.code === 0 && sqlN(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='${DB}' AND EVENT_OBJECT_TABLE='audit_log'`) === 2, mig.out);
-  const tpl = dx(`T=$(find ${PK} -name 'UX-08H1-cuenta-escritura-fase2a.sql.template'); sed -e "s/{DB}/${DB}/g" -e "s/{USER}/${CUENTA}/g" -e "s/{HOST}/127.0.0.1/g" -e "s/{PASS}/${PASSW.replace(/[/&]/g, '\\$&')}/g" $T > /root/cuenta.sql && mysql < /root/cuenta.sql`);
+  const tpl = dx(`T=${PK}/migraciones/repo/UX-08H1-cuenta-escritura-fase2a.sql.template; sed -e "s/{DB}/${DB}/g" -e "s/{USER}/${CUENTA}/g" -e "s/{HOST}/127.0.0.1/g" -e "s/{PASS}/${PASSW.replace(/[/&]/g, '\\$&')}/g" $T > /root/cuenta.sql && mysql < /root/cuenta.sql`);
   ok('la cuenta de escritura de la fase 2A se crea con la plantilla del paquete (todas las columnas existen en el esquema de producción sintético)', tpl.code === 0, tpl.out);
   put('/root/clave-escritura.txt', `CERVESUR_ESCRITURA_PASS=${PASSW}\n`);
   dx('chmod 600 /root/clave-escritura.txt && chown root:root /root/clave-escritura.txt');
