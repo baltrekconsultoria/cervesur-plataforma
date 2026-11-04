@@ -6,6 +6,7 @@ dist-production/
 dist-pilot/
 dist-pilot-usuarios/
 dist-pilot-admin/
+dist-admin-write/
 coverage/
 .env
 .env.*
