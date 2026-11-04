@@ -81,8 +81,8 @@ Puntos a confirmar en E0: que existan todas esas columnas en producción (p. ej.
 
 ## 9. Procedimientos y paquete
 El paquete productivo (`deploy/produccion-escritura/`) contiene: frontend compilado en modo `admin-write` (host 192.168.200.12), backend, `e0/`, `migraciones/` (solo M1, M2 y la plantilla 2A), scripts (`preflight-fase2a.sh`, `actualizar.sh`, `modo-escritura.sh`, `interruptores.sh`, `apagar-escrituras.sh`, `revertir-codigo.sh`, `verificar-posdespliegue.sh`, `comprobar-otros-portales.sh`), verificación de OPcache e integridad SHA-256, README del operador, `RELEASE.json` con commit y la lista de diferencias frente a `3f859210c5c4`. **Sin** `.env`, secretos, datos de QA ni `syn###`. **No** modifica el paquete instalado.
-**Identificación del paquete:** {{PAQUETE}} · SHA-256 {{SHA}} · commit {{COMMIT}}.
-Diferencias frente a `3f859210c5c4`: ver `DIFERENCIAS-vs-3f859210c5c4.txt` (junto al paquete). {{RESUMEN_DIFERENCIAS}}
+**Identificación del paquete:** el nombre (`cervesur-react-admin-fase2a-<commit12>-<fecha>Z.tar.gz`), el commit y los SHA-256 constan en `RELEASE.json`, en el archivo `.tar.gz.sha256` que acompaña al paquete y en el informe de entrega; el SHA-256 **se verifica antes de descomprimir** (`sha256sum -c`).
+Diferencias frente a `3f859210c5c4`: ver `DIFERENCIAS-vs-3f859210c5c4.txt` (junto al paquete). Resumen frente a la Fase 1: **62 agregados · 31 eliminados · 18 modificados · 52 idénticos** (por SHA-256). Backend: 3 archivos nuevos (`admin_escritura.php`, `register_handler.php`, `AdminWriteRouter.php`) y 13 modificados; **`AdminRouter.php` y el bloque de rutas de `piloto_admin` sin cambios** (`mode.php` cambia solo para registrar el modo nuevo). Lo «eliminado» en `scripts/`, `admin-mysql/`, `apache/` y `docs/` es el kit de **instalación** de la Fase 1 (incluido el desinstalador `revertir.sh`), que este paquete a propósito no trae.
 
 ## 10. Rollback — tres clases distintas
 | Clase | Qué | Cómo | Datos |
@@ -132,7 +132,18 @@ Marcar por etapa con evidencia (`verificar-posdespliegue.sh --etapa …`):
 9. Reiterar que **Usuarios (2B)** sigue bloqueado y que cualquier desbloqueo es otra versión y otra autorización.
 
 ## 14. Evidencia de esta preparación
-{{EVIDENCIA}}
+| Control | Resultado observado |
+|---|---|
+| Réplica completa de la CI (fase 1 + 2A + 2B bloqueada + compatibilidad Flutter), Docker | **1619 PASS / 0 FAIL**, salida 0 |
+| `tests/admin_write_unit.php` | **71 PASS** |
+| `tests/test_security_static.py` | **101 OK** |
+| Suite HTTP Fase 2A con base productiva simulada y cuenta 2A (bloqueo de Usuarios en 3 capas, 2A completa) | incluida en las 1619; pasa |
+| Vitest | **292 PASS**; `tsc` y ESLint limpios |
+| E2E de navegador (build `admin-write`, backend real) | **22 PASS / 0 FAIL** (alta con doble envío, duplicado, informe con enlace de solo escritura, botones según capacidades, aviso de solo consulta) |
+| Ensayo Docker del **paquete productivo** (`deploy/produccion-escritura/ensayo-docker.mjs`): instala la Fase 1 real, preflight, `--simular`, A1 con inyecciones de fallo, migraciones y cuenta, A2, Apache, Paso B por módulos con una escritura real y su auditoría, Usuarios rechazado (script y backend), apagado, reversión de código, Fase 1 de nuevo; Flutter/trabajadores/QA 8094 señuelo idénticos | **155 PASS / 0 FAIL** |
+| Ensayo Docker de **E0 y migraciones** (`e0/ensayo/ensayo-docker.sh`): E0 sin escribir (checksums y objetos idénticos), respaldo con restauración de prueba, `--aplicar` real con prueba transaccional como la cuenta nueva, fallos inyectados, idempotencia, reversión | **48 OK / 0 FALLO** |
+| `shellcheck -S warning -x` sobre todos los scripts del paquete | rc=0 |
+**No** está validado: el servidor real (E0 pendiente), el MySQL/Apache reales, ni el QA productivo.
 
 ## 15. Riesgos pendientes
 - El servidor real no está validado (E0 pendiente): columnas, privilegios, binlog/`SUPER`, versión y permisos pueden diferir del Docker.
