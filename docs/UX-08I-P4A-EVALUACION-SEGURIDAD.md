@@ -75,5 +75,7 @@ Reversión: `usuarios-no-sensibles.down` (revoca) → `alta-usuarios-vista.down`
 - **Inspección de solo lectura del backend de Flutter desplegado** (requiere autorización): listar rutas, buscar flujos de correo (`mail(`, PHPMailer, SMTP, `reset`, `recuper`, `forgot`), confirmar cómo crea usuarios y administradores y qué cuenta MySQL usa y con qué privilegios (`SHOW GRANTS`). Sin credenciales ni `.env`.
 Estimación: media jornada de trabajo más una corrida de ensayo.
 
-## 9. Regresión de la rama del prototipo
-Estado al redactar: ver el resultado de la regresión completa de la CI sobre `spike/ux-08i-alta-por-vista` en el informe de cierre (se completa abajo).
+## 9. Regresión de la rama del prototipo (`spike/ux-08i-alta-por-vista`, commit `368e111`)
+Regresión completa de la CI (todas las suites HTTP, 22 bloques «passed»): **1732 PASS / 0 FAIL**; unitaria PHP y estáticas verdes; brechas residuales de escalamiento: **ninguna**.
+**Hallazgo de la propia regresión (corregido):** la primera versión del prototipo prohibía editar el correo en `UserController` para **todos** los modos; la suite de los modos heredados (que exige 409 por correo duplicado) falló y abortó el resto. La restricción se limita ahora a `admin_escritura`; los demás modos conservan su contrato. Lección para el diseño: la restricción del correo es una propiedad de la **cuenta de React**, no de la tabla.
+No se repitió el ensayo Docker del servidor con el prototipo (el kit no está adaptado, §8).
