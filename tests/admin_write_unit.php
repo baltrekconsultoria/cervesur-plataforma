@@ -96,7 +96,21 @@ check(ADMIN_WRITE_TABLES === ['user', 'empresa', 'reporte', 'empresa_usuario', '
 $db = 'cervesur_portalbi'; $u = "`cervesur_admin_w`@`127.0.0.1`";
 $buenos = ["GRANT USAGE ON *.* TO $u", "GRANT SELECT (`id`, `nombre`, `activo`) ON `$db`.`empresa` TO $u", "GRANT INSERT ON `$db`.`empresa` TO $u", "GRANT UPDATE (`nombre`, `activo`) ON `$db`.`empresa` TO $u",
     "GRANT SELECT, INSERT ON `$db`.`audit_log` TO $u", "GRANT SELECT (`id`, `role`, `is_active`) ON `$db`.`user` TO $u", "GRANT UPDATE (`role`, `is_active`, `session_version`, `password`) ON `$db`.`user` TO $u"];
-check(admin_write_grants_violations($buenos, $db) === [], 'privilegios mínimos válidos: SELECT/INSERT/UPDATE por columnas y audit_log solo SELECT+INSERT');
+check(admin_write_grants_violations($buenos, $db, ['usuarios' => true, 'sensible' => true]) === [], 'privilegios mínimos válidos: SELECT/INSERT/UPDATE por columnas y audit_log solo SELECT+INSERT');
+// UX-08I · privilegios de `user` cruzados con los interruptores del servidor
+$f2a = ["GRANT SELECT (`id`, `role`) ON `$db`.`user` TO $u", "GRANT UPDATE (`last_login`) ON `$db`.`user` TO $u"];
+$noSens = ["GRANT SELECT (`id`) ON `$db`.`user` TO $u", "GRANT INSERT (`username`, `email`, `first_name`, `last_name`, `phone`, `password`, `role`, `is_active`, `session_version`, `created_at`, `updated_at`) ON `$db`.`user` TO $u",
+    "GRANT UPDATE (`first_name`, `last_name`, `phone`, `email`, `is_active`, `session_version`, `updated_at`, `last_login`) ON `$db`.`user` TO $u"];
+$sens = ["GRANT UPDATE (`role`, `password`) ON `$db`.`user` TO $u"];
+$off = ['usuarios' => false, 'sensible' => false]; $on = ['usuarios' => true, 'sensible' => false]; $all = ['usuarios' => true, 'sensible' => true];
+check(admin_write_grants_violations($f2a, $db, $off) === [], 'UX-08I: la cuenta de la fase 2A (solo UPDATE(last_login)) es válida con todo apagado');
+check(admin_write_grants_violations($noSens, $db, $off) !== [], 'UX-08I: privilegios de escritura sobre user con ADMIN_WRITES_USUARIOS apagado = violación (arranque rechazado)');
+check(admin_write_grants_violations($noSens, $db, $on) === [], 'UX-08I: los privilegios no sensibles son válidos con usuarios encendido');
+check(admin_write_grants_violations(array_merge($noSens, $sens), $db, $on) !== [], 'UX-08I: UPDATE(role/password) sin el interruptor sensible = violación');
+check(admin_write_grants_violations(array_merge($noSens, $sens), $db, $all) === [], 'UX-08I: UPDATE(role/password) es válido solo con el interruptor sensible');
+check(admin_write_grants_violations(["GRANT UPDATE ON `$db`.`user` TO $u"], $db, $all) !== [] && admin_write_grants_violations(["GRANT INSERT, UPDATE ON `$db`.* TO $u"], $db, $all) !== [], 'UX-08I: INSERT/UPDATE de toda la tabla user (o de toda la base) nunca es válido');
+check(admin_write_grants_violations(["GRANT UPDATE (`username`) ON `$db`.`user` TO $u"], $db, $all) !== [], 'UX-08I: UPDATE de columnas no previstas (username) en user = violación');
+check(admin_grant_columns('SELECT (`a`, `b`), UPDATE (`c`), INSERT') === ['SELECT' => ['a', 'b'], 'UPDATE' => ['c'], 'INSERT' => null], 'UX-08I: el analizador separa privilegios y columnas');
 $malos = ['con DELETE' => "GRANT SELECT, INSERT, UPDATE, DELETE ON `$db`.* TO $u", 'ALL PRIVILEGES' => "GRANT ALL PRIVILEGES ON `$db`.* TO $u", 'GRANT OPTION' => "GRANT SELECT ON `$db`.`empresa` TO $u WITH GRANT OPTION",
     'UPDATE sobre audit_log' => "GRANT UPDATE (`action`) ON `$db`.`audit_log` TO $u", 'DELETE sobre audit_log' => "GRANT DELETE ON `$db`.`audit_log` TO $u", 'DROP' => "GRANT DROP ON `$db`.* TO $u", 'ALTER' => "GRANT ALTER ON `$db`.`reporte` TO $u",
     'TRIGGER' => "GRANT TRIGGER ON `$db`.* TO $u", 'CREATE' => "GRANT CREATE ON `$db`.* TO $u", 'global SELECT' => "GRANT SELECT ON *.* TO $u", 'FILE global' => "GRANT FILE ON *.* TO $u", 'otra base' => "GRANT SELECT ON `cervesur_qa_admin`.* TO $u",
@@ -123,9 +137,12 @@ putenv('ADMIN_USER_REACTIVATE_HOURS=basura'); check(admin_user_reactivate_hours(
 putenv('ADMIN_USER_REACTIVATE_HOURS');
 
 // ---------------------------------------------------------------- UX-08H.1: fase 2B bloqueada sobre la base productiva
-putenv('DB_NAME=cervesur_portalbi'); putenv('ADMIN_WRITES_USUARIOS=1'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
-check(admin_users_locked() === true, '2B: cervesur_portalbi cuenta como base productiva (usuarios bloqueados)');
-check(admin_write_capability_on('usuarios') === false && admin_write_capability_on('usuarios_sensible') === false && admin_write_capabilities()['usuarios'] === false, '2B: con los interruptores en 1, las capacidades de usuarios siguen en false');
+// UX-08I: el bloqueo ya no es absoluto; es el valor por defecto y solo lo levanta el servidor con ADMIN_WRITES_USUARIOS=1 exacto.
+putenv('DB_NAME=cervesur_portalbi'); putenv('ADMIN_WRITES_USUARIOS'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
+check(admin_users_locked() === true, '2B: cervesur_portalbi cuenta como base productiva (usuarios bloqueados por defecto)');
+check(admin_write_capability_on('usuarios') === false && admin_write_capability_on('usuarios_sensible') === false && admin_write_capabilities()['usuarios'] === false, '2B: sin ADMIN_WRITES_USUARIOS=1, las capacidades de usuarios son false aunque el sensible esté en 1');
+foreach (['0', 'true', 'yes', ' 1', '01'] as $v) { putenv('ADMIN_WRITES_USUARIOS=' . $v); check(admin_users_locked() === true, "2B: ADMIN_WRITES_USUARIOS=«{$v}» no desbloquea (solo el valor exacto 1)"); }
+putenv('ADMIN_WRITES_USUARIOS');
 foreach ([['POST', '/api/register'], ['PUT', '/api/users/3'], ['POST', '/api/users/3/deactivate'], ['POST', '/api/users/3/reactivate'], ['PUT', '/api/user/3/role'], ['PUT', '/api/users/3/password']] as [$m, $u]) {
     $g = gate($m, $u); check(is_array($g) && $g['status'] === 403 && $g['code'] === 'fase_2b_bloqueada', "2B bloqueada: $m $u → 403 fase_2b_bloqueada");
 }
@@ -137,6 +154,20 @@ foreach (["INSERT INTO user (username) VALUES (?)", "UPDATE user SET is_active =
 }
 $ok = true; try { app_sql_write_guard('INSERT INTO empresa (nombre) VALUES (?)'); app_sql_write_guard('UPDATE empresa_reporte SET activo = 0 WHERE id = ?'); } catch (WriteViolation $e) { $ok = false; }
 check($ok, 'el guardia sigue admitiendo las escrituras de la fase 2A');
+// UX-08I · desbloqueo por el servidor, escalonado: primero lo no sensible, después (aparte) rol y contraseña.
+$guardia = function ($sql) { try { app_sql_write_guard($sql); return true; } catch (WriteViolation $e) { return false; } };
+putenv('ADMIN_WRITES_USUARIOS=1'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=0');
+check(admin_users_locked() === false && admin_write_capability_on('usuarios') === true && admin_write_capability_on('usuarios_sensible') === false, 'UX-08I: ADMIN_WRITES_USUARIOS=1 abre solo lo no sensible');
+check(gate('POST', '/api/register') === null && gate('PUT', '/api/users/3') === null && gate('POST', '/api/users/3/deactivate') === null && gate('POST', '/api/users/3/reactivate') === null, 'UX-08I: alta, edición, baja y reactivación pasan la puerta');
+check(gate('PUT', '/api/user/3/role')['code'] === 'escritura_desactivada' && gate('PUT', '/api/users/3/password')['code'] === 'escritura_desactivada', 'UX-08I: rol y contraseña siguen cerrados (interruptor aparte)');
+check($guardia('INSERT INTO user (username) VALUES (?)') && $guardia('UPDATE user SET is_active = ?, session_version = session_version + 1, updated_at = NOW() WHERE id = ?') && $guardia('UPDATE user SET `first_name` = :first_name, updated_at = NOW() WHERE id = :id'), 'UX-08I: el guardia admite alta y cambios no sensibles de user');
+check(!$guardia('UPDATE user SET role = ? WHERE id = ?') && !$guardia('UPDATE user SET password = ?, session_version = session_version + 1 WHERE id = ?') && !$guardia('UPDATE user SET `role` = :r, session_version = session_version + 1 WHERE id = :id') && !$guardia('UPDATE user SET is_active = 1, password=? WHERE id = ?'), 'UX-08I: el guardia rechaza role/password sin el interruptor sensible (con espacios, comillas y combinados)');
+check(!$guardia('DELETE FROM user WHERE id = 1') && !$guardia('UPDATE user SET is_active = 1 WHERE id = 1; UPDATE user SET role = 1'), 'UX-08I: DELETE y sentencias múltiples sobre user siguen prohibidos');
+putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
+check(admin_write_capability_on('usuarios_sensible') === true && gate('PUT', '/api/user/3/role') === null && gate('PUT', '/api/users/3/password') === null && $guardia('UPDATE user SET role = ? WHERE id = ?') && $guardia('UPDATE user SET password = ? WHERE id = ?'), 'UX-08I: con el interruptor sensible, rol y contraseña pasan puerta y guardia');
+check(refused($base + ['ADMIN_WRITES_USUARIOS_SENSIBLE' => '1']), 'UX-08I: sensible sin usuarios sigue siendo configuración rechazada');
+putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=0'); putenv('ADMIN_WRITES_USUARIOS');
+check(admin_users_locked() === true && gate('PUT', '/api/users/3')['code'] === 'fase_2b_bloqueada', 'UX-08I: apagar el interruptor vuelve a bloquear sin redeploy (se lee del entorno en cada petición)');
 putenv('DB_NAME=fixture_x'); $ok = true; try { app_sql_write_guard('UPDATE user SET is_active = 0 WHERE id = ?'); } catch (WriteViolation $e) { $ok = false; }
 check($ok && admin_users_locked() === false, 'en una base desechable el bloqueo no aplica (las pruebas de la fase 2B siguen posibles)');
 putenv('CERVESUR_PRODUCTION_DBS=fixture_x'); check(admin_users_locked() === true, 'CERVESUR_PRODUCTION_DBS amplía las bases bloqueadas');

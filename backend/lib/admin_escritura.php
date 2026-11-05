@@ -31,14 +31,19 @@ function admin_user_reactivate_hours() {
 class WriteViolation extends PDOException {}
 
 /**
- * FASE 2B BLOQUEADA SOBRE LA BASE PRODUCTIVA (UX-08H.1). Con la base de negocio real (cervesur_portalbi o CERVESUR_PRODUCTION_DBS) toda escritura sobre `user` queda negada
- * en TRES capas, sin importar qué interruptores haya en el .env: (1) la puerta de rutas (403 `fase_2b_bloqueada`), (2) el guardia de SQL (ni INSERT ni UPDATE de `user`) y
- * (3) la cuenta de la fase 2A, que ni siquiera tiene INSERT/UPDATE sobre `user` (database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template).
- * Se desbloquea solo con una versión posterior del código, nunca con configuración. En bases desechables de prueba no aplica.
+ * FASE 2B · USUARIOS BLOQUEADOS POR DEFECTO SOBRE LA BASE PRODUCTIVA (UX-08I). Con la base de negocio real (cervesur_portalbi o CERVESUR_PRODUCTION_DBS) toda escritura sobre `user`
+ * queda negada mientras el servidor no tenga EXACTAMENTE `ADMIN_WRITES_USUARIOS=1`, en CUATRO capas independientes:
+ *   (1) la puerta de rutas (403 `fase_2b_bloqueada`), (2) el guardia de SQL (ni INSERT ni UPDATE de `user`; `role` y `password` además exigen el interruptor sensible),
+ *   (3) los privilegios de la cuenta MySQL (la de la fase 2A solo tiene UPDATE(last_login); las plantillas 2B son aditivas y separan lo sensible) y
+ *   (4) la aserción de arranque, que cruza SHOW GRANTS con los interruptores (ver admin_write_grants_violations).
+ * Sin interruptor el comportamiento es el de la fase 2A. En bases desechables de prueba no aplica.
  */
 function admin_users_locked() {
     $production = app_production_databases(['CERVESUR_PRODUCTION_DBS' => getenv('CERVESUR_PRODUCTION_DBS')]);
-    return in_array(strtolower(trim((string)getenv('DB_NAME'))), $production, true);
+    if (!in_array(strtolower(trim((string)getenv('DB_NAME'))), $production, true)) {
+        return false;
+    }
+    return getenv('ADMIN_WRITES_USUARIOS') !== '1';
 }
 
 /** ¿Capacidad de escritura encendida en el servidor? Solo el valor exacto «1»; se lee del entorno en cada petición. */
@@ -141,11 +146,18 @@ function app_mode_write_gate($method, $uri) {
 /**
  * Privilegios de la CUENTA DE ESCRITURA (SHOW GRANTS). Devuelve las violaciones: solo SELECT, INSERT, UPDATE y USAGE; nada con GRANT OPTION;
  * nada fuera de la base de negocio (salvo USAGE global); y sobre `audit_log` solo SELECT e INSERT (la bitácora no se modifica ni se borra).
+ * Fase 2B: sobre `user` los privilegios de escritura se cruzan con los interruptores del servidor ($flags = ['usuarios' => bool, 'sensible' => bool]; null = entorno actual):
+ * INSERT/UPDATE de toda la tabla nunca; INSERT o UPDATE por columnas solo con «usuarios»; UPDATE de `role` o `password` solo con «sensible».
+ * La única escritura siempre admitida sobre `user` es UPDATE(last_login) (bloqueo de fila de la fase 2A).
  * @param string[] $grants
+ * @param array{usuarios:bool,sensible:bool}|null $flags
  */
-function admin_write_grants_violations(array $grants, $db) {
+function admin_write_grants_violations(array $grants, $db, $flags = null) {
     $violations = [];
     $db = strtolower((string)$db);
+    if ($flags === null) {
+        $flags = ['usuarios' => getenv('ADMIN_WRITES_USUARIOS') === '1', 'sensible' => admin_write_capability_on('usuarios_sensible')];
+    }
     foreach ($grants as $line) {
         $line = trim((string)$line);
         if (!preg_match('/^GRANT\s+(.+?)\s+ON\s+(.+?)\s+TO\s+/is', $line, $m)) {
@@ -164,8 +176,46 @@ function admin_write_grants_violations(array $grants, $db) {
         $allowed = ['SELECT', 'INSERT', 'UPDATE', 'USAGE'];
         if (($parts[1] ?? '') === 'audit_log') { $allowed = ['SELECT', 'INSERT', 'USAGE']; }
         foreach ($privileges as $p) { if (!in_array($p, $allowed, true)) { $violations[] = $p . (($parts[1] ?? '*') === '*' ? '' : '@' . $parts[1]); } }
+        if (($parts[1] ?? '') === 'user' || ($parts[1] ?? '*') === '*') {
+            foreach (admin_grant_columns($m[1]) as $priv => $columns) {
+                if ($priv !== 'INSERT' && $priv !== 'UPDATE') { continue; }
+                if (($parts[1] ?? '*') === '*') { $violations[] = "$priv@*(incluye user)"; continue; }
+                if ($columns === null) { $violations[] = "$priv@user:tabla completa"; continue; }
+                if ($priv === 'UPDATE' && $columns === ['last_login']) { continue; }
+                if (!$flags['usuarios']) { $violations[] = "$priv@user:sin ADMIN_WRITES_USUARIOS"; continue; }
+                if (array_intersect($columns, ['password', 'role']) && $priv === 'UPDATE' && !$flags['sensible']) { $violations[] = 'UPDATE@user:role/password sin ADMIN_WRITES_USUARIOS_SENSIBLE'; }
+                if ($priv === 'UPDATE' && array_diff($columns, ['first_name', 'last_name', 'phone', 'email', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'])) { $violations[] = 'UPDATE@user:columnas no previstas'; }
+            }
+        }
     }
     return array_values(array_unique($violations));
+}
+
+/**
+ * Privilegios de una concesión con sus columnas: «SELECT (a,b), UPDATE (c)» → ['SELECT' => ['a','b'], 'UPDATE' => ['c']]; sin lista de columnas = null (tabla completa).
+ * @return array<string,string[]|null>
+ */
+function admin_grant_columns($privilegeList) {
+    $out = [];
+    $depth = 0; $buffer = ''; $items = [];
+    foreach (str_split((string)$privilegeList) as $ch) {
+        if ($ch === '(') { $depth++; }
+        if ($ch === ')') { $depth--; }
+        if ($ch === ',' && $depth === 0) { $items[] = $buffer; $buffer = ''; continue; }
+        $buffer .= $ch;
+    }
+    $items[] = $buffer;
+    foreach ($items as $item) {
+        if (!preg_match('/^\s*([A-Za-z ]+?)\s*(?:\(([^)]*)\))?\s*$/', $item, $x)) { continue; }
+        $priv = strtoupper(trim($x[1]));
+        if (isset($x[2]) && $x[2] !== '') {
+            $cols = array_values(array_filter(array_map(function ($c) { return strtolower(trim(str_replace('`', '', $c))); }, explode(',', $x[2])), 'strlen'));
+            $out[$priv] = array_values(array_unique(array_merge($out[$priv] ?? [], $cols)));
+        } else {
+            $out[$priv] = null;
+        }
+    }
+    return $out;
 }
 
 /** Capa 4 en ejecución: rehúsa servir (503) si la cuenta de escritura tiene privilegios de más. */
@@ -205,6 +255,11 @@ function app_sql_write_guard($sql) {
         $t = strtolower($m[1]);
         if (!in_array($t, ADMIN_WRITE_TABLES, true) || $t === 'audit_log') { $reject('tabla no permitida para UPDATE: ' . $m[1]); }
         if ($t === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
+        if ($t === 'user' && !admin_write_capability_on('usuarios_sensible')) {
+            // Lo sensible (rol y contraseña) exige su propio interruptor: se mira solo la lista de asignaciones, que va antes del WHERE.
+            $set = preg_split('/\sWHERE\s/i', $n, 2)[0];
+            if (preg_match('/(?:^|[\s,`])(password|role)`?\s*=/i', $set)) { $reject('fase 2B: `role` y `password` exigen ADMIN_WRITES_USUARIOS_SENSIBLE=1'); }
+        }
         if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
         return;
     }

@@ -536,9 +536,10 @@ class UserModel {
     public function setPassword($id, $password, $actorId) {
         return run_write(function () use ($id, $password, $actorId) {
             return db_tx($this->pdo, function () use ($id, $password, $actorId) {
-                $row = $this->lockUser($id);
-                if (!$row) {
-                    throw new WriteNotFound('Usuario no encontrado');
+                // Igual que desactivar y cambiar rol: el actor debe seguir siendo administrador activo dentro de la transacción.
+                [$row] = $this->lockTargetWithAdminGuard($id, $actorId);
+                if ((int)$row['id'] === (int)$actorId) {
+                    throw new WriteConflict('state', 'No puede cambiar su propia contraseña desde el panel de administración');
                 }
                 $this->pdo->prepare('UPDATE user SET password = :p, session_version = session_version + 1, updated_at = NOW() WHERE id = :id')
                     ->execute(['p' => password_hash($password, PASSWORD_DEFAULT), 'id' => (int)$id]);
