@@ -3,7 +3,7 @@
 // Normal: se NIEGA a construir con el árbol sucio o sin commit identificado. --permitir-arbol-sucio es SOLO para ensayos: el nombre lleva «-con-cambios» y RELEASE.json dice produccion:false.
 // Compila el frontend con `node scripts/build-production.mjs --admin-write` (hosts: localhost + el indicado, como la fase 1) EN UNA COPIA TEMPORAL de frontend/, para no tocar
 // frontend/dist-admin-write. --sin-compilar reutiliza esa carpeta en SOLO LECTURA (debe declarar ya los hosts pedidos).
-// Resultado en <out>: <nombre>.tar.gz + .sha256 + .RELEASE.json + DIFERENCIAS-vs-${BASE_COMMIT}.txt/.json (diferencias por archivo frente al SHA256SUMS del paquete instalado de la fase 1).
+// Resultado en <out>: <nombre>.tar.gz + .sha256 + .RELEASE.json + DIFERENCIAS-vs-<commit base>.txt/.json (diferencias por archivo frente al SHA256SUMS del paquete instalado de la fase 1).
 // Contenido del paquete: public/, backend/, scripts/, base/ (manifiesto de la fase 1), apache/ (nota; no se instala nada de Apache), e0/ y migraciones/ (si existen; los escribe otro
 // equipo), database/ (las dos migraciones de audit_log con su .down y la plantilla de la cuenta 2A), docs/, README.md, VERSION, RELEASE.json y SHA256SUMS. Sin .env, claves, certificados,
 // datos de QA, cuentas syn###, archivos deploy/qa-* ni secretos (se inspecciona el resultado).
@@ -88,7 +88,7 @@ copy(DIST, 'public');
 copy(need(join(REPO, 'backend')), 'backend', src => !EXCLUIR.includes(basename(src)));
 need(join(REPO, 'backend', 'lib', 'admin_escritura.php'));
 copy(need(join(here, 'scripts')), 'scripts');
-copy(need(join(here, 'README.md')), 'README.md');
+copy(need(join(here, FASE2B ? 'README-FASE2B.md' : 'README.md')), 'README.md');
 if (existsSync(join(here, 'apache'))) copy(join(here, 'apache'), 'apache');
 for (const d of ['e0', 'migraciones']) {
   // Se excluyen las carpetas de ensayo y los arneses de prueba «probar-*» de esos kits (contienen datos de prueba a propósito: no son para el servidor)
@@ -197,8 +197,8 @@ const txt = [];
 txt.push(`DIFERENCIAS del paquete ${name} frente a la ${FASE2B ? 'fase 2A instalada' : 'fase 1 instalada'} (${BASE_COMMIT})`);
 txt.push(`Base: ${BASE_SUMS}`);
 txt.push(`Resumen: ${resumen.agregados} agregados · ${resumen.eliminados} eliminados · ${resumen.modificados} modificados · ${resumen.iguales} idénticos (por SHA-256 de archivo)`);
-txt.push('Nota: lo «eliminado» en scripts/, admin-mysql/, apache/ y docs/ es el kit de INSTALACIÓN de la fase 1 (instalar, pasos-instalacion, revertir = DESINSTALADOR, usuarios, TLS…): este paquete no lo');
-txt.push('lleva a propósito (no instala nada ni trae el desinstalador). Conserva tls.sh, preflight-acceso.php y la verificación de la fase 1 (verificar-fase1.sh) que usan actualizar.sh y revertir-codigo.sh.');
+if (!FASE2B) txt.push('Nota: lo «eliminado» en scripts/, admin-mysql/, apache/ y docs/ es el kit de INSTALACIÓN de la fase 1 (instalar, pasos-instalacion, revertir = DESINSTALADOR, usuarios, TLS…): este paquete no lo');
+if (!FASE2B) txt.push('lleva a propósito (no instala nada ni trae el desinstalador). Conserva tls.sh, preflight-acceso.php y la verificación de la fase 1 (verificar-fase1.sh) que usan actualizar.sh y revertir-codigo.sh.');
 txt.push('');
 txt.push('AFIRMACIONES SOBRE LAS PUERTAS (calculadas por huella de archivo y, la puerta de rutas, por el texto del bloque piloto_admin):');
 txt.push(`  backend/lib/mode.php ........................ ${estado(afirmaciones['backend/lib/mode.php'].cambio)}  (${afirmaciones['backend/lib/mode.php'].antes} → ${afirmaciones['backend/lib/mode.php'].despues})`);
@@ -215,7 +215,7 @@ for (const g of GRUPOS) {
   for (const e of d.eliminados) txt.push(`  D ${e.ruta}  ${e.sha256}`);
   for (const m of d.modificados) txt.push(`  M ${m.ruta}  ${m.antes} → ${m.despues}`);
 }
-const difTxt = join(OUT, 'DIFERENCIAS-vs-3f859210c5c4.txt');
+const difTxt = join(OUT, `DIFERENCIAS-vs-${BASE_COMMIT}.txt`);
 writeFileSync(difTxt, `${txt.join('\n')}\n`);
 writeFileSync(join(OUT, `DIFERENCIAS-vs-${BASE_COMMIT}.json`), `${JSON.stringify({ paquete: name, base: BASE_COMMIT, base_sha256sums: BASE_SUMS, resumen, afirmaciones, nuevos, grupos: dif }, null, 2)}\n`);
 
