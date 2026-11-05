@@ -34,12 +34,26 @@ function audits($root, $uid, $action) { return (int)one($root, "SELECT COUNT(*) 
 const LEAK = '/\$2y\$|"password"|SQLSTATE|PDOException|cervesur_(escritura|ro_|react_)|Stack trace|\/var\/www|\/work\//i';
 
 if ($role === 'mal') {
-    echo "== Instancias mal configuradas se niegan a servir (cruce SHOW GRANTS ↔ interruptores)\n";
-    foreach (['appawx' => 'cuenta 2B no sensibles con ADMIN_WRITES_USUARIOS apagado', 'appawy' => 'cuenta con rol/contraseña con el interruptor sensible apagado'] as $host => $why) {
-        [$s, $d, $raw] = api('GET', '/api/ping', null, null, $host);
-        expectCase($s === 503 && ($d['code'] ?? '') === 'mode_config' && !preg_match(LEAK, $raw), "$why → 503 sin detalles internos");
-    }
+    echo "== Configuración realmente incoherente: el arranque se niega a servir (503)\n";
+    [$s, $d, $raw] = api('GET', '/api/ping', null, null, 'appawz');
+    expectCase($s === 503 && ($d['code'] ?? '') === 'mode_config' && !preg_match(LEAK, $raw), 'cuenta con UPDATE(username) sobre user (columna no prevista) → 503 sin detalles internos');
     echo "\n" . ($failures === 0 ? 'All admin_escritura fase 2B (mal configuradas) checks passed' : "$failures check(s) FAILED") . "\n";
+    exit($failures === 0 ? 0 : 1);
+}
+if ($role === 'staged') {
+    // Se ejecuta DENTRO de appawx (cuenta con permisos no sensibles YA concedidos, ADMIN_WRITES_USUARIOS ausente): la transición P4a no debe interrumpir nada.
+    echo "== Transición de privilegios (P4a): plantillas aplicadas ANTES del interruptor\n";
+    $tx = login('admin');
+    expectCase($tx !== '', 'el backend SIGUE sirviendo (sin 503) con los permisos de usuarios ya concedidos y el interruptor ausente: Empresas, Informes y Accesos no se interrumpen');
+    [$s1, $d1] = api('POST', '/api/register', $tx, ['first_name' => 'X', 'last_name' => 'Y', 'username' => 'escalonado', 'email' => 'escalonado@example.invalid', 'password' => 'una-contrasena-larga-1']);
+    [$s2, $d2] = api('PUT', '/api/user/2/role', $tx, ['role' => 'admin']);
+    [$s3, $d3] = api('PUT', '/api/users/2', $tx, ['phone' => '1']);
+    expectCase($s1 === 403 && ($d1['code'] ?? '') === 'fase_2b_bloqueada' && $s2 === 403 && $s3 === 403 && (int)one($root, "SELECT COUNT(*) FROM user WHERE username = 'escalonado'") === 0, 'Usuarios sigue bloqueado por la ruta (403 fase_2b_bloqueada): la capacidad efectiva NO cambió');
+    [, $dc] = api('GET', '/api/admin/capacidades', $tx);
+    expectCase(($dc['data']['writes']['usuarios'] ?? null) === false && ($dc['data']['writes']['empresas'] ?? null) === true && ($dc['data']['users_sensitive'] ?? null) === false, 'capacidades efectivas: usuarios=false y users_sensitive=false; empresas siguen encendidas');
+    [$se] = api('POST', '/api/empresas', $tx, ['nombre' => 'Escalonada SA', 'razon_social' => 'Escalonada SA', 'ruc' => '20444000009', 'ciudad' => 'X', 'pais' => 'Y']);
+    expectCase($se === 200, 'una escritura de Empresas funciona durante la transición');
+    echo "\n" . ($failures === 0 ? 'All admin_escritura fase 2B (staged) checks passed' : "$failures check(s) FAILED") . "\n";
     exit($failures === 0 ? 0 : 1);
 }
 

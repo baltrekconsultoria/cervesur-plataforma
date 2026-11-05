@@ -49,6 +49,11 @@ if ((string)getenv('W_WRITE2A_PASS') !== '') {
             foreach ($statements(strtr($tplText, $map2b)) as $s) { $root->exec($s); $n++; }
         }
     }
+    // 3d) UX-08I (P4a): cuenta DEFECTUOSA a propósito (2A + UPDATE(username) sobre user): el arranque debe rechazarla (503) aunque tolere las concesiones escalonadas.
+    $root->exec("DROP USER IF EXISTS 'cervesur_escritura2bx_aw'@'%'");
+    $mapX = ['{DB}' => $base, '{USER}' => 'cervesur_escritura2bx_aw', '{HOST}' => '%', '{PASS}' => getenv('W_WRITE2A_PASS')];
+    foreach ($statements(strtr((string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template'), $mapX)) as $s) { $root->exec($s); $n++; }
+    $root->exec("GRANT UPDATE (username) ON `$base`.`user` TO 'cervesur_escritura2bx_aw'@'%'");
 }
 // 4) Lista blanca de la instancia.
 $st = new PDO("mysql:host=db;dbname=$estado;charset=utf8mb4", 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

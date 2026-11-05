@@ -154,7 +154,7 @@ function app_mode_write_gate($method, $uri) {
  * @param string[] $grants
  * @param array{usuarios:bool,sensible:bool}|null $flags
  */
-function admin_write_grants_violations(array $grants, $db, $flags = null) {
+function admin_write_grants_violations(array $grants, $db, $flags = null, $tolerateStaged = false) {
     $violations = [];
     $db = strtolower((string)$db);
     if ($flags === null) { // null = entorno actual; false = sin cruce (bases desechables de prueba)
@@ -184,9 +184,15 @@ function admin_write_grants_violations(array $grants, $db, $flags = null) {
                 if (($parts[1] ?? '*') === '*') { $violations[] = "$priv@*(incluye user)"; continue; }
                 if ($columns === null) { $violations[] = "$priv@user:tabla completa"; continue; }
                 if ($priv === 'UPDATE' && $columns === ['last_login']) { continue; }
+                $previstas = $priv === 'INSERT'
+                    ? ['username', 'email', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active', 'session_version', 'created_at', 'updated_at']
+                    : ['first_name', 'last_name', 'phone', 'email', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'];
+                if (array_diff($columns, $previstas)) { $violations[] = "$priv@user:columnas no previstas"; continue; }
+                // Escalonado (UX-08I, ensayo P4a): las plantillas se aplican ANTES de encender el interruptor. Con el interruptor apagado esas concesiones no cambian lo que se puede hacer
+                // (la puerta de rutas y el guardia de SQL siguen cerrados), así que no deben tumbar Empresas, Informes ni Accesos con un 503.
+                if ($tolerateStaged) { continue; }
                 if (!$flags['usuarios']) { $violations[] = "$priv@user:sin ADMIN_WRITES_USUARIOS"; continue; }
                 if (array_intersect($columns, ['password', 'role']) && $priv === 'UPDATE' && !$flags['sensible']) { $violations[] = 'UPDATE@user:role/password sin ADMIN_WRITES_USUARIOS_SENSIBLE'; }
-                if ($priv === 'UPDATE' && array_diff($columns, ['first_name', 'last_name', 'phone', 'email', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'])) { $violations[] = 'UPDATE@user:columnas no previstas'; }
             }
         }
     }
@@ -226,7 +232,7 @@ function admin_write_assert_account(PDO $pdo) {
     $grants = $pdo->query('SHOW GRANTS FOR CURRENT_USER()')->fetchAll(PDO::FETCH_COLUMN, 0);
     // Sobre una base productiva los privilegios de `user` se cruzan con los interruptores del servidor; en bases desechables de prueba la cuenta amplia de QA es legítima.
     $flags = admin_is_production_db() ? null : false; // false = sin cruce con interruptores
-    $violations = admin_write_grants_violations($grants, $db, $flags);
+    $violations = admin_write_grants_violations($grants, $db, $flags, true);
     if ($violations) {
         app_mode_refuse(['La cuenta de escritura tiene privilegios no permitidos: ' . implode(', ', $violations)]);
     }
