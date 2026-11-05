@@ -123,6 +123,25 @@ for (const origen of DB_ORIGENES) {
   limpiar(raiz);
 }
 // 9. empaquetar.mjs usa el módulo y se niega ante problemas
+// UX-08I (P4a): la vista de alta y el reparto de privilegios se validan al empaquetar; cada alteración peligrosa se rechaza
+for (const [desc, archivo, alterar, fragmento] of [
+  ['la vista sin WITH CHECK OPTION', 'UX-08I-alta-usuarios-vista.up.sql.template', t => t.replace(/\s+WITH CHECK OPTION;/, ';'), 'WITH CHECK OPTION'],
+  ['la vista que admite el rol admin', 'UX-08I-alta-usuarios-vista.up.sql.template', t => t.replace("role IN ('user', 'usuario')", "role IN ('user', 'usuario', 'admin')"), 'acota el rol'],
+  ['la cuenta DEFINER con una clave escrita en la plantilla', 'UX-08I-alta-usuarios-vista.up.sql.template', t => t.replace('IDENTIFIED BY RANDOM PASSWORD', "IDENTIFIED BY 'x'"), 'bloqueada'],
+  ['la cuenta DEFINER con UPDATE de más', 'UX-08I-alta-usuarios-vista.up.sql.template', t => t.replace('GRANT INSERT (', 'GRANT UPDATE, INSERT ('), 'privilegios de más'],
+  ['la vista que expone last_login', 'UX-08I-alta-usuarios-vista.up.sql.template', t => t.replace('updated_at\n      FROM', 'updated_at, last_login\n      FROM'), 'expone'],
+  ['la reversión de la vista sin DROP USER', 'UX-08I-alta-usuarios-vista.down.sql.template', t => t.replace(/DROP USER IF EXISTS[^\n]*/, ''), 'reversión de la vista'],
+  ['«no sensibles» con INSERT directo sobre user', 'UX-08I-usuarios-no-sensibles.up.sql.template', t => t + '\nGRANT INSERT (username) ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n', 'solo por v_user_alta'],
+  ['«no sensibles» con UPDATE(email)', 'UX-08I-usuarios-no-sensibles.up.sql.template', t => t + '\nGRANT UPDATE (email) ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n', 'UPDATE(email)'],
+  ['«no sensibles» sin el INSERT sobre la vista', 'UX-08I-usuarios-no-sensibles.up.sql.template', t => t.replace(/GRANT INSERT ON[^\n]*v_user_alta[^\n]*/, ''), 'INSERT sobre v_user_alta']
+]) {
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  const f = join(r, 'fase2b', 'repo', archivo);
+  writeFileSync(f, alterar(readFileSync(f, 'utf8')));
+  const p = validarFase2b(r);
+  ok(`2B: ${desc} es rechazado al validar el paquete`, p.some(m => m.includes(fragmento)), p.join(' | '));
+  limpiar(r);
+}
 {
   const src = readFileSync(join(here, 'empaquetar.mjs'), 'utf8');
   ok('empaquetar.mjs coloca los SQL con colocarBaseDeDatos y valida con validarEstructura', /colocarBaseDeDatos\(ROOT, REPO, fail\)/.test(src) && /validarEstructura\(ROOT\)/.test(src));
@@ -144,7 +163,7 @@ for (const origen of DB_ORIGENES) {
   const r = nueva();
   colocarFase2b(r, REPO, fail);
   const p = validarFase2b(r);
-  ok('2B: fase2b/repo con 4 plantillas y SHA256SUMS: sin problemas', p.length === 0, p.join(' | '));
+  ok('2B: fase2b/repo con 6 plantillas y SHA256SUMS: sin problemas', p.length === 0, p.join(' | '));
   ok('2B: la estructura 2A sigue válida con fase2b/ presente', validarEstructura(r).length === 0);
   ok('2B: fase2b/repo NO contamina migraciones/repo (la plantilla 2A es la misma de siempre)', !existsSync(join(r, MIGRACIONES_REPO, 'UX-08I-usuarios-no-sensibles.up.sql.template')));
   limpiar(r);
@@ -196,7 +215,7 @@ if (process.argv[2]) {
   ok(`paquete real ${raiz.split(/[\\/]/).pop()}: estructura correcta`, p.length === 0, p.join(' | '));
   if (existsSync(join(raiz, 'fase2b'))) {
     const q = validarFase2b(raiz);
-    ok('paquete real: fase2b/repo correcta (4 plantillas + SHA256SUMS que verifica)', q.length === 0, q.join(' | '));
+    ok('paquete real: fase2b/repo correcta (6 plantillas + SHA256SUMS que verifica)', q.length === 0, q.join(' | '));
   }
 }
 console.log(`\n${fallos === 0 ? 'All packaging checks passed' : `${fallos} check(s) FAILED`}`);

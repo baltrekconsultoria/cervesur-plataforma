@@ -36,6 +36,8 @@ GRANT INSERT (nombre, descripcion, enlace, grupo_id, reporte_id, created_by)
 GRANT INSERT ON `{DB}`.`empresa_usuario`      TO '{USER}'@'{HOST}';
 GRANT INSERT ON `{DB}`.`empresa_reporte`      TO '{USER}'@'{HOST}';
 GRANT INSERT ON `{DB}`.`user_empresa_reporte` TO '{USER}'@'{HOST}';
+-- UX-08I: en admin_escritura el alta de usuarios se escribe por la vista v_user_alta (la crea el DBA aparte)
+GRANT INSERT ON `{DB}`.`v_user_alta` TO '{USER}'@'{HOST}';
 GRANT INSERT ON `{DB}`.`audit_log`            TO '{USER}'@'{HOST}';
 
 -- Modificaciones: solo las columnas que la aplicación cambia

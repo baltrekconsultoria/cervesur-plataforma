@@ -52,7 +52,8 @@ class RegisterController {
 
                 // El rol viaja como LITERAL de una lista cerrada fijada por el servidor (nunca de la petición): así el guardia de SQL de admin_escritura puede exigir exactamente esta forma.
                 $roleLiteral = new_user_role_sql_literal();
-                $sql = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, $roleLiteral, 1, 1, NOW(), NOW())";
+                $tablaAlta = (function_exists('app_mode') && app_mode() === 'admin_escritura') ? 'v_user_alta' : 'user'; // admin_escritura: el alta pasa por la vista (el motor acota el rol)
+                $sql = "INSERT INTO $tablaAlta (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, $roleLiteral, 1, 1, NOW(), NOW())";
                 $this->pdo->prepare($sql)->execute([
                     'first_name' => $clean['first_name'],
                     'last_name' => $clean['last_name'],

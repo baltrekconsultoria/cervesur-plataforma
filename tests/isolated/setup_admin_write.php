@@ -21,6 +21,11 @@ $root->exec("USE `$base`");
 foreach (['UX-08B-audit-log.up.sql', 'UX-08B-audit-log-immutable.up.sql'] as $file) {
     foreach ($statements((string)file_get_contents(__DIR__ . '/../../database/migrations/' . $file)) as $s) { $root->exec($s); $n++; }
 }
+// 1b) UX-08I (P4a): vista de ALTA de usuarios con WITH CHECK OPTION, creada por el DBA con la plantilla real. Debe existir ANTES de conceder INSERT sobre ella.
+$root->exec("DROP USER IF EXISTS 'cervesur_vista_alta_aw'@'localhost'");
+$vista = strtr((string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08I-alta-usuarios-vista.up.sql.template'), ['{DB}' => $base, '{VISTA}' => 'cervesur_vista_alta_aw']);
+// CREATE USER ... RANDOM PASSWORD devuelve la clave generada (de una cuenta bloqueada que nadie usa): se consume el resultado para poder seguir ejecutando sentencias
+foreach ($statements($vista) as $s) { $r = $root->query($s); if ($r) { $r->fetchAll(); $r->closeCursor(); } $n++; }
 // 2) Cuentas de lectura y base de estado propias (renombradas con sufijo _aw).
 foreach (['cervesur_ro_auth_aw', 'cervesur_ro_catalogo_aw', 'cervesur_react_estado_aw', 'cervesur_escritura_aw', 'cervesur_escritura2a_aw'] as $u) { $root->exec("DROP USER IF EXISTS '$u'@'%'"); }
 $root->exec("DROP DATABASE IF EXISTS `$estado`");

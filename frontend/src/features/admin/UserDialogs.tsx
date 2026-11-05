@@ -12,14 +12,17 @@ const PHONE = /^[\d\s+()-]{6,20}$/;
 type Draft = Omit<UserEdit, 'version'>;
 type FieldErrors = Partial<Record<keyof Draft, string>>;
 
-export function validateUserEdit(value: Draft): FieldErrors {
+export function validateUserEdit(value: Draft, emailReadOnly = false): FieldErrors {
   const errors: FieldErrors = {};
   if (!value.firstName.trim()) errors.firstName = 'Ingrese los nombres.';
   else if (value.firstName.trim().length > 50) errors.firstName = 'Máximo 50 caracteres.';
   if (!value.lastName.trim()) errors.lastName = 'Ingrese los apellidos.';
   else if (value.lastName.trim().length > 50) errors.lastName = 'Máximo 50 caracteres.';
-  if (!EMAIL.test(value.email.trim())) errors.email = 'Ingrese un correo válido.';
-  else if (value.email.trim().length > 100) errors.email = 'Máximo 100 caracteres.';
+  // Con el correo de solo lectura no se valida: el valor guardado no lo escribió esta pantalla y no debe impedir corregir el nombre o el teléfono.
+  if (!emailReadOnly) {
+    if (!EMAIL.test(value.email.trim())) errors.email = 'Ingrese un correo válido.';
+    else if (value.email.trim().length > 100) errors.email = 'Máximo 100 caracteres.';
+  }
   if (value.phone.trim() && !PHONE.test(value.phone.trim())) errors.phone = 'Use de 6 a 20 caracteres: dígitos, espacios, +, paréntesis o guion.';
   return errors;
 }
@@ -42,7 +45,8 @@ export function UserEditDialog({ user, onClose, onSaved, onStale }: { user: User
 }
 
 function UserEditForm({ id, username, version, initial, onClose, onSaved, onStale }: { id: string; username: string; version: string; initial: Draft; onClose: () => void; onSaved: (name: string) => void; onStale: () => void }) {
-  const { api } = useApp();
+  const { api, capabilities } = useApp();
+  const emailReadOnly = capabilities.emailReadOnly === true;
   const [value, setValue] = useState<Draft>(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
@@ -51,7 +55,7 @@ function UserEditForm({ id, username, version, initial, onClose, onSaved, onStal
   const set = (key: keyof Draft) => (event: { target: { value: string } }) => setValue(v => ({ ...v, [key]: event.target.value }));
 
   const save = async () => {
-    const next = validateUserEdit(value);
+    const next = validateUserEdit(value, emailReadOnly);
     setErrors(next);
     setFailure('');
     if (Object.keys(next).length) return;
@@ -82,7 +86,14 @@ function UserEditForm({ id, username, version, initial, onClose, onSaved, onStal
         <div className="form-grid">
           {field('firstName', 'ue-first', 'Nombres *')}
           {field('lastName', 'ue-last', 'Apellidos *')}
-          {field('email', 'ue-email', 'Correo *', { type: 'email' })}
+          {emailReadOnly
+            ? (
+              <label htmlFor="ue-email">Correo
+                <input id="ue-email" type="email" value={value.email} readOnly aria-readonly="true" aria-describedby="ue-email-note" />
+                <span className="muted" id="ue-email-note">El correo no se puede cambiar desde este panel (se comparte con otro sistema).</span>
+              </label>
+            )
+            : field('email', 'ue-email', 'Correo *', { type: 'email' })}
           {field('phone', 'ue-phone', 'Teléfono', { autoComplete: 'tel' })}
         </div>
       </div>

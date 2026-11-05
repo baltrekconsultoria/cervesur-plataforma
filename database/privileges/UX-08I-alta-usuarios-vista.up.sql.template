@@ -1,0 +1,25 @@
+-- UX-08I · P4a · Vista de ALTA de usuarios: la ÚNICA vía por la que la cuenta de React puede insertar en `user`.
+--
+-- PLANTILLA. NO SE EJECUTA EN NINGÚN SERVIDOR REAL sin autorización expresa del DBA. Marcadores: {DB} {VISTA}. La ejecuta el DBA (root) como parte de la etapa «no-sensibles» de scripts/privilegios-usuarios.sh,
+-- ANTES de conceder INSERT sobre la vista a la cuenta de escritura.
+-- WITH CHECK OPTION hace que el MOTOR rechace cualquier alta con rol distinto de user/usuario, inactiva o con session_version distinto de 1; la vista no expone `id`, `avatar` ni `last_login`.
+-- No modifica la tabla `user` ni a Flutter: Flutter sigue insertando directamente en la tabla.
+-- DEFINER: cuenta DEDICADA y BLOQUEADA ({VISTA}@localhost, sin clave utilizable, no puede iniciar sesión), con SOLO SELECT e INSERT por columnas sobre `user` (el mínimo que MySQL exige: sin SELECT
+-- sobre las 11 columnas la vista falla con el error 1356). No tiene UPDATE, DELETE, DDL ni GRANT OPTION. La clave aleatoria que MySQL genera para una cuenta bloqueada no se usa ni se guarda.
+-- Si la cuenta DEFINER o la vista desaparecen o se alteran, el alta FALLA CERRADA (error de MySQL → 500 genérico, sin filas parciales); el resto de Usuarios y Empresas/Informes/Accesos siguen funcionando.
+-- DDL no transaccional. Reversión: UX-08I-alta-usuarios-vista.down.sql.template (revocar el INSERT de la cuenta de React ANTES; luego DROP VIEW y DROP USER). Las vistas y cuentas NO entran en el respaldo
+-- de las seis tablas: respáldelas con SHOW CREATE VIEW y SHOW GRANTS.
+
+CREATE USER IF NOT EXISTS '{VISTA}'@'localhost' IDENTIFIED BY RANDOM PASSWORD ACCOUNT LOCK;
+
+GRANT SELECT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at)
+    ON `{DB}`.`user` TO '{VISTA}'@'localhost';
+
+GRANT INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at)
+    ON `{DB}`.`user` TO '{VISTA}'@'localhost';
+
+CREATE OR REPLACE DEFINER = '{VISTA}'@'localhost' SQL SECURITY DEFINER VIEW `{DB}`.`v_user_alta` AS
+    SELECT username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at
+      FROM `{DB}`.`user`
+     WHERE role IN ('user', 'usuario') AND is_active = 1 AND session_version = 1
+  WITH CHECK OPTION;

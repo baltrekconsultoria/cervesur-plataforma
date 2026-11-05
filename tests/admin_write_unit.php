@@ -90,7 +90,7 @@ $prohibidas = ['DELETE FROM empresa WHERE id = 1', 'DELETE FROM audit_log', 'UPD
     'SELECT * FROM empresa LOCK IN SHARE MODE', 'UPDATE empresa SET activo = 1 WHERE id IN (SELECT id FROM t); DROP TABLE x', '', '   ', 'EXPLAIN SELECT 1', 'ALTER USER root IDENTIFIED BY "x"', 'DELETE'];
 $bad = []; foreach ($prohibidas as $q) { if (allowed($q)) $bad[] = $q; }
 check($bad === [], 'el guardia rechaza las ' . count($prohibidas) . ' sentencias de destrucción, DDL, privilegios, archivos, comentarios, varias sentencias, JOIN, INSERT…SELECT y tablas ajenas' . ($bad ? ' · ' . implode(' | ', $bad) : ''));
-check(ADMIN_WRITE_TABLES === ['user', 'empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte', 'audit_log'], 'la lista cerrada de tablas escribibles son exactamente las 6 de negocio y audit_log');
+check(ADMIN_WRITE_TABLES === ['user', 'v_user_alta', 'empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte', 'audit_log'], 'la lista cerrada de tablas escribibles son las 6 de negocio, la vista de alta v_user_alta y audit_log');
 
 // ---------------------------------------------------------------- privilegios de la cuenta de escritura
 $db = 'cervesur_portalbi'; $u = "`cervesur_admin_w`@`127.0.0.1`";
@@ -99,8 +99,8 @@ $buenos = ["GRANT USAGE ON *.* TO $u", "GRANT SELECT (`id`, `nombre`, `activo`) 
 check(admin_write_grants_violations($buenos, $db, ['usuarios' => true, 'sensible' => true]) === [], 'privilegios mínimos válidos: SELECT/INSERT/UPDATE por columnas y audit_log solo SELECT+INSERT');
 // UX-08I · privilegios de `user` cruzados con los interruptores del servidor
 $f2a = ["GRANT SELECT (`id`, `role`) ON `$db`.`user` TO $u", "GRANT UPDATE (`last_login`) ON `$db`.`user` TO $u"];
-$noSens = ["GRANT SELECT (`id`) ON `$db`.`user` TO $u", "GRANT INSERT (`username`, `email`, `first_name`, `last_name`, `phone`, `password`, `role`, `is_active`, `session_version`, `created_at`, `updated_at`) ON `$db`.`user` TO $u",
-    "GRANT UPDATE (`first_name`, `last_name`, `phone`, `email`, `is_active`, `session_version`, `updated_at`, `last_login`) ON `$db`.`user` TO $u"];
+$noSens = ["GRANT SELECT (`id`) ON `$db`.`user` TO $u", "GRANT INSERT ON `$db`.`v_user_alta` TO $u",
+    "GRANT UPDATE (`first_name`, `last_name`, `phone`, `is_active`, `session_version`, `updated_at`, `last_login`) ON `$db`.`user` TO $u"];
 $sens = ["GRANT UPDATE (`role`, `password`) ON `$db`.`user` TO $u"];
 $off = ['usuarios' => false, 'sensible' => false]; $on = ['usuarios' => true, 'sensible' => false]; $all = ['usuarios' => true, 'sensible' => true];
 check(admin_write_grants_violations($f2a, $db, $off) === [], 'UX-08I: la cuenta de la fase 2A (solo UPDATE(last_login)) es válida con todo apagado');
@@ -162,7 +162,7 @@ putenv('ADMIN_WRITES_USUARIOS=1'); putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=0');
 check(admin_users_locked() === false && admin_write_capability_on('usuarios') === true && admin_write_capability_on('usuarios_sensible') === false, 'UX-08I: ADMIN_WRITES_USUARIOS=1 abre solo lo no sensible');
 check(gate('POST', '/api/register') === null && gate('PUT', '/api/users/3') === null && gate('POST', '/api/users/3/deactivate') === null && gate('POST', '/api/users/3/reactivate') === null, 'UX-08I: alta, edición, baja y reactivación pasan la puerta');
 check(gate('PUT', '/api/user/3/role')['code'] === 'escritura_desactivada' && gate('PUT', '/api/users/3/password')['code'] === 'escritura_desactivada', 'UX-08I: rol y contraseña siguen cerrados (interruptor aparte)');
-$alta = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, 'user', 1, 1, NOW(), NOW())";
+$alta = "INSERT INTO v_user_alta (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, 'user', 1, 1, NOW(), NOW())";
 check($guardia($alta) && $guardia('UPDATE user SET is_active = ?, session_version = session_version + 1, updated_at = NOW() WHERE id = ?') && $guardia('UPDATE user SET `first_name` = :first_name, updated_at = NOW() WHERE id = :id'), 'UX-08I: el guardia admite alta y cambios no sensibles de user');
 check(!$guardia('INSERT INTO user (username) VALUES (?)') && !$guardia(str_replace("'user'", "'admin'", $alta)) && !$guardia(str_replace("'user'", ':role', $alta)) && !$guardia(str_replace("'user'", "'Admin'", $alta)) && !$guardia(str_replace(', 1, 1, NOW()', ', 0, 9, NOW()', $alta)) && !$guardia(str_replace('(first_name,', '(id, first_name,', $alta)) && !$guardia($alta . ' ON DUPLICATE KEY UPDATE role = 1') && $guardia(str_replace("'user'", "'usuario'", $alta)), 'UX-08I (condición P4): el guardia exige la forma EXACTA del alta: rol = literal user/usuario (no admin, no parámetro, no otra capitalización), activo = 1, session_version = 1, sin id ni ON DUPLICATE');
 check(!$guardia('UPDATE user SET role = ? WHERE id = ?') && !$guardia('UPDATE user SET password = ?, session_version = session_version + 1 WHERE id = ?') && !$guardia('UPDATE user SET `role` = :r, session_version = session_version + 1 WHERE id = :id') && !$guardia('UPDATE user SET is_active = 1, password=? WHERE id = ?'), 'UX-08I: el guardia rechaza role/password sin el interruptor sensible (con espacios, comillas y combinados)');

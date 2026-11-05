@@ -1,0 +1,8 @@
+-- UX-08I · P4a · Reversión de la vista de ALTA de usuarios. PLANTILLA. Marcadores: {DB} {VISTA}.
+-- ORDEN OBLIGATORIO: primero se revoca el INSERT de la cuenta de React sobre la vista (UX-08I-usuarios-no-sensibles.down); MySQL NO borra los privilegios de una tabla/vista al eliminarla,
+-- y un privilegio huérfano reviviría si la vista se volviera a crear. scripts/privilegios-usuarios.sh ejecuta ambas plantillas en ese orden.
+-- No toca datos de `user`. Eliminar la cuenta DEFINER quita también sus privilegios.
+
+DROP VIEW IF EXISTS `{DB}`.`v_user_alta`;
+
+DROP USER IF EXISTS '{VISTA}'@'localhost';

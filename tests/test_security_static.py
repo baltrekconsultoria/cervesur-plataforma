@@ -1083,7 +1083,22 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
             self.assertNotRegex(text, r"(?is)ON \*\.\*")  # nada global
             self.assertNotRegex(text, r"(?is)GRANT\s+SELECT")  # no amplían lecturas: password nunca se lee
         self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b")
-        self.assertRegex(no_sens_up, r"(?is)GRANT\s+INSERT\s*\([^)]*\bpassword\b[^)]*\)\s*ON `\{DB\}`\.`user`")
+        # UX-08I (alta por vista): el INSERT es SOLO sobre la vista v_user_alta; sobre la tabla `user` no hay INSERT, y `email` no es escribible
+        self.assertRegex(no_sens_up, r"(?is)GRANT\s+INSERT\s+ON `\{DB\}`\.`v_user_alta`")
+        self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+INSERT[^;]*ON `\{DB\}`\.`user`")
+        self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+UPDATE\s*\([^)]*\bemail\b")
+        vista = grants("UX-08I-alta-usuarios-vista.up.sql.template")
+        self.assertRegex(vista, r"(?is)WITH CHECK OPTION")
+        self.assertRegex(vista, r"(?is)role IN \('user', 'usuario'\)")
+        self.assertNotRegex(vista, r"(?is)\bid\b\s*,|avatar|last_login")  # no expone id, avatar ni last_login
+        self.assertRegex(grants("UX-08I-alta-usuarios-vista.down.sql.template"), r"(?is)DROP VIEW IF EXISTS `\{DB\}`\.`v_user_alta`")
+        # identidad DEFINER administrada y mínima: cuenta dedicada, bloqueada, clave aleatoria (ninguna escrita), solo SELECT/INSERT por columnas sobre user; la reversión la elimina
+        self.assertRegex(vista, r"(?is)CREATE USER IF NOT EXISTS '\{VISTA\}'@'localhost' IDENTIFIED BY RANDOM PASSWORD ACCOUNT LOCK")
+        self.assertNotRegex(vista, r"(?is)IDENTIFIED BY\s+'")
+        self.assertRegex(vista, r"(?is)DEFINER = '\{VISTA\}'@'localhost' SQL SECURITY DEFINER VIEW")
+        self.assertEqual(sorted(re.findall(r"(?is)GRANT\s+(\w+)\s*\(", vista)), ["INSERT", "SELECT"])
+        self.assertNotRegex(vista.split("CREATE OR REPLACE")[0], r"(?is)\b(UPDATE|DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|EXECUTE)\b")
+        self.assertRegex(grants("UX-08I-alta-usuarios-vista.down.sql.template"), r"(?is)DROP USER IF EXISTS '\{VISTA\}'@'localhost'")
         self.assertRegex(re.sub(r"\s+", " ", sens_up).strip(), r"^GRANT UPDATE \(role, password\) ON `\{DB\}`\.`user` TO '\{USER\}'@'\{HOST\}';$")
         self.assertRegex(no_sens_down, r"(?is)REVOKE\s+INSERT")
         self.assertRegex(re.sub(r"\s+", " ", sens_down).strip(), r"^REVOKE UPDATE \(role, password\) ON `\{DB\}`\.`user` FROM '\{USER\}'@'\{HOST\}';$")
@@ -1132,7 +1147,9 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
         priv = source("deploy/produccion-escritura/scripts/privilegios-usuarios.sh")
         self.assertIn("gzip -t", priv)
         self.assertIn("--confirmo-autorizacion", priv)
-        self.assertNotRegex(priv, r"(?i)CREATE USER|DROP USER|IDENTIFIED BY")
+        # el script no contiene sentencias de cuentas: las crea/elimina la PLANTILLA de la vista (cuenta DEFINER bloqueada, sin clave escrita); aqui solo se admiten menciones en comentarios
+        code = chr(10).join(l for l in priv.splitlines() if not l.lstrip().startswith(chr(35)))
+        self.assertNotRegex(code, r"(?i)(CREATE|DROP) USER (IF|')|IDENTIFIED BY")
 
     def test_phase_2b_user_insert_form_is_pinned_so_the_role_cannot_be_chosen_by_a_request(self):
         reg = source("backend/controllers/RegisterController.php")

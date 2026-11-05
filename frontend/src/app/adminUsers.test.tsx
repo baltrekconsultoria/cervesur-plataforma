@@ -128,6 +128,29 @@ describe('UX-08B.3 · Usuarios', () => {
     await waitFor(() => expect(document.body.textContent).toContain('maria.nueva@ejemplo.test'));
   });
 
+  it('UX-08I · con el correo de solo lectura (modo admin_escritura) el campo no se edita, no se valida y el resto sí se guarda', async () => {
+    const t = await setup();
+    (t.mock.capabilities as { emailReadOnly?: boolean }).emailReadOnly = true;
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Editar María Ríos' })).toBeInTheDocument());
+    const antes = (await t.mock.getUserDetail('usr-1')).email;
+    await t.user.click(screen.getByRole('button', { name: 'Editar María Ríos' }));
+    const dialog = await t.dialog();
+    const email = await within(dialog).findByLabelText(/^Correo/);
+    expect(email).toHaveValue(antes);
+    expect(email).toHaveAttribute('readonly');
+    expect(within(dialog).getByText(/no se puede cambiar desde este panel/)).toBeVisible();
+    await t.user.type(email, 'x'); // un campo de solo lectura ignora la escritura
+    expect(email).toHaveValue(antes);
+    const phone = within(dialog).getByLabelText('Teléfono');
+    await t.user.clear(phone);
+    await t.user.type(phone, '999 111 222');
+    await t.user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Usuario «María Ríos» actualizado correctamente.'));
+    const despues = await t.mock.getUserDetail('usr-1');
+    expect(despues.email).toBe(antes);
+    expect(despues.phone).toBe('999 111 222');
+  });
+
   it('«Accesos» lista empresas e informes con su efectividad y el motivo cuando no surten efecto', async () => {
     const t = await setup();
     await t.user.selectOptions(screen.getByLabelText('Estado'), 'inactive');

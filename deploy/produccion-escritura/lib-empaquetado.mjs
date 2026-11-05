@@ -121,6 +121,8 @@ export function validarEstructura(root) {
 // UX-08I · Fase 2B: plantillas ADITIVAS de privilegios de Usuarios en fase2b/repo/ (con su SHA256SUMS). La plantilla de la fase 2A sigue en migraciones/repo/ y NO cambia.
 export const FASE2B_REPO = 'fase2b/repo';
 export const FASE2B_ORIGENES = [
+  'privileges/UX-08I-alta-usuarios-vista.up.sql.template',
+  'privileges/UX-08I-alta-usuarios-vista.down.sql.template',
   'privileges/UX-08I-usuarios-no-sensibles.up.sql.template',
   'privileges/UX-08I-usuarios-no-sensibles.down.sql.template',
   'privileges/UX-08I-usuarios-sensibles.up.sql.template',
@@ -165,6 +167,19 @@ export function validarFase2b(root) {
   const noSens = sinComentarios('UX-08I-usuarios-no-sensibles.up.sql.template');
   const sensText = sinComentarios('UX-08I-usuarios-sensibles.up.sql.template');
   if (/GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b[^)]*\)/i.test(noSens)) p.push('la plantilla «no sensibles» concede UPDATE de role o password');
+  // UX-08I (P4a): el alta es SOLO por la vista; la cuenta de React no conserva INSERT sobre `user` ni UPDATE(email)
+  if (/GRANT\s+INSERT[^;]*ON\s+`\{DB\}`\.`user`/i.test(noSens)) p.push('la plantilla «no sensibles» concede INSERT sobre user: el alta debe ser solo por v_user_alta');
+  if (/GRANT\s+UPDATE\s*\([^)]*\bemail\b[^)]*\)/i.test(noSens + sensText)) p.push('una plantilla 2B concede UPDATE(email) a la cuenta de React');
+  if (!/GRANT\s+INSERT\s+ON\s+`\{DB\}`\.`v_user_alta`\s+TO\s+'\{USER\}'@'\{HOST\}'/i.test(noSens)) p.push('la plantilla «no sensibles» debe conceder INSERT sobre v_user_alta');
+  const vistaUp = sinComentarios('UX-08I-alta-usuarios-vista.up.sql.template');
+  const vistaDown = sinComentarios('UX-08I-alta-usuarios-vista.down.sql.template');
+  if (!/WITH CHECK OPTION/i.test(vistaUp)) p.push('la vista de alta no tiene WITH CHECK OPTION');
+  if (!/role IN \('user', 'usuario'\)/i.test(vistaUp)) p.push('la vista de alta no acota el rol a user/usuario');
+  if (!/DEFINER = '\{VISTA\}'@'localhost' SQL SECURITY DEFINER VIEW/i.test(vistaUp)) p.push('la vista de alta debe usar la cuenta DEFINER dedicada {VISTA}@localhost con SQL SECURITY DEFINER');
+  if (!/CREATE USER IF NOT EXISTS '\{VISTA\}'@'localhost' IDENTIFIED BY RANDOM PASSWORD ACCOUNT LOCK/i.test(vistaUp) || /IDENTIFIED BY\s+'/i.test(vistaUp)) p.push('la cuenta DEFINER debe crearse bloqueada, con clave aleatoria y sin ninguna clave escrita en la plantilla');
+  if (/\b(UPDATE|DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|EXECUTE|SUPER)\b/i.test(vistaUp.replace(/CREATE OR REPLACE[\s\S]*$/i, ''))) p.push('la cuenta DEFINER recibe privilegios de más (solo SELECT e INSERT por columnas sobre user)');
+  if (/\bid\b\s*,|avatar|last_login/i.test(vistaUp.replace(/^[\s\S]*VIEW/i, ''))) p.push('la vista de alta expone id, avatar o last_login');
+  if (!/DROP VIEW IF EXISTS `\{DB\}`\.`v_user_alta`/i.test(vistaDown) || !/DROP USER IF EXISTS '\{VISTA\}'@'localhost'/i.test(vistaDown)) p.push('la reversión de la vista debe eliminar la vista y la cuenta DEFINER');
   if (/\b(DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|DROP|ALTER|CREATE)\b/i.test(noSens + sensText)) p.push('una plantilla 2B contiene un privilegio o sentencia prohibidos');
   if (/IDENTIFIED BY/i.test(noSens + sensText)) p.push('las plantillas 2B no deben crear cuentas ni contraseñas');
   if (!/^GRANT UPDATE \(role, password\) ON `\{DB\}`\.`user` TO '\{USER\}'@'\{HOST\}';$/.test(sensText.replace(/\s+/g, ' ').trim())) p.push('la plantilla «sensibles» debe conceder únicamente UPDATE(role, password) sobre user');

@@ -13,7 +13,7 @@
  */
 
 /** Tablas de negocio en las que la cuenta de escritura puede INSERT/UPDATE (audit_log: solo INSERT). */
-const ADMIN_WRITE_TABLES = ['user', 'empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte', 'audit_log'];
+const ADMIN_WRITE_TABLES = ['user', 'v_user_alta', 'empresa', 'reporte', 'empresa_usuario', 'empresa_reporte', 'user_empresa_reporte', 'audit_log'];
 const ADMIN_WRITE_CAPABILITIES = ['empresas', 'reportes', 'accesos', 'usuarios'];
 /**
  * Fase 2B · usuarios compartidos con Flutter. `usuarios_sensible` (cambio de ROL y de CONTRASEÑA) es un interruptor APARTE y exige también `usuarios`:
@@ -177,6 +177,7 @@ function admin_write_grants_violations(array $grants, $db, $flags = null, $toler
         if (($parts[0] ?? '') !== $db) { $violations[] = 'otra base: ' . $parts[0]; continue; }
         $allowed = ['SELECT', 'INSERT', 'UPDATE', 'USAGE'];
         if (($parts[1] ?? '') === 'audit_log') { $allowed = ['SELECT', 'INSERT', 'USAGE']; }
+        if (($parts[1] ?? '') === 'v_user_alta') { $allowed = ['INSERT', 'USAGE']; } // la vista de alta: solo INSERT
         foreach ($privileges as $p) { if (!in_array($p, $allowed, true)) { $violations[] = $p . (($parts[1] ?? '*') === '*' ? '' : '@' . $parts[1]); } }
         if ($flags !== false && (($parts[1] ?? '') === 'user' || ($parts[1] ?? '*') === '*')) {
             foreach (admin_grant_columns($m[1]) as $priv => $columns) {
@@ -184,9 +185,9 @@ function admin_write_grants_violations(array $grants, $db, $flags = null, $toler
                 if (($parts[1] ?? '*') === '*') { $violations[] = "$priv@*(incluye user)"; continue; }
                 if ($columns === null) { $violations[] = "$priv@user:tabla completa"; continue; }
                 if ($priv === 'UPDATE' && $columns === ['last_login']) { continue; }
-                $previstas = $priv === 'INSERT'
-                    ? ['username', 'email', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active', 'session_version', 'created_at', 'updated_at']
-                    : ['first_name', 'last_name', 'phone', 'email', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'];
+                if ($priv === 'INSERT') { $violations[] = 'INSERT@user:el alta es solo por v_user_alta'; continue; }
+                // `email` NO es escribible por la cuenta de React (UX-08I): cambiarlo podría facilitar la recuperación de una cuenta ajena en Flutter
+                $previstas = ['first_name', 'last_name', 'phone', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'];
                 if (array_diff($columns, $previstas)) { $violations[] = "$priv@user:columnas no previstas"; continue; }
                 // Escalonado (UX-08I, ensayo P4a): las plantillas se aplican ANTES de encender el interruptor. Con el interruptor apagado esas concesiones no cambian lo que se puede hacer
                 // (la puerta de rutas y el guardia de SQL siguen cerrados), así que no deben tumbar Empresas, Informes ni Accesos con un 503.
@@ -257,9 +258,10 @@ function app_sql_write_guard($sql) {
     }
     if (preg_match('/^INSERT INTO `?([a-z_]+)`?[ (]/i', $n, $m)) {
         if (!in_array(strtolower($m[1]), ADMIN_WRITE_TABLES, true)) { $reject('tabla no permitida para INSERT: ' . $m[1]); }
-        if (strtolower($m[1]) === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
-        // El motor no puede acotar el VALOR de `role`, así que el guardia exige la forma EXACTA del alta (rol = literal «user»/«usuario», activo = 1, session_version = 1, sin id).
-        if (strtolower($m[1]) === 'user' && !preg_match('/^INSERT INTO `?user`? \(first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at\) VALUES \(:first_name, :last_name, :username, :email, :phone, :password, \'(user|usuario)\', 1, 1, NOW\(\), NOW\(\)\)$/', $n)) { $reject('INSERT en `user` con una forma distinta del alta autorizada (el rol debe ser el literal fijo «user»)'); }
+        if (in_array(strtolower($m[1]), ['user', 'v_user_alta'], true) && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
+        if (strtolower($m[1]) === 'user') { $reject('el alta de usuarios se escribe SOLO por la vista v_user_alta (el motor acota el rol)'); }
+        // Defensa en profundidad: además del WITH CHECK OPTION de la vista, el guardia exige la forma EXACTA del alta (rol = literal «user»/«usuario», activo = 1, session_version = 1, sin id).
+        if (strtolower($m[1]) === 'v_user_alta' && !preg_match('/^INSERT INTO `?v_user_alta`? \(first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at\) VALUES \(:first_name, :last_name, :username, :email, :phone, :password, \'(user|usuario)\', 1, 1, NOW\(\), NOW\(\)\)$/', $n)) { $reject('INSERT en `user` con una forma distinta del alta autorizada (el rol debe ser el literal fijo «user»)'); }
         if (preg_match('/\bon\s+duplicate\b|\bselect\b/i', $n)) { $reject('INSERT ... SELECT / ON DUPLICATE no permitidos'); }
         return;
     }

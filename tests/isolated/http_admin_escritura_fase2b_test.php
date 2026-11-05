@@ -65,6 +65,10 @@ expectCase(($d['data']['writes']['usuarios'] ?? null) === true && ($d['data']['u
 echo "== Privilegios reales de la cuenta (plantillas aditivas)\n";
 $w = new PDO('mysql:host=db;dbname=fixture_aw;charset=utf8mb4', $acct, getenv('W_WRITE2A_PASS'), $opts);
 $den = function ($sql) use ($w) { try { $q = $w->query($sql); if ($q->columnCount() > 0) { $q->fetchAll(); } return false; } catch (PDOException $e) { return true; } };
+expectCase($den("UPDATE user SET email = 'x@example.invalid' WHERE id = 0") && $den("INSERT INTO user (username, role, is_active, session_version) VALUES ('directo', 'user', 1, 1)"), 'UX-08I: el motor niega UPDATE(email) y el INSERT DIRECTO en user (el alta solo existe por la vista v_user_alta)');
+$viaVista = function ($rol) use ($w) { try { $w->exec("INSERT INTO v_user_alta (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at) VALUES ('vista_$rol', 'vista_$rol@example.invalid', 'a', 'b', NULL, 'h', '$rol', 1, 1, NOW(), NOW())"); return true; } catch (PDOException $e) { return false; } };
+expectCase($viaVista('admin') === false && (int)one($root, "SELECT COUNT(*) FROM user WHERE username = 'vista_admin'") === 0, 'UX-08I: con las credenciales de la cuenta, un alta con role «admin» por la vista la rechaza el MOTOR (CHECK OPTION): la brecha de la base queda cerrada');
+$root->exec("DELETE FROM user WHERE username LIKE 'vista_%' OR username = 'directo'");
 expectCase($den("UPDATE user SET username = 'x' WHERE id = 2") && $den('DELETE FROM user WHERE id = 2') && $den('DELETE FROM audit_log') && $den("UPDATE audit_log SET action = 'x'") && $den('DELETE FROM empresa WHERE id = 1'), 'sin UPDATE de username, sin DELETE de user/audit_log/empresa, sin UPDATE de audit_log');
 if ($role === 'nosens') {
     expectCase($den("UPDATE user SET role = 'admin' WHERE id = 2") && $den("UPDATE user SET password = 'x' WHERE id = 2"), 'cuenta NO sensible: el motor niega UPDATE de role y de password');
@@ -105,8 +109,11 @@ expectCase($s === 409 && one($root, 'SELECT phone FROM user WHERE id = ?', [$uid
 [, $d] = api('GET', "/api/users/$uid", $t); $v2 = $d['data']['version'];
 [$s, $d] = api('PUT', "/api/users/$uid", $t, ['phone' => '555-0111', 'version' => $v2]);
 expectCase($s === 200 && audits($root, $uid, 'user.update') === 1, 'edición sin cambios reales: éxito sin escribir ni auditar');
-[$s] = api('PUT', '/api/users/2', $t, ['email' => 'nuevo2b@example.invalid']);
-expectCase($s === 409, 'email duplicado: 409');
+[$s, $dm] = api('PUT', '/api/users/2', $t, ['email' => 'nuevo2b@example.invalid']);
+expectCase($s === 400 && str_contains((string)($dm['message'] ?? ''), 'correo no se puede modificar') && one($root, 'SELECT email FROM user WHERE id = 2') === 'usera@example.invalid', 'UX-08I: cambiar el correo desde el panel se RECHAZA (400) y el correo no cambia (la cuenta de React no tiene UPDATE(email))');
+$root2 = (string)one($root, 'SELECT email FROM user WHERE id = 2');
+[$s] = api('PUT', '/api/users/2', $t, ['email' => strtoupper($root2), 'phone' => '555-0001']);
+expectCase($s === 200, 'enviar el MISMO correo (otra capitalización) no es un cambio: se ignora y el resto se guarda');
 [$s] = api('PUT', '/api/users/99999', $t, ['phone' => '1']);
 expectCase($s === 404, 'usuario inexistente: 404');
 

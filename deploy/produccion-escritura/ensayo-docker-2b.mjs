@@ -455,26 +455,41 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   const prFase = () => run(`bash ${PK2}/scripts/privilegios-usuarios.sh --etapa fase2a --verificar`, CE);
   ok('estado inicial de la cuenta: fase2a (verificación PASS)', prFase().code === 0);
   const prSim = PR('--simular');
-  ok('--simular: código 0, muestra las 2 sentencias exactas, sin claves, y NO escribe nada', prSim.code === 0 && /GRANT INSERT/.test(prSim.out) && /GRANT UPDATE/.test(prSim.out) && !prSim.out.includes(PASSW) && grantsOf() === BASE.grants, prSim.out.slice(-500));
+  const vistaN = () => sqlN(`SELECT COUNT(*) FROM information_schema.VIEWS WHERE TABLE_SCHEMA='${DB}' AND TABLE_NAME='v_user_alta'`);
+  const definerN = () => sqlN(`SELECT COUNT(*) FROM mysql.user WHERE User='cervesur_vista_alta'`);
+  ok('--simular: código 0, muestra las 6 sentencias exactas (cuenta DEFINER bloqueada, vista con WITH CHECK OPTION, INSERT solo sobre la vista, UPDATE sin email/role/password), sin claves, y NO escribe nada (sin vista ni DEFINER)', prSim.code === 0 && /CREATE USER IF NOT EXISTS 'cervesur_vista_alta'@'localhost' IDENTIFIED BY RANDOM PASSWORD ACCOUNT LOCK/.test(prSim.out) && /WITH CHECK OPTION/.test(prSim.out) && /GRANT INSERT ON `cervesur_portalbi`\.`v_user_alta`/.test(prSim.out) && /GRANT UPDATE/.test(prSim.out) && !/UPDATE \([^)]*email/.test(prSim.out) && !prSim.out.includes(PASSW) && grantsOf() === BASE.grants && vistaN() === 0 && definerN() === 0, prSim.out.slice(-800));
   const prNo = PR('--aplicar');
   ok('--aplicar sin respaldo ni autorización: bloqueado (10), cuenta intacta', prNo.code === 10 && grantsOf() === BASE.grants, prNo.out.slice(-300));
   const enNoPriv = run(`bash ${PK2}/scripts/interruptor-usuarios.sh encender --autorizacion "${AUT}"`, { ...CE, CERVESUR_CONFIRMAR_USUARIOS: 'SI' });
   ok('ORDEN SEGURO: encender Usuarios SIN privilegios aplicados se NIEGA (verifica la etapa de privilegios antes de tocar el .env)', enNoPriv.code !== 0 && /privilegios de la cuenta NO están/.test(enNoPriv.out) && envSha() === BASE.env, enNoPriv.out.slice(-400));
   // fallo parcial inyectado en el aplicar
   const prInj = PR(`--aplicar --respaldo /root/resp.sql.gz --confirmo-autorizacion "${AUT}"`, { CERVESUR_INYECTAR_FALLO: 'privilegios' });
-  ok('FALLO PARCIAL inyectado (GRANT INSERT concedido, GRANT UPDATE falla): salida 20, el script lo informa y DESHACE; la cuenta vuelve a la Fase 2A exacta', prInj.code === 20 && /PARCIAL/.test(prInj.out) && grantsOf() === BASE.grants, prInj.out.slice(-500));
+  ok('FALLO PARCIAL inyectado (cuenta DEFINER, vista y GRANT INSERT sobre la vista creados; GRANT UPDATE falla): salida 20, el script lo informa y DESHACE todo; la cuenta vuelve a la Fase 2A exacta y no quedan vista ni DEFINER', prInj.code === 20 && /PARCIAL/.test(prInj.out) && grantsOf() === BASE.grants && vistaN() === 0 && definerN() === 0, prInj.out.slice(-500));
   ok('…y durante el fallo el backend no se interrumpió: login y una escritura de Empresas funcionan', status('POST', '/api/empresas', adminTok(), JSON.stringify({ nombre: 'Durante fallo', razon_social: 'Durante fallo SAC', ruc: '20999999941', ciudad: 'X', pais: 'Y' })) === 200);
   // estado parcial persistente (la reversión automática también falla): se identifica y se recupera con --revertir
-  sql(`GRANT INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at) ON ${DB}.user TO '${CUENTA}'@'127.0.0.1'`);
+  // (se reproduce lo que dejaría un corte a mitad de la etapa: DEFINER + vista + INSERT sobre la vista, sin los UPDATE)
+  dx(`grep -vE '^[[:space:]]*--' ${PK2}/fase2b/repo/UX-08I-alta-usuarios-vista.up.sql.template | sed -e "s/{DB}/${DB}/g" -e "s/{VISTA}/cervesur_vista_alta/g" | mysql >/dev/null`);
+  sql(`GRANT INSERT ON ${DB}.v_user_alta TO '${CUENTA}'@'127.0.0.1'`);
   const vPar = run(`bash ${PK2}/scripts/privilegios-usuarios.sh --etapa fase2a --verificar`, CE);
-  ok('ESTADO PARCIAL persistente (solo el INSERT): --verificar fase2a FALLA (30) e identifica el estado «otro»', vPar.code === 30 && /otro/.test(vPar.out), vPar.out.slice(-300));
+  ok('ESTADO PARCIAL persistente (DEFINER, vista e INSERT sobre la vista): --verificar fase2a FALLA (30) e identifica el estado «otro»', vPar.code === 30 && /otro/.test(vPar.out) && vistaN() === 1 && definerN() === 1, vPar.out.slice(-300));
   const pingPar = callRaw('GET', '/api/ping');
   const tPar = adminTok();
   ok('con el estado parcial el backend SIGUE sirviendo (sin 503) y Usuarios sigue bloqueado por la ruta (la capacidad efectiva no cambió)', pingPar.status === 200 && /^[0-9a-f]{64}$/.test(tPar) && codeOf(callRaw('POST', '/api/register', tPar, '{}')) === 'fase_2b_bloqueada', `${pingPar.status}`);
   const apPar = PR(`--aplicar --respaldo /root/resp.sql.gz --confirmo-autorizacion "${AUT}"`);
   ok('--aplicar sobre un estado parcial se NIEGA (10): primero se recupera', apPar.code === 10 && /fase2a/.test(apPar.out), apPar.out.slice(-300));
   const recPar = PR(`--revertir --confirmo-autorizacion "${AUT}"`);
-  ok('RECUPERACIÓN: --revertir sobre el estado parcial lo deja EXACTAMENTE en la Fase 2A (los REVOKE de lo no concedido se toleran, nada más)', recPar.code === 0 && grantsOf() === BASE.grants && prFase().code === 0, recPar.out.slice(-500));
+  ok('RECUPERACIÓN: --revertir sobre el estado parcial lo deja EXACTAMENTE en la Fase 2A (los REVOKE de lo no concedido se toleran, se elimina la vista y la cuenta DEFINER; nada más)', recPar.code === 0 && grantsOf() === BASE.grants && prFase().code === 0 && vistaN() === 0 && definerN() === 0 && sqlN(`SELECT COUNT(*) FROM mysql.tables_priv WHERE Db='${DB}' AND Table_name='v_user_alta'`) === 0, recPar.out.slice(-500));
+  // INSERT DIRECTO sobre user (la forma del RC anterior): NO es una transición legítima → el backend se niega a servir y el kit no lo revierte solo
+  sql(`GRANT INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at) ON ${DB}.user TO '${CUENTA}'@'127.0.0.1'`);
+  const pingIns = callRaw('GET', '/api/ping'); const prIns = PR('--simular'); const rvIns = PR(`--revertir --confirmo-autorizacion "${AUT}"`);
+  ok('INSERT DIRECTO sobre user (el alta debe ser solo por la vista): el backend SE NIEGA a servir (503), el kit bloquea la etapa (10) y se niega a revertirlo como si fuera un estado de la etapa (10)', pingIns.status === 503 && prIns.code === 10 && /INSERT@user/.test(prIns.out) && rvIns.code === 10, `${pingIns.status} ${prIns.code} ${rvIns.code}`);
+  sql(`REVOKE INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at) ON ${DB}.user FROM '${CUENTA}'@'127.0.0.1'`);
+  ok('…y al retirarlo el backend vuelve a servir y la cuenta es la de la Fase 2A', callRaw('GET', '/api/ping').status === 200 && grantsOf() === BASE.grants);
+  // UPDATE(email) concedido a mano: tampoco es una transición legítima
+  sql(`GRANT UPDATE (email) ON ${DB}.user TO '${CUENTA}'@'127.0.0.1'`);
+  ok('UPDATE(email) concedido a mano: el backend SE NIEGA a servir (503) y el kit bloquea (10)', callRaw('GET', '/api/ping').status === 503 && PR('--simular').code === 10);
+  sql(`REVOKE UPDATE (email) ON ${DB}.user FROM '${CUENTA}'@'127.0.0.1'`);
+  ok('…y al retirarlo todo vuelve a la Fase 2A', callRaw('GET', '/api/ping').status === 200 && grantsOf() === BASE.grants && prFase().code === 0);
   // columnas ajenas = fatal (no es una transición)
   sql(`GRANT UPDATE (username) ON ${DB}.user TO '${CUENTA}'@'127.0.0.1'`);
   const ping503 = callRaw('GET', '/api/ping');
@@ -485,7 +500,9 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   // aplicación real
   const userAntes = tablesSum(['user']); const bizAntes = bizSum(); const audAntes = auditN(); const relP4 = apacheReloads();
   const prReal = PR(`--aplicar --respaldo /root/resp.sql.gz --confirmo-autorizacion "${AUT}"`);
-  ok('--aplicar no-sensibles: salida 0, verificación posterior PASS, evidencia en carpeta 700', prReal.code === 0 && /RESULTADO-PRIVILEGIOS: PASS aplicar no-sensibles/.test(prReal.out) && dx(`d=$(ls -1d ${RESP}/privilegios-no-sensibles-aplicar-* | tail -1); [ "$(stat -c %a $d)" = 700 ] && [ -s $d/grants-antes.txt ] && [ -s $d/grants-despues.txt ]`).code === 0, prReal.out.slice(-600));
+  ok('--aplicar no-sensibles: salida 0, verificación posterior PASS, evidencia en carpeta 700', prReal.code === 0 && /RESULTADO-PRIVILEGIOS: PASS aplicar no-sensibles/.test(prReal.out) && dx(`d=$(ls -1d ${RESP}/privilegios-no-sensibles-aplicar-* | tail -1); [ "$(stat -c %a $d)" = 700 ] && [ -s $d/grants-antes.txt ] && [ -s $d/grants-despues.txt ] && [ -s $d/vista-despues.txt ] && ! grep -rqiE 'generated password|[A-Za-z0-9]{20}' $d/salida.txt`).code === 0 && vistaN() === 1 && definerN() === 1, prReal.out.slice(-600));
+  ok('la vista de alta quedó vigente: insertable, WITH CHECK OPTION, SQL SECURITY DEFINER con la cuenta dedicada; la cuenta DEFINER está BLOQUEADA y solo tiene SELECT/INSERT por columnas sobre user', sql(`SELECT CONCAT_WS('|', CHECK_OPTION, IS_UPDATABLE, SECURITY_TYPE, DEFINER) FROM information_schema.VIEWS WHERE TABLE_SCHEMA='${DB}' AND TABLE_NAME='v_user_alta'`) === 'CASCADED|YES|DEFINER|cervesur_vista_alta@localhost' && sql(`SELECT account_locked FROM mysql.user WHERE User='cervesur_vista_alta'`) === 'Y' && !/\b(UPDATE|DELETE|ALL PRIVILEGES|GRANT OPTION)\b/.test(sql(`SHOW GRANTS FOR 'cervesur_vista_alta'@'localhost'`)));
+  ok('la clave aleatoria de la cuenta DEFINER no quedó en ningún archivo de evidencia ni en la salida del script', !run(`grep -rIl 'generated password' ${RESP}/privilegios-* 2>/dev/null | wc -l`).out.trim().replace(/^0$/, '') && !prReal.out.includes('generated'));
   const pPost = callRaw('GET', '/api/ping');
   ok('P4a → NO HAY 503: inmediatamente después de conceder los permisos, con ADMIN_WRITES_USUARIOS ausente, el backend responde (200) y el administrador inicia sesión', pPost.status === 200 && /^[0-9a-f]{64}$/.test(adminTok()), `${pPost.status}`);
   const cP = capsNow();
@@ -495,6 +512,21 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   otros('Tras P4a', false);
   const acct = (q) => dx(`mysql -h127.0.0.1 -u${CUENTA} -p'${PASSW}' ${DB} -N -B -e "${q}" 2>&1`).out;
   ok('privilegios REALES del motor: la cuenta NO puede UPDATE de role ni de password, ni leer password, ni DELETE en user; sí puede escribir columnas no sensibles (probado con filas inexistentes)', /denied/i.test(acct("UPDATE user SET role='admin' WHERE id=0")) && /denied/i.test(acct("UPDATE user SET password='x' WHERE id=0")) && /denied/i.test(acct('SELECT password FROM user LIMIT 1')) && /denied/i.test(acct('DELETE FROM user WHERE id=0')) && !/denied/i.test(acct("UPDATE user SET first_name='x' WHERE id=0")));
+  const colsV = 'first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at';
+  const insV = (rol, user) => `INSERT INTO v_user_alta (${colsV}) VALUES ('a', 'b', '${user}', '${user}@example.invalid', NULL, 'hash-ficticio', '${rol}', 1, 1, NOW(), NOW())`;
+  const nUser = () => sqlN(`SELECT COUNT(*) FROM ${DB}.user`);
+  const u0 = nUser();
+  ok('ESCALAMIENTO (SQL directo con la cuenta de React): el alta con role «admin» por la vista la rechaza el MOTOR (CHECK OPTION); los roles «superadmin» y el vacío también; no se crea ninguna fila', ['admin', 'superadmin', ''].every(r => /CHECK OPTION failed|1369/i.test(acct(insV(r, 'esc_' + (r || 'vacio'))))) && nUser() === u0);
+  ok('ESCALAMIENTO: INSERT directo en user, UPDATE(email), UPDATE(role) y UPDATE(password) los niega el MOTOR; el id explícito y la lectura de password también', /denied/i.test(acct("INSERT INTO user (username, role, is_active, session_version) VALUES ('esc_directo', 'user', 1, 1)")) && /denied/i.test(acct("UPDATE user SET email='x@example.invalid' WHERE id=0")) && /denied/i.test(acct("UPDATE user SET role='admin' WHERE id=0")) && /denied/i.test(acct("UPDATE user SET password='x' WHERE id=0")) && /denied/i.test(acct('SELECT password FROM user LIMIT 1')) && nUser() === u0);
+  ok('LEGÍTIMO (SQL directo, dentro de una transacción que se revierte): el alta de rol «user» por la vista SÍ la admite el motor', /^1\b/m.test(acct(`START TRANSACTION; ${insV('user', 'esc_ok')}; SELECT ROW_COUNT(); ROLLBACK`)) && nUser() === u0, acct(`START TRANSACTION; ${insV('user', 'esc_ok')}; SELECT ROW_COUNT(); ROLLBACK`));
+  // una vista alterada (sin WITH CHECK OPTION) abriría la brecha en la base: el verificador del kit la detecta y la restablece la plantilla
+  const vistaTpl = 'grep -vE \'^[[:space:]]*--\' ' + `${PK2}/fase2b/repo/UX-08I-alta-usuarios-vista.up.sql.template | sed -e "s/{DB}/${DB}/g" -e "s/{VISTA}/cervesur_vista_alta/g"`;
+  sql(`CREATE OR REPLACE DEFINER='cervesur_vista_alta'@'localhost' SQL SECURITY DEFINER VIEW ${DB}.v_user_alta AS SELECT username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at FROM ${DB}.user WHERE role IN ('user','usuario') AND is_active = 1 AND session_version = 1`);
+  const vAlt = PR('--verificar');
+  ok('VISTA ALTERADA (sin WITH CHECK OPTION): --verificar FALLA (30) y lo informa; el backend sigue sirviendo', vAlt.code === 30 && /vista-alterada|check\/insertable/.test(vAlt.out) && callRaw('GET', '/api/ping').status === 200, vAlt.out.slice(-400));
+  dx(`${vistaTpl} | sed -n '/CREATE OR REPLACE/,$p' | mysql`);
+  const vRest = PR('--verificar');
+  ok('…y recrearla desde la plantilla la restablece: --verificar vuelve a PASS sin tocar privilegios', vRest.code === 0 && /vista v_user_alta: insertable/.test(vRest.out), vRest.out.slice(-300));
   const vP = PR('--verificar');
   ok('--verificar no-sensibles PASS; reaplicar la misma etapa se bloquea (10, idempotente)', vP.code === 0 && PR(`--aplicar --respaldo /root/resp.sql.gz --confirmo-autorizacion "${AUT}"`).code === 10);
 
@@ -543,6 +575,10 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   ok('detalle con versión y sin campo de contraseña', !!v1 && !/password/.test(det.raw));
   const ed = callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ phone: '555-0505', version: v1, role: 'admin', username: 'robado', is_active: 0, password: 'otra' }));
   ok('EDICIÓN: 200; solo cambian datos personales (role, username, is_active y password del cuerpo se ignoran); una auditoría user.update', ed.status === 200 && sql(`SELECT CONCAT(phone,'|',role,'|',username,'|',is_active) FROM ${DB}.user WHERE id=${uid}`) === '555-0505|user|ensayo.p4c|1' && actAudit(uid, 'user.update') === 1);
+  const vEm = callRaw('GET', `/api/users/${uid}`, tOn).json?.data?.version; const aEm = auditN();
+  const emCambio = callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ email: 'otro.correo@example.invalid', version: vEm }));
+  const emMismo = callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ email: 'ENSAYO.P4C@example.invalid', phone: '555-0505', version: vEm }));
+  ok('CORREO (UX-08I): cambiar el correo se RECHAZA (400, mensaje claro) sin tocar la fila ni la auditoría; reenviar el MISMO correo no es un cambio y no se rechaza', emCambio.status === 400 && /correo no se puede modificar/.test(emCambio.raw) && sql(`SELECT email FROM ${DB}.user WHERE id=${uid}`) === 'ensayo.p4c@example.invalid' && auditN() === aEm && emMismo.status === 200, `${emCambio.status} ${emMismo.status}`);
   sql(`UPDATE ${DB}.user SET first_name='Escrito por Flutter' WHERE id=${uid}`);
   const conf = callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ phone: '555-0606', version: v1 }));
   ok('CONFLICTO 409: otra aplicación (Flutter) escribió entre la lectura y el guardado; no se cambia nada y no hay auditoría extra', conf.status === 409 && sql(`SELECT phone FROM ${DB}.user WHERE id=${uid}`) === '555-0505' && actAudit(uid, 'user.update') === 1);
@@ -560,6 +596,19 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   ok('…y Empresas también falla de forma atómica en ese estado (no queda empresa a medias)', (() => { const n = sqlN(`SELECT COUNT(*) FROM ${DB}.empresa`); const r = callRaw('POST', '/api/empresas', tOn, JSON.stringify({ nombre: 'Sin auditoría', razon_social: 'Sin auditoría SAC', ruc: '20999999951', ciudad: 'X', pais: 'Y' })); return r.status >= 500 && sqlN(`SELECT COUNT(*) FROM ${DB}.empresa`) === n; })());
   sql(`GRANT INSERT ON ${DB}.audit_log TO '${CUENTA}'@'127.0.0.1'`);
   ok('restablecido el permiso, la cuenta vuelve a sus grants exactos y la misma edición funciona', grantsOf() === gAntes && callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ phone: '555-0707', version: callRaw('GET', `/api/users/${uid}`, tOn).json?.data?.version })).status === 200);
+  // VISTA AUSENTE o DEFINER AUSENTE: el alta falla cerrada (sin filas parciales ni auditoría) y el resto de Usuarios y Empresas/Reportes/Accesos siguen funcionando
+  const altaFalla = (u) => callRaw('POST', '/api/register', tOn, JSON.stringify({ first_name: 'V', last_name: 'A', username: u, email: `${u}@example.invalid`, password: 'Aa1!ensayo-vista-x' }));
+  const uV = nUser(); const aV = auditN();
+  sql(`RENAME USER 'cervesur_vista_alta'@'localhost' TO 'cervesur_vista_alta_x'@'localhost'`);
+  const sinDef = altaFalla('ensayo.sindefiner');
+  const edSinDef = callRaw('PUT', `/api/users/${uid}`, tOn, JSON.stringify({ phone: '555-0710', version: callRaw('GET', `/api/users/${uid}`, tOn).json?.data?.version }));
+  sql(`RENAME USER 'cervesur_vista_alta_x'@'localhost' TO 'cervesur_vista_alta'@'localhost'`);
+  ok('DEFINER AUSENTE: el alta devuelve 5xx genérico (sin SQLSTATE ni nombres), no deja usuario ni auditoría a medias; la EDICIÓN de usuarios sigue funcionando; restituido el DEFINER, el alta vuelve', sinDef.status >= 500 && !/SQLSTATE|Stack trace|v_user_alta|cervesur_/.test(sinDef.raw) && nUser() === uV && edSinDef.status === 200 && altaFalla('ensayo.definer').status === 200 && actAudit(sqlN(`SELECT id FROM ${DB}.user WHERE username='ensayo.definer'`), 'user.create') === 1, `${sinDef.status} ${edSinDef.status}`);
+  sql(`DROP VIEW ${DB}.v_user_alta`);
+  const sinVista = altaFalla('ensayo.sinvista');
+  ok('VISTA AUSENTE (DROP VIEW): el alta devuelve 5xx genérico sin residuos y Empresas sigue escribiendo; el kit lo detecta (--verificar 30)', sinVista.status >= 500 && !/SQLSTATE|v_user_alta/.test(sinVista.raw) && sqlN(`SELECT COUNT(*) FROM ${DB}.user WHERE username='ensayo.sinvista'`) === 0 && status('POST', '/api/empresas', tOn, JSON.stringify({ nombre: 'Con vista ausente', razon_social: 'Con vista ausente SAC', ruc: '20999999953', ciudad: 'X', pais: 'Y' })) === 200 && PR('--verificar').code === 30);
+  dx(`${vistaTpl} | sed -n '/CREATE OR REPLACE/,$p' | mysql`);
+  ok('…recreada desde la plantilla (los permisos de la cuenta sobrevivieron al DROP/CREATE), el alta y --verificar vuelven a PASS', altaFalla('ensayo.recreada').status === 200 && PR('--verificar').code === 0);
   // el administrador pierde permisos / se inactiva durante la operación
   const ph1 = sql(`SELECT phone FROM ${DB}.user WHERE id=${uid}`); const aInact = auditN();
   sql(`UPDATE ${DB}.user SET is_active=0 WHERE id=1`);
@@ -588,7 +637,7 @@ mysql -N -e 'SHOW DATABASES' | LC_ALL=C sort
   ok('2) REVERTIR PRIVILEGIOS con fallo inyectado a mitad (el REVOKE de INSERT se aplica, el de UPDATE no): salida 20 y estado PARCIAL identificado', rvInj.code === 20 && /PARCIAL/.test(rvInj.out) && prFase().code !== 0, rvInj.out.slice(-400));
   ok('2) con el estado parcial el backend sigue sirviendo y Usuarios bloqueado (sin 503)', callRaw('GET', '/api/ping').status === 200 && codeOf(callRaw('POST', '/api/register', adminTok(), '{}')) === 'fase_2b_bloqueada');
   const rvOk = PR(`--revertir --confirmo-autorizacion "${AUT}"`);
-  ok('2) segundo --revertir (recuperación): cuenta EXACTAMENTE como la Fase 2A (SHOW GRANTS idéntico a la línea base), sin privilegios residuales de Usuarios', rvOk.code === 0 && grantsOf() === BASE.grants && prFase().code === 0, rvOk.out.slice(-500));
+  ok('2) segundo --revertir (recuperación): cuenta EXACTAMENTE como la Fase 2A (SHOW GRANTS idéntico a la línea base), sin privilegios residuales de Usuarios; la vista de alta y su cuenta DEFINER fueron eliminadas y no quedan privilegios huérfanos sobre la vista', rvOk.code === 0 && grantsOf() === BASE.grants && prFase().code === 0 && vistaN() === 0 && definerN() === 0 && sqlN(`SELECT COUNT(*) FROM mysql.tables_priv WHERE Db='${DB}' AND Table_name='v_user_alta'`) === 0, rvOk.out.slice(-500));
   ok('2) la cuenta ya no puede escribir user: INSERT/UPDATE de nombre en user → denied (solo last_login)', /denied/i.test(acct("UPDATE user SET first_name='x' WHERE id=0")) && /denied/i.test(acct("INSERT INTO user (username) VALUES ('x')")));
   const rvCode = run(`bash ${PK2}/scripts/instalar-codigo-2b.sh --revertir ${RESP2B}`, CE);
   ok('3) REVERTIR CÓDIGO al respaldo de P3: vuelve EXACTAMENTE a la Fase 2A (RC2), .env intacto, sin restos', rvCode.code === 0 && identNuevo() && !ident2b() && envSha() === BASE.env && restos() === '0', rvCode.out.slice(-500));

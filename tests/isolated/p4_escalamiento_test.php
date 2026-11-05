@@ -69,10 +69,13 @@ ok(denied($acct, "INSERT INTO user (id, username, role, is_active, session_versi
 ok(denied($acct, "INSERT INTO user (username, role, is_active, session_version, password) VALUES ('esc_dup', 'user', 1, 1, 'h') ON DUPLICATE KEY UPDATE password = 'x'") === true, 'INSERT … ON DUPLICATE KEY UPDATE password denegado (necesitaría UPDATE(password))');
 ok(denied($acct, "DELETE FROM user WHERE id = 0") === true && denied($acct, "REPLACE INTO user (username, role, is_active, session_version) VALUES ('esc_rep','admin',1,1)") === true, 'DELETE y REPLACE denegados');
 ok(denied($acct, 'SELECT password FROM user LIMIT 1') === true, 'la cuenta no puede LEER password');
-// la brecha estructural: el motor no puede acotar el VALOR de una columna
-try { $acct->exec("INSERT INTO user (username, role, is_active, session_version, password, email, first_name, last_name, created_at, updated_at) VALUES ('esc_admin_directo', 'admin', 1, 1, 'hash-ficticio', 'esc_admin@example.invalid', 'a', 'b', NOW(), NOW())");
-    gap('con las credenciales de la cuenta, el motor PERMITE insertar un usuario con role=«admin» (los privilegios por columna no limitan el valor). Requiere el .env (root:www-data 640) o inyección SQL; la API no lo permite'); $root->exec("DELETE FROM user WHERE username = 'esc_admin_directo'");
-} catch (PDOException $e) { ok(true, 'el motor impide insertar role=admin'); }
+// la brecha estructural del valor del rol: con la vista de alta la cuenta ya no puede insertar en la tabla ni fijar un rol elevado
+$direct = denied($acct, "INSERT INTO user (username, role, is_active, session_version, password, email, first_name, last_name, created_at, updated_at) VALUES ('esc_admin_directo', 'admin', 1, 1, 'hash-ficticio', 'esc_admin@example.invalid', 'a', 'b', NOW(), NOW())");
+ok($direct === true, 'INSERT directo en user con role=admin: DENEGADO por el motor (la cuenta no tiene INSERT sobre la tabla)');
+try { $acct->exec("INSERT INTO v_user_alta (username, role, is_active, session_version, password, email, first_name, last_name, created_at, updated_at) VALUES ('esc_admin_vista', 'admin', 1, 1, 'hash-ficticio', 'esc_admin2@example.invalid', 'a', 'b', NOW(), NOW())"); ok(false, 'la vista admitió role=admin'); }
+catch (PDOException $e) { ok(str_contains($e->getMessage(), 'CHECK OPTION') || str_contains($e->getMessage(), '1369'), 'INSERT con role=admin por la vista de alta: RECHAZADO por el motor (CHECK OPTION)'); }
+ok((int)$root->query("SELECT COUNT(*) FROM user WHERE username LIKE 'esc_admin%'")->fetchColumn() === 0, 'no quedó ningún usuario administrador creado por la cuenta de React');
+ok(denied($acct, "UPDATE user SET email = 'x@example.invalid' WHERE id = 0") === true, 'UPDATE(email) denegado por el motor');
 $root->exec("DELETE FROM user WHERE username LIKE 'esc_%'");
 
 echo "\nBRECHAS RESIDUALES: " . (count($gaps) ?: 'ninguna') . "\n";
