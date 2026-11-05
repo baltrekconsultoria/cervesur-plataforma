@@ -419,3 +419,4 @@ jobs:
           docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawp" php tests/isolated/http_admin_escritura_fase2b_test.php mal
           docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawx" php tests/isolated/http_admin_escritura_fase2b_test.php staged
           docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawb" php tests/isolated/p4_escalamiento_test.php
+          docker exec --env TEST_DB_PASS --workdir /work "${ro_prefix}-appawb" php tests/isolated/p4a_vista_errores_test.php

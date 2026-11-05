@@ -1,0 +1,12 @@
+-- UX-08I · P4a (prototipo) · Vista de ALTA de usuarios: la ÚNICA vía por la que la cuenta de React puede insertar en `user`.
+--
+-- PLANTILLA. NO SE EJECUTA EN NINGÚN SERVIDOR REAL sin autorización expresa del DBA. Marcador: {DB}. La ejecuta el DBA (root), ANTES de las plantillas de privilegios 2B.
+-- WITH CHECK OPTION hace que el MOTOR rechace cualquier alta con rol distinto de user/usuario, inactiva o con session_version distinto de 1; la vista no expone `id`, `avatar` ni `last_login`.
+-- No modifica la tabla `user` ni a Flutter: Flutter sigue insertando directamente en la tabla. SQL SECURITY DEFINER: se ejecuta con los privilegios de quien la crea (el DBA), no con los de la cuenta.
+-- DDL no transaccional. Reversión: UX-08I-alta-usuarios-vista.down.sql.template (DROP VIEW; no toca datos). Las vistas NO entran en el respaldo de las seis tablas: respáldela con SHOW CREATE VIEW.
+
+CREATE OR REPLACE SQL SECURITY DEFINER VIEW `{DB}`.`v_user_alta` AS
+    SELECT username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at
+      FROM `{DB}`.`user`
+     WHERE role IN ('user', 'usuario') AND is_active = 1 AND session_version = 1
+  WITH CHECK OPTION;

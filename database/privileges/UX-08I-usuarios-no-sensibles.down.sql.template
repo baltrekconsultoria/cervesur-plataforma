@@ -3,8 +3,7 @@
 -- Si antes se aplicó la plantilla «sensibles», revertir ESA primero.
 -- `UPDATE (updated_at, …)` y `UPDATE (last_login)` son concesiones distintas por columna: aquí solo se retiran las de esta fase; last_login se conserva.
 
-REVOKE INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at)
-    ON `{DB}`.`user` FROM '{USER}'@'{HOST}';
+REVOKE INSERT ON `{DB}`.`v_user_alta` FROM '{USER}'@'{HOST}';
 
-REVOKE UPDATE (first_name, last_name, phone, email, is_active, session_version, updated_at)
+REVOKE UPDATE (first_name, last_name, phone, is_active, session_version, updated_at)
     ON `{DB}`.`user` FROM '{USER}'@'{HOST}';

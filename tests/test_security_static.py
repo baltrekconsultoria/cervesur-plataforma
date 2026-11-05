@@ -1083,7 +1083,15 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
             self.assertNotRegex(text, r"(?is)ON \*\.\*")  # nada global
             self.assertNotRegex(text, r"(?is)GRANT\s+SELECT")  # no amplían lecturas: password nunca se lee
         self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b")
-        self.assertRegex(no_sens_up, r"(?is)GRANT\s+INSERT\s*\([^)]*\bpassword\b[^)]*\)\s*ON `\{DB\}`\.`user`")
+        # UX-08I (alta por vista): el INSERT es SOLO sobre la vista v_user_alta; sobre la tabla `user` no hay INSERT, y `email` no es escribible
+        self.assertRegex(no_sens_up, r"(?is)GRANT\s+INSERT\s+ON `\{DB\}`\.`v_user_alta`")
+        self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+INSERT[^;]*ON `\{DB\}`\.`user`")
+        self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+UPDATE\s*\([^)]*\bemail\b")
+        vista = grants("UX-08I-alta-usuarios-vista.up.sql.template")
+        self.assertRegex(vista, r"(?is)WITH CHECK OPTION")
+        self.assertRegex(vista, r"(?is)role IN \('user', 'usuario'\)")
+        self.assertNotRegex(vista, r"(?is)\bid\b\s*,|avatar|last_login")  # no expone id, avatar ni last_login
+        self.assertRegex(grants("UX-08I-alta-usuarios-vista.down.sql.template"), r"(?is)DROP VIEW IF EXISTS `\{DB\}`\.`v_user_alta`")
         self.assertRegex(re.sub(r"\s+", " ", sens_up).strip(), r"^GRANT UPDATE \(role, password\) ON `\{DB\}`\.`user` TO '\{USER\}'@'\{HOST\}';$")
         self.assertRegex(no_sens_down, r"(?is)REVOKE\s+INSERT")
         self.assertRegex(re.sub(r"\s+", " ", sens_down).strip(), r"^REVOKE UPDATE \(role, password\) ON `\{DB\}`\.`user` FROM '\{USER\}'@'\{HOST\}';$")

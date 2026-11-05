@@ -1,0 +1,3 @@
+-- UX-08I · P4a (prototipo) · Reversión de la vista de alta. Marcador: {DB}. Antes: revertir las plantillas de privilegios 2B (la cuenta pierde el INSERT sobre la vista). No toca datos.
+
+DROP VIEW IF EXISTS `{DB}`.`v_user_alta`;
