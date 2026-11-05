@@ -5,7 +5,7 @@
 // P4b (interruptor), P4c (operaciones de usuarios), fallos inyectados en cada paso y recuperación integral. Todo con datos SINTÉTICOS dentro de un contenedor desechable.
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,6 +108,12 @@ try {
   ok('el DBA (ensayo) crea las tres cuentas _adm y la base de estado propia', dx('mysql < /root/cervesur-admin.sql').code === 0);
   const inst = dx(`bash ${PKB}/scripts/instalar.sh --claves-archivo /root/cervesur-admin.claves`, { CERVESUR_USUARIOS_CONFIRMAR: 'SI' });
   ok('el instalador REAL de la fase 1 deja el administrador (8093, piloto_admin) funcionando', inst.code === 0 && /\d+ PASS \/ 0 FAIL/.test(inst.out), inst.out.split(String.fromCharCode(10)).filter(l => /FAIL|FALLO|ERROR/.test(l)).join(' / ').slice(0, 1500));
+  if (process.env.ENSAYO_SOLO_FASE1) { // diagnóstico del FAIL intermitente de la fase 1: guarda la salida COMPLETA del instalador y termina
+    writeFileSync(join(OUT, 'fase1-instalador.log'), `rc=${inst.code}
+${inst.out}`);
+    console.log(`FASE1-SOLO rc=${inst.code} ${/(\d+) PASS \/ (\d+) FAIL/.exec(inst.out)?.[0] ?? 'sin resumen'}`);
+    throw new Error('FASE1-SOLO: fin del diagnóstico');
+  }
   const add = dx(`bash ${PKB}/scripts/usuarios.sh agregar 1 "ensayo fase 2A"`);
   ok('el administrador de prueba queda autorizado en la lista blanca de la instancia', add.code === 0, add.out);
   const t0 = tokenOf(login(lAdm, GOODPW));
