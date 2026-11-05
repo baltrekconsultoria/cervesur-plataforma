@@ -5,11 +5,11 @@
 ## 1. Candidato registrado
 | | |
 |---|---|
-| Commit validado (vigente) | `ae28e6c57d5f9be7ac0806e4fa9bb7a805ed1e24` — rama `feat/cervesur-ux-08i-fase-2b-usuarios`. **Reemplaza a `120ea84`** (ver §8) |
-| Paquete vigente | `cervesur-react-admin-fase2b-ae28e6c57d5f-20261105-141442Z.tar.gz` (`Cervesur\paquetes-qa\produccion-fase2b-rc1b\`). El de `120ea84` queda **superado** y no debe usarse |
-| SHA-256 | `414b4b20eb29a3593eb8fab83f91e8ef979389309608e5482ab11e5855c5d465` (coincide con el `.sha256` y con el calculado). Anterior, superado: `3323035290ec…cead585` |
-| Ensayo del candidato | Réplica Docker: 220 PASS / 0 FAIL (repetido sobre `ae28e6c`) · regresión HTTP completa de la CI: 1695 PASS / 0 FAIL · unitaria PHP 96 · estáticas 106 · Vitest 298 / tsc / ESLint limpios (`docs/UX-08I-ENSAYO-RC1-INFORME.md`) |
-| Cambios posteriores | Tras `ae28e6c`, solo documentación (no cambia el paquete). |
+| Commit validado (vigente) | `2f88cfbc5098a1489242bf0c65f45d4041b5177f` (RC1c) — reemplaza a `ae28e6c`; ver `docs/UX-08I-FASE-2B-VISTA-CANDIDATO.md` |
+| Paquete vigente | `cervesur-react-admin-fase2b-2f88cfbc5098-20261105-162903Z.tar.gz` (`Cervesur\paquetes-qa\produccion-fase2b-rc1c\`) |
+| SHA-256 | `52418fee44e8dc6578a2ed76142a6ae8007787a7da3a663d22724542f7a703e6` |
+| Ensayo del candidato | Réplica Docker: 235 PASS / 0 FAIL · regresión HTTP completa de la CI: 1752 PASS / 0 FAIL |
+| Cambios posteriores | Tras `2f88cfb`, solo documentación (no cambia el paquete). Las secciones que mencionan `120ea84`/`ae28e6c` son historia: **solo RC1c es vigente**. |
 
 ## 2. Solicitud de autorización
 `docs/UX-08I-P2-SOLICITUD-AUTORIZACION.md`: delimita P2, P3, P4a, P4b y P4c (qué se ejecuta, si escribe en MySQL, reversión, quién autoriza), seis decisiones independientes (A–F) para firmar, los riesgos que deben aceptarse expresamente y lo que **no** se autoriza.
@@ -84,5 +84,5 @@ Otra superficie a validar con el backend real de Flutter: la cuenta puede cambia
 | Autorizaciones A y B firmadas | ✘ pendientes |
 | Respaldo productivo creado y **restauración probada** | ✘ se produce al ejecutar P2 (autorización A) |
 | Ventana sin escrituras de Flutter y espacio verificados en el servidor | ✘ pendiente |
-**Candidato vigente: `ae28e6c`.** El veredicto no cambia con la corrección: el código está listo, las condiciones no.
+**Candidato vigente: `2f88cfb` (RC1c).** El veredicto no cambia con la corrección: el código está listo, las condiciones no.
 **Pasa a GO** cuando P2 se ejecute con evidencia (`restauracion_probada=1`, SHA-256 verificado, `audit_log` respaldado) y B esté firmada. Hasta entonces **no ejecutar P3**.

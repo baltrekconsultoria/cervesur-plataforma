@@ -10,11 +10,11 @@ Publicar en el administrador React (8443) una versión que **incluye** la admini
 ## 2. Candidato
 | | |
 |---|---|
-| Commit | `ae28e6c57d5f9be7ac0806e4fa9bb7a805ed1e24` (rama `feat/cervesur-ux-08i-fase-2b-usuarios`) — reemplaza a `120ea84`, ver informe P2 §8 |
-| Paquete | `cervesur-react-admin-fase2b-ae28e6c57d5f-20261105-141442Z.tar.gz` |
-| SHA-256 | `414b4b20eb29a3593eb8fab83f91e8ef979389309608e5482ab11e5855c5d465` |
+| Commit | `2f88cfbc5098a1489242bf0c65f45d4041b5177f` (rama `feat/cervesur-ux-08i-fase-2b-vista`) — **RC1c**; reemplaza a `ae28e6c` y `120ea84`, ver `docs/UX-08I-FASE-2B-VISTA-CANDIDATO.md` |
+| Paquete | `cervesur-react-admin-fase2b-2f88cfbc5098-20261105-162903Z.tar.gz` |
+| SHA-256 | `52418fee44e8dc6578a2ed76142a6ae8007787a7da3a663d22724542f7a703e6` |
 | Se instala sobre | Fase 2A RC2 `f539c9fd543d`, tal como está operando hoy |
-| Ensayo | 220 PASS / 0 FAIL en réplica Docker con la Fase 2A realmente instalada, repetido sobre este candidato (`docs/UX-08I-ENSAYO-RC1-INFORME.md`); regresión HTTP completa de la CI: 1695 PASS / 0 FAIL |
+| Ensayo | 235 PASS / 0 FAIL en réplica Docker con la Fase 2A realmente instalada (`ENSAYO-DOCKER-2f88cfb.log`); regresión HTTP completa de la CI: 1752 PASS / 0 FAIL. **Solo se usa RC1c**: los paquetes anteriores quedan descartados |
 
 ## 3. Qué NO cambia
 Flutter (80), portal de trabajadores (443), QA (8094), visor DB031/informe 72, Apache, certificados, Empresas, Reportes y Accesos, y el archivo `.env` durante P3. Rol y contraseña de usuarios permanecen bloqueados.
@@ -24,7 +24,7 @@ Flutter (80), portal de trabajadores (443), QA (8094), visor DB031/informe 72, A
 |---|---|---|---|---|
 | **P2** Respaldo | Respaldo de las 6 tablas de negocio + `audit_log`, SHA-256, consistencia y **restauración de prueba en un esquema temporal** (se crea y se elimina) | Solo ese esquema temporal (`CREATE`/`DROP` de `cervesur_verif_*`) | Eliminar el esquema temporal | **DBA** |
 | **P3** Código 2B, Usuarios OFF | Reemplaza `public/` y `backend/` del 8443 con respaldo verificado; **no toca** `.env`, MySQL ni Apache | No | `instalar-codigo-2b.sh --revertir` (automática si falla) | **DBA + funcional** |
-| **P4a** Permisos | `GRANT INSERT/UPDATE` por columnas sobre `user` a la cuenta `cervesur_escritura_adm` (sin `role`, sin `password` en `UPDATE`, sin `DELETE`, sin lectura de `password`) | **Sí, DDL de privilegios (no transaccional)** | `privilegios-usuarios.sh --revertir` | **DBA** |
+| **P4a** Permisos | Crea la cuenta bloqueada `cervesur_vista_alta@localhost` y la vista `v_user_alta` (`WITH CHECK OPTION`); concede a `cervesur_escritura_adm` `INSERT` **solo sobre la vista** y `UPDATE` por columnas sobre `user` (sin `email`, `role`, `password`; sin `DELETE`; sin lectura de `password`; sin `INSERT` sobre `user`). Requiere MySQL ≥ 8.0.18 | **Sí, DDL (no transaccional): `CREATE USER`/`CREATE VIEW`/`GRANT`** | `privilegios-usuarios.sh --revertir` (revoca, elimina vista y cuenta) | **DBA** |
 | **P4b** Interruptor | Escribe `ADMIN_WRITES_USUARIOS=1` en el `.env` (con respaldo del `.env`); verifica capacidades y se apaga solo si no coinciden | No (edita `.env`) | `interruptor-usuarios.sh apagar` (inmediato) | **Funcional** (con aviso al DBA) |
 | **P4c** Una operación real | UNA alta o edición de un usuario real elegido por el funcional; se comprueba exactamente una fila nueva en `audit_log` | Sí (datos de ese usuario + 1 fila de auditoría) | `apagar`; el dato se corrige con otra edición auditada | **Funcional** |
 | P5 | No disponible | — | — | No se solicita |
@@ -54,7 +54,7 @@ Flutter (80), portal de trabajadores (443), QA (8094), visor DB031/informe 72, A
 - Excepción pendiente `debian-sys-maint` (control E0): el DBA debe documentarla; esa cuenta **no** se usa para la aplicación.
 
 ## 8. Condiciones adicionales de la liberación (vinculantes para P3 y P4)
-1. **Escalamiento (antes de P4a).** Antes de ampliar privilegios sobre `user` se comprobó que las operaciones permitidas no sirven para crear usuarios con rol elevado ni para modificar credenciales fuera de los controles (resultado en el informe P2 §8). Queda **una brecha estructural** que debe aceptarse: el motor MySQL no puede acotar el *valor* de `role` en un `INSERT`; quien disponga de las credenciales de la cuenta (archivo `.env`, `root:www-data 640`) o logre una inyección SQL podría insertar un usuario con rol `admin`. La API y el guardia de SQL no lo permiten.
+1. **Escalamiento (antes de P4a).** Con RC1c la brecha estructural quedó **cerrada en la base**: la cuenta de React no puede insertar en `user`, solo en `v_user_alta`, y el motor rechaza cualquier rol distinto de `user`/`usuario` (`CHECK OPTION`); tampoco puede cambiar `email`, `role` ni `password`. Persiste como riesgo residual que quien controle el DBA o la cuenta `root` puede alterar la vista; el kit (`--verificar`) lo detecta. Resultado: `docs/UX-08I-P4A-EVALUACION-SEGURIDAD.md` y `docs/UX-08I-FASE-2B-VISTA-CANDIDATO.md`.
 2. **Rol y contraseña de usuarios existentes: fuera del alcance de esta liberación.** No hay ruta, interruptor ni script del kit que los habilite.
 3. **Flutter.** Usuarios **no** se presenta como mecanismo de revocación inmediata de acceso en todos los sistemas hasta validar sesiones y tokens contra el backend Flutter real. La interfaz lo dice así en el diálogo de desactivación.
 4. **Cada intervención** (P2, P3, P4a, P4b, P4c) exige: autorización identificable (§5), ventana controlada, respaldo verificable, comprobación de continuidad de Empresas, Reportes y Accesos, **criterios de suspensión** y procedimiento de recuperación documentado (`docs/UX-08I-ENSAYO-RC1-INFORME.md` §7).

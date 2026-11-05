@@ -1,6 +1,8 @@
 # UX-08I · Fase 2B (Usuarios) — release candidate, riesgos y plan de liberación
 
 Rama `feat/cervesur-ux-08i-fase-2b-usuarios` sobre `f539c9f` (RC2 de la Fase 2A, la publicada). **Nada de esto está desplegado.** Sin SSH, Apache, MySQL real, `.env` real, push ni merge.
+> **VIGENTE: RC1c `2f88cfb`** (alta por vista protegida; ver `docs/UX-08I-FASE-2B-VISTA-CANDIDATO.md`). Las menciones de este documento a permisos `INSERT` por columnas sobre `user` y a `UPDATE(email)` describen el RC anterior y **ya no aplican**.
+
 Auditoría y GO/NO-GO del código previo: `docs/UX-08I-FASE-2B-AUDITORIA-GO-NO-GO.md`.
 
 ## 1. Qué cambia (y qué no)
