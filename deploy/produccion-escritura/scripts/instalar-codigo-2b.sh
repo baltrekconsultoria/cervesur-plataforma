@@ -3,7 +3,7 @@
 #   sudo bash scripts/instalar-codigo-2b.sh --simular                       (por omisión) comprueba todo y no escribe nada
 #   sudo bash scripts/instalar-codigo-2b.sh --aplicar                       respaldo verificado → reemplazo → verificación de la fase 2A sin regresiones → (si falla) restauración automática
 #   sudo bash scripts/instalar-codigo-2b.sh --revertir RESPALDO_DIR         restaura un respaldo creado por este script (public.tgz + backend.tgz con su SHA256SUMS)
-# Condición de seguridad: el .env debe estar en admin_escritura y con ADMIN_WRITES_USUARIOS / _SENSIBLE sin definir o distintos de 1. El código 2B con esos interruptores apagados se comporta como la fase 2A:
+# Condición de seguridad: el .env debe estar en admin_escritura y SIN las claves ADMIN_WRITES_USUARIOS / _SENSIBLE. El código 2B con esos interruptores apagados se comporta como la fase 2A:
 # Usuarios responde 403 «fase_2b_bloqueada». Encender Usuarios es OTRO paso (interruptor-usuarios.sh), con privilegios verificados antes.
 # Credenciales opcionales (solo entorno): CERVESUR_E_USUARIO / CERVESUR_E_CLAVE de un administrador autorizado del 8443; sin ellas la verificación posterior es PARCIAL y lo declara.
 # Salida: 0 bien · 1 bloqueado antes de escribir · 2 uso · 20 falló y se restauró · 21 falló y NO se pudo restaurar (intervención manual: use el respaldo indicado)
@@ -37,7 +37,8 @@ identidad_con() { # manifiesto
   [ "$(find "$DIR_BACKEND" -type f ! -path "$ENV_FILE" | wc -l)" = "$(wc -l <<<"$lb")" ] && [ "$(find "$DIR_PUBLIC" -type f | wc -l)" = "$(wc -l <<<"$lp")" ]
 }
 MANIFIESTO_RC2=$(find "$PAQ/base" -maxdepth 1 -name 'MANIFIESTO-FASE2A-*.sha256' 2>/dev/null | head -2)
-usuarios_apagados() { [ "$(env_valor_actual ADMIN_WRITES_USUARIOS)" != 1 ] && [ "$(env_valor_actual ADMIN_WRITES_USUARIOS_SENSIBLE)" != 1 ]; }
+# «Apagado» = las claves NO existen: el verificador de la fase 2A trata como prohibida la sola presencia de ADMIN_WRITES_USUARIOS*, incluso con valor 0.
+usuarios_apagados() { ! env_presente ADMIN_WRITES_USUARIOS && ! env_presente ADMIN_WRITES_USUARIOS_SENSIBLE; }
 
 restaurar_desde() { # directorio de respaldo ya verificado
   local r=$1
@@ -57,7 +58,7 @@ echo "== UX-08I · Instalación del código 2B (modo $MODO)"
 if [ "$MODO" = revertir ]; then
   [ -d "$REVERTIR_DIR" ] || abortar "Indique el directorio de respaldo: --revertir $DIR_RESPALDO/codigo-2b-<sello>"
   case $REVERTIR_DIR in "$DIR_RESPALDO"/codigo-2b-*) ;; *) abortar "El respaldo debe estar en $DIR_RESPALDO/codigo-2b-*" ;; esac
-  usuarios_apagados || abortar "Usuarios está ENCENDIDO en el .env: apáguelo (interruptor-usuarios.sh apagar) antes de cambiar el código."
+  usuarios_apagados || abortar "El .env tiene claves ADMIN_WRITES_USUARIOS*: apáguelo (interruptor-usuarios.sh apagar) antes de cambiar el código."
   env_antes=$(sha256sum < "$ENV_FILE")
   restaurar_desde "$REVERTIR_DIR" || abortar "No se pudo restaurar desde $REVERTIR_DIR: la aplicación quedó como estaba o en estado a revisar a mano."
   [ "$(sha256sum < "$ENV_FILE")" = "$env_antes" ] && ok ".env intacto (mismo SHA-256)" || fallo ".env CAMBIÓ durante la restauración: revíselo"
@@ -72,8 +73,8 @@ ok "paquete íntegro (SHA256SUMS)"
 [ "$(wc -l <<<"$MANIFIESTO_RC2")" = 1 ] && [ -n "$MANIFIESTO_RC2" ] || abortar "El paquete debe traer exactamente un base/MANIFIESTO-FASE2A-*.sha256."
 MANIFIESTO_RC2=$(head -1 <<<"$MANIFIESTO_RC2")
 [ "$(env_valor_actual CERVESUR_MODE)" = admin_escritura ] && [ "$(env_valor_actual CERVESUR_REQUIRED_MODE)" = admin_escritura ] || abortar "El .env no está en admin_escritura: el código 2B se instala sobre la Fase 2A ya operando."
-usuarios_apagados || abortar "ADMIN_WRITES_USUARIOS o _SENSIBLE están en 1 en el .env: apáguelos ANTES de actualizar el código."
-ok "Usuarios apagado en el .env"
+usuarios_apagados || abortar "El .env tiene claves ADMIN_WRITES_USUARIOS* (con cualquier valor): elimínelas con interruptor-usuarios.sh apagar ANTES de actualizar el código."
+ok "Usuarios apagado: el .env no tiene claves ADMIN_WRITES_USUARIOS*"
 if identidad_con "$MANIFIESTO_RC2"; then ok "lo instalado es exactamente la Fase 2A (RC2): archivo por archivo"
 else abortar "Lo instalado NO coincide con la Fase 2A (RC2): hay deriva, cambios locales o ya es otra versión. NO-GO hasta clasificarlo."; fi
 if command -v php >/dev/null 2>&1; then

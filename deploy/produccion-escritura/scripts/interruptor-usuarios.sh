@@ -29,6 +29,7 @@ case $ACCION in estado|apagar|encender|sensible) ;; *) echo "Acción desconocida
 valor() { local v; v=$(env_valor_actual "$1"); printf '%s' "${v:-<sin definir>}"; }
 mostrar() { echo "   ADMIN_WRITES_USUARIOS=$(valor ADMIN_WRITES_USUARIOS)   ADMIN_WRITES_USUARIOS_SENSIBLE=$(valor ADMIN_WRITES_USUARIOS_SENSIBLE)   ADMIN_USER_REACTIVATE_HOURS=$(valor ADMIN_USER_REACTIVATE_HOURS)"; }
 
+# shellcheck disable=SC2154  # CAP_* los asigna capacidades_leer (lib.sh) con printf -v
 verificar_capacidades() { # esperado de usuarios: true|false (sensible SIEMPRE false)
   espera_opcache
   credenciales_presentes && api_login || return 2
@@ -38,8 +39,9 @@ verificar_capacidades() { # esperado de usuarios: true|false (sensible SIEMPRE f
 
 apagar() {
   local previo; env_respaldar "antes-apagar-usuarios" || { fallo "no se pudo respaldar el .env: no se modifica nada"; return 1; }; previo=$ENV_RESPALDO_RUTA
-  env_aplicar $'ADMIN_WRITES_USUARIOS=0\nADMIN_WRITES_USUARIOS_SENSIBLE=0' "" || { fallo "no se pudo editar el .env (respaldo: $previo)"; return 1; }
-  ok "Usuarios APAGADO en el .env (respaldo previo: $previo)"
+  # Apagar = ELIMINAR las claves (sin definir = bloqueado). Escribir «=0» las dejaría presentes y el verificador de la fase 2A las trata como prohibidas.
+  env_aplicar "" "ADMIN_WRITES_USUARIOS ADMIN_WRITES_USUARIOS_SENSIBLE" || { fallo "no se pudo editar el .env (respaldo: $previo)"; return 1; }
+  ok "Usuarios APAGADO: claves ADMIN_WRITES_USUARIOS* eliminadas del .env (respaldo previo: $previo)"
   verificar_capacidades false; local rc=$?
   case $rc in 0) ok "capacidades verificadas: usuarios=false, sensible=false, empresas/reportes/accesos intactos" ;;
     2) aviso "sin credenciales: no se pudo comprobar por la API (el .env quedó apagado)" ;;
@@ -72,7 +74,7 @@ bash "$PAQ/scripts/privilegios-usuarios.sh" --etapa no-sensibles --verificar | t
 ok "privilegios de la cuenta = etapa no-sensibles (sin rol/contraseña)"
 echo "== 3. Encender (con respaldo del .env y vuelta automática)"
 env_respaldar "antes-encender-usuarios" || abortar "No se pudo respaldar el .env: no se modifica nada."; previo=$ENV_RESPALDO_RUTA
-env_aplicar $'ADMIN_WRITES_USUARIOS=1\nADMIN_WRITES_USUARIOS_SENSIBLE=0' "" || { fallo "no se pudo editar el .env"; env_instalar "$previo"; exit 1; }
+env_aplicar "ADMIN_WRITES_USUARIOS=1" "ADMIN_WRITES_USUARIOS_SENSIBLE" || { fallo "no se pudo editar el .env"; env_instalar "$previo"; exit 1; }
 printf 'encendido %s\nautorizacion %s\nrespaldo-env %s\n' "$(sello_utc)" "$AUTORIZACION" "$previo" >> "$DIR_VAR/usuarios-estado.txt" 2>/dev/null && chmod 600 "$DIR_VAR/usuarios-estado.txt" 2>/dev/null
 verificar_capacidades true; rc=$?
 if [ "$rc" != 0 ]; then
