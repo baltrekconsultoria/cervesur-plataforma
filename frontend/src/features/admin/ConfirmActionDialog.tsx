@@ -2,6 +2,14 @@ import { useState, type ReactNode } from 'react';
 import { isApiError } from '../../api/errors';
 import { Dialog, DialogFooter, submitHandler } from '../../components/Dialog';
 
+/** Mensaje explícito por tipo de error: 403 = no habilitada en el servidor; 5xx/503 = el servidor no pudo completarla (las escrituras son atómicas: no queda ningún cambio a medias). */
+export function failureMessage(error: unknown, fallback: string): string {
+  if (!isApiError(error)) return fallback;
+  if (error.kind === 'forbidden') return error.message || 'Esta operación no está habilitada en el servidor.';
+  if (error.kind === 'server') return `${error.message || fallback} No se aplicó ningún cambio; intente de nuevo o avise al administrador del sistema.`;
+  return error.message || fallback;
+}
+
 /**
  * Confirmación de una operación sensible (desactivar, reactivar, retirar…). Solo se da por hecha si el servidor la confirmó.
  * Un conflicto (409) o un registro que ya no existe (404) significa que la pantalla quedó desactualizada: se muestra el mensaje
@@ -34,7 +42,7 @@ export function ConfirmActionDialog({ title, labelId, children, confirmLabel, sa
       if (isApiError(error) && error.kind === 'unauthorized') return;
       const outdated = isApiError(error) && (error.kind === 'conflict' || error.kind === 'not_found');
       setStale(outdated);
-      setFailure(isApiError(error) && error.message ? error.message : fallbackError);
+      setFailure(failureMessage(error, fallbackError));
       setSaving(false);
     }
   };
