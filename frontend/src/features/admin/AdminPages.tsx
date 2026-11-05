@@ -137,7 +137,7 @@ export function AdminUsersPage() {
           onClose={() => setToggling(null)} onStale={bump}
           onDone={() => { setNotice(`Usuario «${toggling.user.displayName}» ${toggling.to === 'off' ? 'desactivado' : 'reactivado'} correctamente.`); setToggling(null); bump(); }}>
           {toggling.to === 'off'
-            ? <><p>¿Desactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Se cerrarán sus sesiones y dejará de poder ingresar; sus accesos quedarán sin efecto, pero no se borran. Podrá reactivarlo después{capabilities.reactivateAfterHours ? `, pero solo pasadas ${capabilities.reactivateAfterHours} h (protege sesiones antiguas que pudieran seguir vigentes)` : ''}. En Flutter, la sesión abierta dejará de funcionar en su siguiente consulta.</p></>
+            ? <><p>¿Desactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Se cerrarán sus sesiones en este administrador y no podrá ingresar a él; sus accesos quedarán sin efecto, pero no se borran. Podrá reactivarlo después{capabilities.reactivateAfterHours ? `, pero solo pasadas ${capabilities.reactivateAfterHours} h (protege sesiones antiguas que pudieran seguir vigentes)` : ''}. Importante: esto NO es una revocación inmediata de acceso en todos los sistemas; el tratamiento de sesiones y tokens de Flutter aún no está validado con su backend real.</p></>
             : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
         </ConfirmActionDialog>
       )}

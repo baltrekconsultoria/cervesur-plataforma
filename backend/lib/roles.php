@@ -22,6 +22,18 @@ if (!function_exists('new_user_role')) {
     }
 }
 
+if (!function_exists('new_user_role_sql_literal')) {
+    /**
+     * UX-08I · El mismo rol de new_user_role() como LITERAL de SQL (lista cerrada: 'user' | 'usuario'). El alta lo escribe dentro de la sentencia, no como parámetro, para que el guardia de SQL de
+     * admin_escritura pueda exigir la forma exacta y ningún valor de la petición pueda llegar a la columna `role`.
+     * @return string "'user'" | "'usuario'"
+     */
+    function new_user_role_sql_literal()
+    {
+        return new_user_role() === 'usuario' ? "'usuario'" : "'user'";
+    }
+}
+
 if (!function_exists('normalize_role')) {
     /**
      * @param mixed $role Valor almacenado o recibido

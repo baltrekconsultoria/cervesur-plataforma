@@ -258,6 +258,8 @@ function app_sql_write_guard($sql) {
     if (preg_match('/^INSERT INTO `?([a-z_]+)`?[ (]/i', $n, $m)) {
         if (!in_array(strtolower($m[1]), ADMIN_WRITE_TABLES, true)) { $reject('tabla no permitida para INSERT: ' . $m[1]); }
         if (strtolower($m[1]) === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
+        // El motor no puede acotar el VALOR de `role`, así que el guardia exige la forma EXACTA del alta (rol = literal «user»/«usuario», activo = 1, session_version = 1, sin id).
+        if (strtolower($m[1]) === 'user' && !preg_match('/^INSERT INTO `?user`? \(first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at\) VALUES \(:first_name, :last_name, :username, :email, :phone, :password, \'(user|usuario)\', 1, 1, NOW\(\), NOW\(\)\)$/', $n)) { $reject('INSERT en `user` con una forma distinta del alta autorizada (el rol debe ser el literal fijo «user»)'); }
         if (preg_match('/\bon\s+duplicate\b|\bselect\b/i', $n)) { $reject('INSERT ... SELECT / ON DUPLICATE no permitidos'); }
         return;
     }

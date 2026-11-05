@@ -50,16 +50,17 @@ class RegisterController {
                 // Hashear la contraseña (compatible con password_verify del backend original)
                 $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
 
-                $sql = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, :role, 1, 1, NOW(), NOW())";
+                // El rol viaja como LITERAL de una lista cerrada fijada por el servidor (nunca de la petición): así el guardia de SQL de admin_escritura puede exigir exactamente esta forma.
+                $roleLiteral = new_user_role_sql_literal();
+                $sql = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, $roleLiteral, 1, 1, NOW(), NOW())";
                 $this->pdo->prepare($sql)->execute([
                     'first_name' => $clean['first_name'],
                     'last_name' => $clean['last_name'],
                     'username' => $clean['username'],
                     'email' => $clean['email'],
                     'phone' => $clean['phone'] ?? null,
-                    'password' => $passwordHash,
-                    // Fijo: el rol jamás proviene de la petición. Para otorgar 'admin' existe PUT /api/user/{id}/role.
-                    'role' => new_user_role()
+                    'password' => $passwordHash
+                    // El rol es un literal fijo en el SQL (arriba): jamás proviene de la petición. Para otorgar 'admin' existe PUT /api/user/{id}/role.
                 ]);
                 $id = (int)$this->pdo->lastInsertId();
                 $row = ['role' => new_user_role(), 'is_active' => 1, 'email' => $clean['email']];

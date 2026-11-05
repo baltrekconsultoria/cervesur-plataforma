@@ -64,6 +64,7 @@ describe('UX-08B.3 · Usuarios', () => {
     expect(screen.queryByRole('button', { name: 'Cambiar rol de Elena Torres' })).toBeNull();
     await t.user.click(screen.getByRole('button', { name: 'Desactivar a María Ríos' }));
     expect(within(await t.dialog()).getByText(/Se cerrarán sus sesiones/)).toBeInTheDocument();
+    expect(within(await t.dialog()).getByText(/NO es una revocación inmediata de acceso en todos los sistemas/)).toBeInTheDocument(); // UX-08I: no se promete revocación en Flutter sin validarla
     await t.user.click(within(await t.dialog()).getByRole('button', { name: 'Desactivar usuario' }));
     await waitFor(() => expect(t.rows()).toBe(2));
     expect(screen.getByRole('status')).toHaveTextContent('Usuario «María Ríos» desactivado correctamente.');

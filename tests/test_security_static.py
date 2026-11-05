@@ -1133,3 +1133,14 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
         self.assertIn("gzip -t", priv)
         self.assertIn("--confirmo-autorizacion", priv)
         self.assertNotRegex(priv, r"(?i)CREATE USER|DROP USER|IDENTIFIED BY")
+
+    def test_phase_2b_user_insert_form_is_pinned_so_the_role_cannot_be_chosen_by_a_request(self):
+        reg = source("backend/controllers/RegisterController.php")
+        self.assertIn("$roleLiteral = new_user_role_sql_literal()", reg)  # el rol es un literal fijo en el SQL
+        self.assertNotRegex(reg, r"'role' => \$")  # nunca como parámetro enlazado desde una variable de la petición
+        self.assertRegex(reg, r"VALUES \(:first_name, :last_name, :username, :email, :phone, :password, \$roleLiteral, 1, 1, NOW\(\), NOW\(\)\)")
+        guard = source("backend/lib/admin_escritura.php")
+        guard = guard[guard.index("function app_sql_write_guard"):]
+        self.assertIn("forma EXACTA del alta", guard)
+        self.assertIn("(user|usuario)", guard)
+        self.assertIn("INSERT en `user` con una forma distinta del alta autorizada", guard)
