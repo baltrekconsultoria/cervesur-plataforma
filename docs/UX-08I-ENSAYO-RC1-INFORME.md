@@ -4,6 +4,8 @@ Candidato validado: commit **`120ea841e12c05ec5f39825a3295969725483cb7`** (rama 
 Paquete: `cervesur-react-admin-fase2b-120ea841e12c-20261105-132240Z.tar.gz` · SHA-256 `3323035290ecdec3f44393d6c6825366983f8ab1830bea84c2ca7cb11cead585`.
 **Reemplaza al paquete `25000c0`**: ese RC1 tenía un bloqueo de liberación (§3) que este ensayo encontró. Este informe es posterior a `120ea84` y solo añade documentación.
 
+> **Actualización:** el candidato vigente es `ae28e6c57d5f9be7ac0806e4fa9bb7a805ed1e24` (paquete `…ae28e6c57d5f-20261105-141442Z`, SHA-256 `414b4b20eb29a3593eb8fab83f91e8ef979389309608e5482ab11e5855c5d465`), que añade el guardia de forma del alta y la corrección del texto sobre Flutter (ver `UX-08I-P2-INFORME.md` §8). El ensayo se repitió sobre él: **220 PASS / 0 FAIL**. Lo que sigue describe el ensayo de `120ea84`.
+
 Entorno: réplica Docker (Ubuntu 24.04, Apache 2.4, mod_php 8.3, MySQL 8 con `validate_password` MEDIUM; Flutter simulado en 80, trabajadores solo en 192.168.200.12:443, QA 8094) con **la Fase 1 instalada de verdad y llevada a la Fase 2A (RC2 `f539c9f`) con el instalador real y B1/B2/B3 verificados uno a uno**. Datos 100 % sintéticos. Sin SSH, sin producción, sin push ni merge.
 Comando: `node deploy/produccion-escritura/ensayo-docker-2b.mjs` → **220 PASS / 0 FAIL**.
 

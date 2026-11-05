@@ -5,14 +5,16 @@
 ## 1. Qué se pide, en una frase
 Publicar en el administrador React (8443) una versión que **incluye** la administración de Usuarios pero la deja **apagada**, y —solo si ambos lo autorizan por separado— habilitar después las operaciones **no sensibles** de Usuarios (alta, edición de datos personales, desactivar/reactivar). **Rol y contraseña de usuarios no se piden y no se pueden encender con este paquete.**
 
+**Alcance exacto de la autorización de P2.** Comprende únicamente la preparación y ejecución controlada del respaldo productivo, su verificación de integridad y una prueba de restauración en un esquema temporal de MySQL. **No implica** la aprobación automática de la publicación del código (P3), de la ampliación de privilegios (P4a) ni de la habilitación de Usuarios (P4b).
+
 ## 2. Candidato
 | | |
 |---|---|
-| Commit | `120ea841e12c05ec5f39825a3295969725483cb7` (rama `feat/cervesur-ux-08i-fase-2b-usuarios`) |
-| Paquete | `cervesur-react-admin-fase2b-120ea841e12c-20261105-132240Z.tar.gz` |
-| SHA-256 | `3323035290ecdec3f44393d6c6825366983f8ab1830bea84c2ca7cb11cead585` |
+| Commit | `ae28e6c57d5f9be7ac0806e4fa9bb7a805ed1e24` (rama `feat/cervesur-ux-08i-fase-2b-usuarios`) — reemplaza a `120ea84`, ver informe P2 §8 |
+| Paquete | `cervesur-react-admin-fase2b-ae28e6c57d5f-20261105-141442Z.tar.gz` |
+| SHA-256 | `414b4b20eb29a3593eb8fab83f91e8ef979389309608e5482ab11e5855c5d465` |
 | Se instala sobre | Fase 2A RC2 `f539c9fd543d`, tal como está operando hoy |
-| Ensayo | 220 PASS / 0 FAIL en réplica Docker con la Fase 2A realmente instalada (`docs/UX-08I-ENSAYO-RC1-INFORME.md`) |
+| Ensayo | 220 PASS / 0 FAIL en réplica Docker con la Fase 2A realmente instalada, repetido sobre este candidato (`docs/UX-08I-ENSAYO-RC1-INFORME.md`); regresión HTTP completa de la CI: 1695 PASS / 0 FAIL |
 
 ## 3. Qué NO cambia
 Flutter (80), portal de trabajadores (443), QA (8094), visor DB031/informe 72, Apache, certificados, Empresas, Reportes y Accesos, y el archivo `.env` durante P3. Rol y contraseña de usuarios permanecen bloqueados.
@@ -51,7 +53,17 @@ Flutter (80), portal de trabajadores (443), QA (8094), visor DB031/informe 72, A
 - Decisión del DBA: restauración de prueba **en un esquema temporal del mismo servidor** (requiere A) o en **otra instancia MySQL** (no escribe nada en producción).
 - Excepción pendiente `debian-sys-maint` (control E0): el DBA debe documentarla; esa cuenta **no** se usa para la aplicación.
 
-## 8. Qué NO se autoriza con este documento
+## 8. Condiciones adicionales de la liberación (vinculantes para P3 y P4)
+1. **Escalamiento (antes de P4a).** Antes de ampliar privilegios sobre `user` se comprobó que las operaciones permitidas no sirven para crear usuarios con rol elevado ni para modificar credenciales fuera de los controles (resultado en el informe P2 §8). Queda **una brecha estructural** que debe aceptarse: el motor MySQL no puede acotar el *valor* de `role` en un `INSERT`; quien disponga de las credenciales de la cuenta (archivo `.env`, `root:www-data 640`) o logre una inyección SQL podría insertar un usuario con rol `admin`. La API y el guardia de SQL no lo permiten.
+2. **Rol y contraseña de usuarios existentes: fuera del alcance de esta liberación.** No hay ruta, interruptor ni script del kit que los habilite.
+3. **Flutter.** Usuarios **no** se presenta como mecanismo de revocación inmediata de acceso en todos los sistemas hasta validar sesiones y tokens contra el backend Flutter real. La interfaz lo dice así en el diálogo de desactivación.
+4. **Cada intervención** (P2, P3, P4a, P4b, P4c) exige: autorización identificable (§5), ventana controlada, respaldo verificable, comprobación de continuidad de Empresas, Reportes y Accesos, **criterios de suspensión** y procedimiento de recuperación documentado (`docs/UX-08I-ENSAYO-RC1-INFORME.md` §7).
+5. **Un respaldo de menos de 24 h no garantiza recuperar los cambios posteriores.** Debe confirmarse su consistencia (manifiesto, `CHECKSUM TABLE`, restauración de prueba) y **controlarse las escrituras concurrentes** (Flutter) durante la intervención: el respaldo se descarta si las tablas cambian mientras se vuelcan.
+6. **Excepciones documentadas y pendientes:** cuenta privilegiada `debian-sys-maint`, validación funcional del acceso ID 114 y compatibilidad de sesiones con Flutter. Su aceptación debe ser **explícita** cuando corresponda al alcance autorizado (casilla F).
+
+**Criterios de suspensión (cualquiera detiene la intervención y activa la recuperación):** respaldo sin `restauracion_probada=1` o con SHA-256 distinto; tablas que cambian durante el volcado; Empresas, Reportes o Accesos dejan de responder; huella de Flutter/443/QA distinta; cuenta MySQL con privilegios de más; `audit_log` sin sus 2 triggers; cualquier 503 del administrador; más de una fila de auditoría por operación; un FAIL sin su salida completa guardada.
+
+## 9. Qué NO se autoriza con este documento
 SSH productivo, cambios de Apache, certificados, cualquier cambio en Flutter/443/QA/DB031, rol y contraseña de usuarios (P5), `push`/`merge`, ni ninguna operación fuera de la tabla del §4.
 
 Firmas: DBA ______________________ fecha ________  · Responsable funcional ______________________ fecha ________

@@ -5,11 +5,11 @@
 ## 1. Candidato registrado
 | | |
 |---|---|
-| Commit validado | `120ea841e12c05ec5f39825a3295969725483cb7` — rama `feat/cervesur-ux-08i-fase-2b-usuarios` |
-| Paquete | `cervesur-react-admin-fase2b-120ea841e12c-20261105-132240Z.tar.gz` (`Cervesur\paquetes-qa\produccion-fase2b-rc1\`) |
-| SHA-256 | `3323035290ecdec3f44393d6c6825366983f8ab1830bea84c2ca7cb11cead585` (coincide con el `.sha256` y con el calculado) |
-| Ensayo del candidato | 220 PASS / 0 FAIL (`docs/UX-08I-ENSAYO-RC1-INFORME.md`) |
-| Cambios posteriores | Solo documentación y herramientas de ensayo `probar-*` (no entran en el paquete). **El paquete y su SHA-256 no cambian.** |
+| Commit validado (vigente) | `ae28e6c57d5f9be7ac0806e4fa9bb7a805ed1e24` — rama `feat/cervesur-ux-08i-fase-2b-usuarios`. **Reemplaza a `120ea84`** (ver §8) |
+| Paquete vigente | `cervesur-react-admin-fase2b-ae28e6c57d5f-20261105-141442Z.tar.gz` (`Cervesur\paquetes-qa\produccion-fase2b-rc1b\`). El de `120ea84` queda **superado** y no debe usarse |
+| SHA-256 | `414b4b20eb29a3593eb8fab83f91e8ef979389309608e5482ab11e5855c5d465` (coincide con el `.sha256` y con el calculado). Anterior, superado: `3323035290ec…cead585` |
+| Ensayo del candidato | Réplica Docker: 220 PASS / 0 FAIL (repetido sobre `ae28e6c`) · regresión HTTP completa de la CI: 1695 PASS / 0 FAIL · unitaria PHP 96 · estáticas 106 · Vitest 298 / tsc / ESLint limpios (`docs/UX-08I-ENSAYO-RC1-INFORME.md`) |
+| Cambios posteriores | Tras `ae28e6c`, solo documentación (no cambia el paquete). |
 
 ## 2. Solicitud de autorización
 `docs/UX-08I-P2-SOLICITUD-AUTORIZACION.md`: delimita P2, P3, P4a, P4b y P4c (qué se ejecuta, si escribe en MySQL, reversión, quién autoriza), seis decisiones independientes (A–F) para firmar, los riesgos que deben aceptarse expresamente y lo que **no** se autoriza.
@@ -54,6 +54,26 @@ Precisión honesta sobre P5: **el kit** no puede activarlo. `privilegios-usuario
 4. **Restauración del respaldo productivo real** (se produce en P2).
 5. Interfaz no renderizada en navegador durante el ensayo; certificados y 443 reales solo en réplica.
 
+## 8. Condiciones adicionales (recibidas tras el primer informe P2) y su efecto
+**Efecto sobre el candidato.** Dos condiciones exigieron cambios de código, así que el candidato cambió de `120ea84` a `ae28e6c`:
+1. *Escalamiento:* se verificó (abajo) y se **fijó la forma del alta** en el guardia de SQL.
+2. *Flutter:* el diálogo «Desactivar usuario» decía «En Flutter, la sesión abierta dejará de funcionar en su siguiente consulta», cosa **no validada** con el backend real. Ahora dice: «esto NO es una revocación inmediata de acceso en todos los sistemas; el tratamiento de sesiones y tokens de Flutter aún no está validado con su backend real», con prueba que lo exige.
+Re-validación: ensayo Docker 220/0, regresión HTTP completa de la CI 1695/0, unitarias, estáticas y frontend verdes.
+
+**Verificación de escalamiento (`tests/isolated/p4_escalamiento_test.php`, ahora también en la CI):**
+| Nivel | Resultado |
+|---|---|
+| API | `role`, `is_active`, `session_version`, `id` en el cuerpo del alta → 400; variantes (`Role`, `ROLE`, `"role "`, `rol`, `roles`, valores no escalares) no afectan: el rol almacenado es siempre el que fija el servidor (`user`/`usuario`); rol y contraseña de usuarios existentes → 403; la edición ignora `role`, `password`, `username`, `is_active`, `session_version` |
+| Guardia de SQL | `UPDATE role/password`, `INSERT … ON DUPLICATE KEY UPDATE`, `REPLACE`, `DELETE`, `INSERT … SELECT` rechazados. **Hallazgo corregido:** antes admitía un `INSERT` con `role='admin'` literal; ahora el rol viaja como literal fijo (`user`/`usuario`) y el guardia exige la forma exacta del alta (activo = 1, `session_version` = 1, sin `id`, sin `ON DUPLICATE`) |
+| Motor MySQL (cuenta real) | `UPDATE(role)`, `UPDATE(password)`, `UPDATE(username)`, `INSERT` con `id`, `ON DUPLICATE KEY UPDATE password`, `DELETE`, `REPLACE` y `SELECT password` → denegados |
+| **Brecha residual (no eliminable en MySQL)** | Con las credenciales de la cuenta, el motor **permite** `INSERT` de un usuario con `role='admin'`: los privilegios por columna no acotan el valor. Requiere el `.env` (`root:www-data 640`) o una inyección SQL; la API y el guardia no lo permiten |
+
+Mitigaciones de la brecha: protección del `.env`; la consulta de control `SELECT id, username, role, created_at FROM user WHERE role NOT IN ('user','usuario') AND created_at >= <inicio de P4>` debe devolver 0 filas tras P4c y como control periódico; la auditoría registra cada alta hecha por la API. Un *trigger* `BEFORE INSERT` en `user` lo cerraría en la base, pero actuaría también sobre las altas de Flutter (tabla compartida): **no se propone sin decisión del DBA y pruebas con Flutter**.
+Otra superficie a validar con el backend real de Flutter: la cuenta puede cambiar `email` (`UPDATE(email)`); si Flutter permite recuperar la contraseña por correo, un cambio de correo de un administrador sería un vector de toma de cuenta. **Pendiente de validar; no se asume inocuo.**
+
+**Condiciones de ejecución.** La solicitud (§8) incorpora: autorización identificable, ventana, respaldo verificable, continuidad de Empresas/Reportes/Accesos, criterios de suspensión (lista explícita) y recuperación documentada. **Un respaldo de menos de 24 h no garantiza recuperar cambios posteriores:** el script solo exige antigüedad, por lo que la consistencia (manifiesto, `CHECKSUM TABLE`, restauración de prueba) y el control de escrituras concurrentes son requisitos adicionales del procedimiento (§3), no implícitos.
+**Alcance de P2:** únicamente respaldo, verificación de integridad y restauración en esquema temporal; no aprueba P3, P4a ni P4b.
+
 ## 7. Veredicto específico para P3
 **NO-GO por ahora (condicionado): el código está técnicamente listo, las condiciones no.**
 | Condición de P3 | Estado |
@@ -64,4 +84,5 @@ Precisión honesta sobre P5: **el kit** no puede activarlo. `privilegios-usuario
 | Autorizaciones A y B firmadas | ✘ pendientes |
 | Respaldo productivo creado y **restauración probada** | ✘ se produce al ejecutar P2 (autorización A) |
 | Ventana sin escrituras de Flutter y espacio verificados en el servidor | ✘ pendiente |
+**Candidato vigente: `ae28e6c`.** El veredicto no cambia con la corrección: el código está listo, las condiciones no.
 **Pasa a GO** cuando P2 se ejecute con evidencia (`restauracion_probada=1`, SHA-256 verificado, `audit_log` respaldado) y B esté firmada. Hasta entonces **no ejecutar P3**.
