@@ -1,6 +1,6 @@
 <?php
 // UX-08H.1 · FASE 2A sobre una base marcada como PRODUCTIVA (CERVESUR_PRODUCTION_DBS=fixture_aw) y con la cuenta de la fase 2A (sin escritura sobre `user`).
-// Instancia `appawp`: ADMIN_WRITES_EMPRESAS/REPORTES/ACCESOS/USUARIOS/USUARIOS_SENSIBLE = 1 a propósito (el servidor debe negar Usuarios igualmente).
+// Instancia `appawp`: empresas/reportes/accesos = 1 y Usuarios SIN interruptor (UX-08I: el bloqueo es el valor por defecto; sin ADMIN_WRITES_USUARIOS=1 el servidor niega Usuarios).
 // Se ejecuta DENTRO del contenedor de la instancia (loopback + X-Forwarded-Proto: https): una base productiva rechaza CERVESUR_INSECURE_TESTS=SI, así que la instancia va como en producción.
 // Entorno: TEST_DB_PASS, W_WRITE2A_PASS.
 $failures = 0;
@@ -24,9 +24,9 @@ function sumUser($root) { return $root->query('CHECKSUM TABLE user')->fetch()['C
 $t = $d['token'] ?? '';
 expectCase($t !== '', 'la instancia con la cuenta de la fase 2A arranca (SHOW GRANTS aceptado) y el administrador entra');
 [, $d] = api('GET', '/api/admin/capacidades', $t);
-expectCase($d['data']['writes'] === ['empresas' => true, 'reportes' => true, 'accesos' => true, 'usuarios' => false] && $d['data']['users_sensitive'] === false, 'capacidades: empresas/reportes/accesos sí; usuarios NO aunque el .env los encienda');
+expectCase($d['data']['writes'] === ['empresas' => true, 'reportes' => true, 'accesos' => true, 'usuarios' => false] && $d['data']['users_sensitive'] === false, 'capacidades: empresas/reportes/accesos sí; usuarios NO (interruptor del servidor apagado)');
 
-echo "== Fase 2B bloqueada en tres capas\n";
+echo "== Usuarios bloqueado por defecto en cuatro capas (sin interruptor del servidor)\n";
 $before = sumUser($root);
 $calls = [
     ['POST', '/api/register', ['first_name' => 'X', 'last_name' => 'Y', 'username' => 'bloqueado', 'email' => 'b@example.invalid', 'password' => 'long-enough-password']],

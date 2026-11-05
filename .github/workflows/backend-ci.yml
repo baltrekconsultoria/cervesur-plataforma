@@ -391,7 +391,13 @@ jobs:
           start_aw appaw --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1 --env ADMIN_USER_REACTIVATE_HOURS=0
           start_aw appawus --env ADMIN_WRITES_USUARIOS=1
           # UX-08H.1: base marcada como productiva + cuenta de la fase 2A; sin CERVESUR_INSECURE_TESTS (una base productiva lo rechaza): la prueba corre DENTRO del contenedor, por loopback.
-          start_aw appawp --env DB_USER=cervesur_escritura2a_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1
+          start_aw appawp --env DB_USER=cervesur_escritura2a_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1
+          # UX-08I fase 2B: mismas condiciones productivas con las cuentas ADITIVAS reales (plantillas UX-08I). appawb = no sensibles; appaws = además rol y contraseña;
+          # appawx/appawy = configuraciones incoherentes (privilegios ↔ interruptores) que deben negarse a servir.
+          start_aw appawb --env DB_USER=cervesur_escritura2b_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1
+          start_aw appaws --env DB_USER=cervesur_escritura2bs_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1 --env ADMIN_WRITES_USUARIOS=1 --env ADMIN_WRITES_USUARIOS_SENSIBLE=1
+          start_aw appawx --env DB_USER=cervesur_escritura2b_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1
+          start_aw appawy --env DB_USER=cervesur_escritura2bs_aw --env DB_PASS="$W_WRITE2A_PASS" --env CERVESUR_PRODUCTION_DBS=fixture_aw --env CERVESUR_INSECURE_TESTS= --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_USUARIOS=1
           start_aw appawe --env ADMIN_WRITES_EMPRESAS=1
           start_aw appaw0
           start_aw appawna --env ADMIN_WRITES_EMPRESAS=1 --env ADMIN_WRITES_REPORTES=1 --env ADMIN_WRITES_ACCESOS=1
@@ -408,3 +414,5 @@ jobs:
             --env TEST_DB_PASS --env JWT_SECRET \
             cervesur-ci-php:local php tests/isolated/flutter_compat_test.php
           docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawp" php tests/isolated/http_admin_escritura_fase2a_test.php
+          for r in nosens:appawb sens:appaws; do docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-${r#*:}" php tests/isolated/http_admin_escritura_fase2b_test.php "${r%%:*}"; done
+          docker exec --env TEST_DB_PASS --env W_WRITE2A_PASS --workdir /work "${ro_prefix}-appawp" php tests/isolated/http_admin_escritura_fase2b_test.php mal
