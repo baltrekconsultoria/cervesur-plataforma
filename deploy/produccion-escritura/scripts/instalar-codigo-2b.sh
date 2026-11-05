@@ -67,9 +67,17 @@ if [ "$MODO" = revertir ]; then
 fi
 
 echo "== Precondiciones (solo lectura)"
+restos=$(find "$DIR_FRONT" "$DIR_BACK" -maxdepth 1 \( -name '.nuevo-*' -o -name '.previo-*' -o -name '.restaurar-*' -o -name '.sustituido-*' \) 2>/dev/null | LC_ALL=C sort)
+[ -z "$restos" ] || abortar "Hay restos de una ejecución INTERRUMPIDA (estado parcial posible): ${restos//$'\n'/ }. No se continúa. Compare con el último respaldo en $DIR_RESPALDO/codigo-2b-* y use --revertir o limpie a mano tras revisar."
 [ -d "$DIR_PUBLIC" ] && [ -d "$DIR_BACKEND" ] && [ -f "$ENV_FILE" ] || abortar "El administrador no está instalado."
 [ -f "$PAQ/SHA256SUMS" ] && (cd "$PAQ" && sha256sum -c SHA256SUMS --quiet) >/dev/null 2>&1 || abortar "La integridad del paquete (SHA256SUMS) no se verifica."
 ok "paquete íntegro (SHA256SUMS)"
+identidad_paquete() {
+  local l
+  l=$(grep -E '^[0-9a-f]{64} [ *](./)?backend/' "$PAQ/SHA256SUMS") && (cd "$DIR_BACK" && sha256sum -c --quiet <<<"$l") >/dev/null 2>&1 || return 1
+  l=$(grep -E '^[0-9a-f]{64} [ *](./)?public/' "$PAQ/SHA256SUMS") && (cd "$DIR_FRONT" && sha256sum -c --quiet <<<"$l") >/dev/null 2>&1
+}
+if identidad_paquete; then ok "lo instalado YA es este paquete 2B (archivo por archivo): no hay nada que hacer"; exit 0; fi
 [ "$(wc -l <<<"$MANIFIESTO_RC2")" = 1 ] && [ -n "$MANIFIESTO_RC2" ] || abortar "El paquete debe traer exactamente un base/MANIFIESTO-FASE2A-*.sha256."
 MANIFIESTO_RC2=$(head -1 <<<"$MANIFIESTO_RC2")
 [ "$(env_valor_actual CERVESUR_MODE)" = admin_escritura ] && [ "$(env_valor_actual CERVESUR_REQUIRED_MODE)" = admin_escritura ] || abortar "El .env no está en admin_escritura: el código 2B se instala sobre la Fase 2A ya operando."
@@ -100,6 +108,7 @@ RESP="$DIR_RESPALDO/codigo-2b-$sello"
 respaldo_fallo() { abortar "Respaldo NO creado o no verificable ($1): NO se modificó nada. Lo que haya en $RESP es evidencia y no se borra."; }
 install -d -m 700 "$DIR_RESPALDO" || respaldo_fallo "no se pudo crear $DIR_RESPALDO"
 [ ! -e "$RESP" ] || respaldo_fallo "ya existe $RESP"
+if inyectar respaldo; then respaldo_fallo "fallo inyectado (ensayo)"; fi
 mkdir -m 700 "$RESP" || respaldo_fallo "no se pudo crear $RESP"
 tar czf "$RESP/public.tgz" -C "$DIR_FRONT" public || respaldo_fallo "tar de la aplicación"
 tar czf "$RESP/backend.tgz" -C "$DIR_BACK" --exclude=backend/.env backend || respaldo_fallo "tar del backend"
@@ -123,6 +132,7 @@ copiar_solo_lectura "$PAQ/public" "$NUEVO_PUBLIC" || volver_atras
 copiar_solo_lectura "$PAQ/backend" "$NUEVO_BACKEND" || volver_atras
 cp -p "$ENV_FILE" "$NUEVO_BACKEND/.env" && chown root:www-data "$NUEVO_BACKEND/.env" && chmod 640 "$NUEVO_BACKEND/.env" || volver_atras
 intercambiar "$DIR_PUBLIC" "$NUEVO_PUBLIC" "$PREV_PUBLIC" || volver_atras
+if inyectar backend; then fallo "(ensayo) fallo inyectado tras reemplazar la aplicación y ANTES del backend"; volver_atras; fi
 intercambiar "$DIR_BACKEND" "$NUEVO_BACKEND" "$PREV_BACKEND" || volver_atras
 inyectar verificacion && { fallo "(ensayo) fallo inyectado en la verificación"; volver_atras; }
 espera_opcache
@@ -137,5 +147,6 @@ salida=$(mktemp); trap 'rm -f "$tmp_otros" "$salida"' EXIT
 if bash "$PAQ/scripts/verificar-posdespliegue.sh" --etapa accesos "${extra[@]}" >"$salida" 2>&1; then ok "etapa accesos: empresas, reportes y accesos siguen encendidos y verificados; usuarios 403 «fase_2b_bloqueada»"
 else grep -E '^FAIL' "$salida" | head -10; volver_atras; fi
 bash "$PAQ/scripts/comprobar-otros-portales.sh" --comparar "$tmp_otros" >/dev/null 2>&1 && ok "Flutter, trabajadores y QA: huella idéntica a la de antes" || { fallo "la huella de otros portales cambió"; volver_atras; }
-ok "INSTALACIÓN TERMINADA. Código anterior conservado en $PREV_PUBLIC y $PREV_BACKEND y respaldo en $RESP. Usuarios sigue APAGADO (siguiente paso: privilegios-usuarios.sh --simular)."
+rm -rf "$PREV_PUBLIC" "$PREV_BACKEND"
+ok "INSTALACIÓN TERMINADA. Vía de retorno: el respaldo verificado $RESP (instalar-codigo-2b.sh --revertir). Usuarios sigue APAGADO (siguiente paso: privilegios-usuarios.sh --simular)."
 echo "RESULTADO-INSTALACION-2B: PASS $RESP"

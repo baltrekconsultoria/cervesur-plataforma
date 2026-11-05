@@ -82,6 +82,13 @@ violaciones_generales() {
   [ -z "$(columnas_de DELETE)" ] || v="$v DELETE@user"
   printf '%s' "${v# }"
 }
+# ¿$1 es subconjunto de $2? (listas separadas por espacio)
+subconjunto() { local x; for x in $1; do case " $2 " in *" $x "*) ;; *) return 1 ;; esac; done; return 0; }
+# Estado PARCIAL de la 2B (GRANT/REVOKE no son transaccionales): algo de las plantillas concedido, pero nunca columnas ajenas a ellas
+parcial_2b() {
+  local ins upd; ins=$(columnas_de INSERT); upd=$(columnas_de UPDATE)
+  [ "$ins" != TABLA ] && [ "$upd" != TABLA ] && subconjunto "$ins" "$COL_INSERT_NOSENS" && subconjunto "$upd" "$COL_UPDATE_SENS" && [ "$(estado_cuenta)" != fase2a ]
+}
 sentencias() { # plantilla → sentencias (una por línea) con marcadores sustituidos
   grep -vE '^[[:space:]]*--' "$1" | tr '\n' ' ' | sed -e 's/;[[:space:]]*/;\n/g' | sed -e "s/{DB}/$DB/g" -e "s/{USER}/$CUENTA/g" -e "s/{HOST}/$HOST_CUENTA/g" -e 's/^[[:space:]]*//' | sed '/^$/d'
 }
@@ -121,9 +128,9 @@ case $MODO in
     esac ;;
   revertir)
     case $ETAPA in
-      no-sensibles) [ "$ACTUAL" = no-sensibles ] || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL» (si está en «sensibles», revierta primero esa etapa)"
+      no-sensibles) { [ "$ACTUAL" = no-sensibles ] || { [ "$ACTUAL" = otro ] && parcial_2b && ! grep -qE '(password|role)' <<<"$(columnas_de UPDATE)"; }; } || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL» (si está en «sensibles», revierta primero esa etapa; un estado parcial de no-sensibles SÍ se puede revertir)"
                     [ "$U_ENV" != 1 ] || bloquear "apague ADMIN_WRITES_USUARIOS (interruptor-usuarios.sh apagar) antes de revertir privilegios" ;;
-      sensibles) [ "$ACTUAL" = sensibles ] || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL»"
+      sensibles) { [ "$ACTUAL" = sensibles ] || { [ "$ACTUAL" = otro ] && parcial_2b && grep -qE '(password|role)' <<<"$(columnas_de UPDATE)"; }; } || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL»"
                  [ "$S_ENV" != 1 ] || bloquear "apague ADMIN_WRITES_USUARIOS_SENSIBLE antes de revertir privilegios" ;;
     esac ;;
 esac
@@ -154,7 +161,11 @@ fallo_parcial=0
 while IFS= read -r s; do
   [ -n "$s" ] || continue
   if inyectar privilegios && [ "$fallo_parcial" = 0 ] && grep -q 'UPDATE' <<<"$s"; then fallo_parcial=1; fallo "(ensayo) fallo inyectado en: ${s:0:60}…"; break; fi
-  if ! $MYSQL_ADMIN -e "$s" >"$EVID/salida.txt" 2>&1; then fallo_parcial=1; fallo "falló la sentencia: ${s:0:80}…"; break; fi
+  if ! $MYSQL_ADMIN -e "$s" >"$EVID/salida.txt" 2>&1; then
+    # al REVERTIR un estado parcial, quitar lo que no está concedido no es un error (MySQL: 1147 «no such grant»)
+    if [ "$MODO" = revertir ] && grep -qiE 'no such grant|1147' "$EVID/salida.txt"; then ok "(ya revocado) ${s:0:60}…"; continue; fi
+    fallo_parcial=1; fallo "falló la sentencia: ${s:0:80}…"; break
+  fi
   ok "ejecutada: ${s:0:70}…"
 done < <(sentencias "$PLANTILLA")
 if [ "$fallo_parcial" = 1 ]; then
@@ -170,7 +181,8 @@ GRANTS=$(grants_actuales || true); printf '%s\n' "$GRANTS" > "$EVID/grants-despu
 FIN=$(estado_cuenta); V=$(violaciones_generales)
 case $MODO:$ETAPA in
   aplicar:no-sensibles) ESPERADO=no-sensibles ;; aplicar:sensibles) ESPERADO=sensibles ;;
-  revertir:no-sensibles) ESPERADO=fase2a ;; revertir:sensibles) ESPERADO=no-sensibles ;;
+  revertir:no-sensibles) ESPERADO=fase2a ;;
+  revertir:sensibles) if [ "$ACTUAL" = sensibles ]; then ESPERADO=no-sensibles; else ESPERADO=$FIN; grep -qE '(password|role)' <<<"$(columnas_de UPDATE)" && ESPERADO=sin-sensibles; fi ;;
 esac
 if [ "$FIN" = "$ESPERADO" ] && [ -z "$V" ]; then ok "VERIFICACIÓN POSTERIOR: la cuenta está en «$FIN», sin privilegios de más"; echo "RESULTADO-PRIVILEGIOS: PASS $MODO $ETAPA"; exit 0; fi
 fallo "VERIFICACIÓN POSTERIOR FALLIDA: estado «$FIN» (esperado «$ESPERADO»), violaciones: ${V:-ninguna}. Evidencia en $EVID. Revierta con --revertir o escale al DBA."

@@ -32,6 +32,7 @@ mostrar() { echo "   ADMIN_WRITES_USUARIOS=$(valor ADMIN_WRITES_USUARIOS)   ADMI
 # shellcheck disable=SC2154  # CAP_* los asigna capacidades_leer (lib.sh) con printf -v
 verificar_capacidades() { # esperado de usuarios: true|false (sensible SIEMPRE false)
   espera_opcache
+  if inyectar capacidades; then return 1; fi   # solo ensayo: simula que las capacidades NO son las esperadas
   credenciales_presentes && api_login || return 2
   capacidades_leer || return 1
   [ "$CAP_usuarios" = "$1" ] && [ "$CAP_SENSIBLE" = false ] && [ "$CAP_empresas" = true ] && [ "$CAP_reportes" = true ] && [ "$CAP_accesos" = true ]
