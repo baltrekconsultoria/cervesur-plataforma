@@ -145,7 +145,8 @@ class UserController {
     /** PUT /api/users/{id}: solo first_name, last_name, phone (+ version); el correo NO se edita desde el panel (UX-08I) y cualquier otro campo se ignora. */
     public function adminUpdate($id, array $input, $actorId) {
         // UX-08I: la cuenta de React no puede escribir `email` (ni la base lo permite). Un correo distinto del actual se rechaza con un mensaje claro; el mismo correo se ignora.
-        if (array_key_exists('email', $input)) {
+        $soloLectura = function_exists('app_mode') && app_mode() === 'admin_escritura'; // los demás modos conservan su contrato (cuenta con UPDATE(email))
+        if ($soloLectura && array_key_exists('email', $input)) {
             $actual = $this->userModel->getAdminDetail($id);
             if (!($actual['success'] ?? false)) { return $actual; }
             if (strtolower(trim((string)$input['email'])) !== strtolower((string)($actual['data']['email'] ?? ''))) {
@@ -153,12 +154,12 @@ class UserController {
             }
             unset($input['email']);
         }
-        [$clean, $error] = UserModel::validateIdentity($input, ['first_name', 'last_name', 'phone'], []);
+        [$clean, $error] = UserModel::validateIdentity($input, $soloLectura ? ['first_name', 'last_name', 'phone'] : ['first_name', 'last_name', 'phone', 'email'], []);
         if ($error !== null) {
             return ['success' => false, 'message' => $error];
         }
         if (!$clean && !array_key_exists('phone', $input)) {
-            return ['success' => false, 'message' => 'No se enviaron campos para actualizar. Campos permitidos: first_name, last_name, phone'];
+            return ['success' => false, 'message' => 'No se enviaron campos para actualizar. Campos permitidos: ' . ($soloLectura ? 'first_name, last_name, phone' : 'first_name, last_name, phone, email')];
         }
         $version = $input['version'] ?? null;
         if ($version !== null && !is_string($version)) {
