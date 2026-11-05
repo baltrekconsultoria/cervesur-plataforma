@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, r
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DB_ORIGENES, E0_ARCHIVO, E0_REPO, MIGRACIONES_REPO, PLANTILLA, colocarBaseDeDatos, contradiccionesConLeeme, esperadosMigraciones, validarEstructura } from './lib-empaquetado.mjs';
+import { DB_ORIGENES, E0_ARCHIVO, E0_REPO, MIGRACIONES_REPO, PLANTILLA, colocarBaseDeDatos, contradiccionesConLeeme, esperadosMigraciones, validarEstructura, colocarFase2b, validarFase2b } from './lib-empaquetado.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(here, '..', '..');
@@ -139,11 +139,65 @@ for (const origen of DB_ORIGENES) {
   const ensayo = readFileSync(join(here, 'ensayo-docker.mjs'), 'utf8');
   ok('el ensayo reproduce la realidad: 443 solo en 192.168.200.12 (NET_ADMIN solo en el ensayo)', /--cap-add', 'NET_ADMIN'/.test(ensayo) && /192\.168\.200\.12:443/.test(readFileSync(join(here, 'ensayo', 'decoys', 'cervesur-react-trabajadores.conf'), 'utf8')));
 }
+// 12. UX-08I · fase 2B: plantillas aditivas en fase2b/repo con su SHA256SUMS, y garantías de lo que conceden
+{
+  const r = nueva();
+  colocarFase2b(r, REPO, fail);
+  const p = validarFase2b(r);
+  ok('2B: fase2b/repo con 4 plantillas y SHA256SUMS: sin problemas', p.length === 0, p.join(' | '));
+  ok('2B: la estructura 2A sigue válida con fase2b/ presente', validarEstructura(r).length === 0);
+  ok('2B: fase2b/repo NO contamina migraciones/repo (la plantilla 2A es la misma de siempre)', !existsSync(join(r, MIGRACIONES_REPO, 'UX-08I-usuarios-no-sensibles.up.sql.template')));
+  limpiar(r);
+}
+{
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  rmSync(join(r, 'fase2b', 'repo', 'SHA256SUMS'));
+  ok('2B: sin SHA256SUMS en fase2b/repo → problema', validarFase2b(r).some(m => m.includes('SHA256SUMS')));
+  limpiar(r);
+}
+{
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  writeFileSync(join(r, 'fase2b', 'repo', 'UX-08I-usuarios-sensibles.up.sql.template'), 'GRANT UPDATE (role, password) ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n-- alterada\n');
+  ok('2B: una plantilla alterada no verifica con su SHA256SUMS', validarFase2b(r).some(m => m.includes('no verifica')));
+  limpiar(r);
+}
+{
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  const f = join(r, 'fase2b', 'repo', 'UX-08I-usuarios-no-sensibles.up.sql.template');
+  writeFileSync(f, readFileSync(f, 'utf8') + '\nGRANT UPDATE (role) ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n');
+  ok('2B: una plantilla «no sensibles» que concede role/password es rechazada', validarFase2b(r).some(m => m.includes('role o password')));
+  limpiar(r);
+}
+{
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  const f = join(r, 'fase2b', 'repo', 'UX-08I-usuarios-sensibles.up.sql.template');
+  writeFileSync(f, 'GRANT UPDATE (role, password, username) ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n');
+  ok('2B: la plantilla «sensibles» solo puede conceder UPDATE(role, password)', validarFase2b(r).some(m => m.includes('únicamente')));
+  limpiar(r);
+}
+{
+  const r = nueva(); colocarFase2b(r, REPO, fail);
+  const f = join(r, 'fase2b', 'repo', 'UX-08I-usuarios-no-sensibles.up.sql.template');
+  writeFileSync(f, readFileSync(f, 'utf8') + '\nGRANT DELETE ON `{DB}`.`user` TO \'{USER}\'@\'{HOST}\';\n');
+  ok('2B: un DELETE en una plantilla 2B es rechazado', validarFase2b(r).some(m => m.includes('prohibidos')));
+  limpiar(r);
+}
+{
+  const src = readFileSync(join(here, 'empaquetar.mjs'), 'utf8');
+  ok('2B: empaquetar.mjs --fase=2b coloca y valida fase2b/repo, nombra fase2b y excluye los instaladores A1/A2', /colocarFase2b\(ROOT, REPO, fail\)/.test(src) && /validarFase2b\(ROOT\)/.test(src) && /fase\$\{FASE2B \? '2b' : '2a'\}/.test(src) && /'actualizar\.sh', 'modo-escritura\.sh', 'revertir-codigo\.sh', 'preflight-fase2a\.sh'/.test(src));
+  const sh = ['instalar-codigo-2b.sh', 'privilegios-usuarios.sh', 'interruptor-usuarios.sh'].map(f => readFileSync(join(here, 'scripts', f), 'utf8'));
+  ok('2B: los tres scripts existen y ninguno edita MySQL fuera de privilegios-usuarios.sh', sh.every(t => t.length > 500) && !/GRANT |REVOKE /.test(sh[0] + sh[2].replace(/#.*$/gm, '')));
+  ok('2B: el interruptor rechaza lo sensible (P5) y el instalador exige Usuarios apagado', /sensible\) fallo/.test(sh[2]) && /usuarios_apagados \|\| abortar/.test(sh[0]));
+}
 // 11. Paquete real (opcional)
 if (process.argv[2]) {
   const raiz = resolve(process.argv[2]);
   const p = validarEstructura(raiz);
   ok(`paquete real ${raiz.split(/[\\/]/).pop()}: estructura correcta`, p.length === 0, p.join(' | '));
+  if (existsSync(join(raiz, 'fase2b'))) {
+    const q = validarFase2b(raiz);
+    ok('paquete real: fase2b/repo correcta (4 plantillas + SHA256SUMS que verifica)', q.length === 0, q.join(' | '));
+  }
 }
 console.log(`\n${fallos === 0 ? 'All packaging checks passed' : `${fallos} check(s) FAILED`}`);
 process.exit(fallos === 0 ? 0 : 1);

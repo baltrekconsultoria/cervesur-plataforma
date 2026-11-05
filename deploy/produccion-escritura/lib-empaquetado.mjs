@@ -115,3 +115,58 @@ export function validarEstructura(root) {
   return p;
 }
 
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// UX-08I · Fase 2B: plantillas ADITIVAS de privilegios de Usuarios en fase2b/repo/ (con su SHA256SUMS). La plantilla de la fase 2A sigue en migraciones/repo/ y NO cambia.
+export const FASE2B_REPO = 'fase2b/repo';
+export const FASE2B_ORIGENES = [
+  'privileges/UX-08I-usuarios-no-sensibles.up.sql.template',
+  'privileges/UX-08I-usuarios-no-sensibles.down.sql.template',
+  'privileges/UX-08I-usuarios-sensibles.up.sql.template',
+  'privileges/UX-08I-usuarios-sensibles.down.sql.template'
+];
+export const esperadosFase2b = () => FASE2B_ORIGENES.map(f => basename(f));
+
+export function colocarFase2b(root, repoRoot, fail) {
+  mkdirSync(join(root, FASE2B_REPO), { recursive: true });
+  const sumas = [];
+  for (const origen of FASE2B_ORIGENES) {
+    const desde = join(repoRoot, 'database', origen);
+    if (!existsSync(desde)) fail(`Falta database/${origen}`);
+    const contenido = lf(readFileSync(desde, 'utf8'));
+    const nombre = basename(origen);
+    writeFileSync(join(root, FASE2B_REPO, nombre), contenido);
+    sumas.push(`${sha256(contenido)}  ${nombre}`);
+  }
+  writeFileSync(join(root, FASE2B_REPO, 'SHA256SUMS'), sumas.join('\n') + '\n');
+}
+
+/** Valida fase2b/repo: los 4 archivos + SHA256SUMS que verifica; «no sensibles» no concede role/password; «sensibles» concede SOLO UPDATE(role, password); ninguna crea cuentas. */
+export function validarFase2b(root) {
+  const p = [];
+  const dir = join(root, FASE2B_REPO);
+  const archivos = lista(dir);
+  if (archivos === null) return [`falta ${FASE2B_REPO}/`];
+  for (const f of [...esperadosFase2b(), 'SHA256SUMS']) if (!archivos.includes(f)) p.push(`falta ${FASE2B_REPO}/${f}`);
+  for (const f of archivos) if (![...esperadosFase2b(), 'SHA256SUMS'].includes(f)) p.push(`archivo inesperado en ${FASE2B_REPO}/: ${f}`);
+  if (archivos.includes('SHA256SUMS')) {
+    const entradas = lf(readFileSync(join(dir, 'SHA256SUMS'), 'utf8')).trim().split('\n').filter(Boolean);
+    if (entradas.length !== esperadosFase2b().length) p.push(`${FASE2B_REPO}/SHA256SUMS tiene ${entradas.length} entradas y debe tener ${esperadosFase2b().length}`);
+    for (const l of entradas) {
+      const m = l.match(/^([0-9a-f]{64}) [ *]?(.+)$/);
+      if (!m) { p.push(`línea inválida en ${FASE2B_REPO}/SHA256SUMS`); continue; }
+      const archivo = join(dir, m[2]);
+      if (m[2].includes('/') || !existsSync(archivo)) p.push(`${FASE2B_REPO}/SHA256SUMS apunta a un archivo inválido: ${m[2]}`);
+      else if (sha256(readFileSync(archivo)) !== m[1]) p.push(`${FASE2B_REPO}/SHA256SUMS no verifica ${m[2]}`);
+    }
+  }
+  const sinComentarios = f => (existsSync(join(dir, f)) ? lf(readFileSync(join(dir, f), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n') : '');
+  const noSens = sinComentarios('UX-08I-usuarios-no-sensibles.up.sql.template');
+  const sensText = sinComentarios('UX-08I-usuarios-sensibles.up.sql.template');
+  if (/GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b[^)]*\)/i.test(noSens)) p.push('la plantilla «no sensibles» concede UPDATE de role o password');
+  if (/\b(DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|DROP|ALTER|CREATE)\b/i.test(noSens + sensText)) p.push('una plantilla 2B contiene un privilegio o sentencia prohibidos');
+  if (/IDENTIFIED BY/i.test(noSens + sensText)) p.push('las plantillas 2B no deben crear cuentas ni contraseñas');
+  if (!/^GRANT UPDATE \(role, password\) ON `\{DB\}`\.`user` TO '\{USER\}'@'\{HOST\}';$/.test(sensText.replace(/\s+/g, ' ').trim())) p.push('la plantilla «sensibles» debe conceder únicamente UPDATE(role, password) sobre user');
+  return p;
+}

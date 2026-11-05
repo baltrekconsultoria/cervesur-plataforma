@@ -3,7 +3,7 @@
 // Normal: se NIEGA a construir con el árbol sucio o sin commit identificado. --permitir-arbol-sucio es SOLO para ensayos: el nombre lleva «-con-cambios» y RELEASE.json dice produccion:false.
 // Compila el frontend con `node scripts/build-production.mjs --admin-write` (hosts: localhost + el indicado, como la fase 1) EN UNA COPIA TEMPORAL de frontend/, para no tocar
 // frontend/dist-admin-write. --sin-compilar reutiliza esa carpeta en SOLO LECTURA (debe declarar ya los hosts pedidos).
-// Resultado en <out>: <nombre>.tar.gz + .sha256 + .RELEASE.json + DIFERENCIAS-vs-3f859210c5c4.txt/.json (diferencias por archivo frente al SHA256SUMS del paquete instalado de la fase 1).
+// Resultado en <out>: <nombre>.tar.gz + .sha256 + .RELEASE.json + DIFERENCIAS-vs-${BASE_COMMIT}.txt/.json (diferencias por archivo frente al SHA256SUMS del paquete instalado de la fase 1).
 // Contenido del paquete: public/, backend/, scripts/, base/ (manifiesto de la fase 1), apache/ (nota; no se instala nada de Apache), e0/ y migraciones/ (si existen; los escribe otro
 // equipo), database/ (las dos migraciones de audit_log con su .down y la plantilla de la cuenta 2A), docs/, README.md, VERSION, RELEASE.json y SHA256SUMS. Sin .env, claves, certificados,
 // datos de QA, cuentas syn###, archivos deploy/qa-* ni secretos (se inspecciona el resultado).
@@ -13,13 +13,17 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { colocarBaseDeDatos, validarEstructura } from './lib-empaquetado.mjs';
+import { colocarBaseDeDatos, colocarFase2b, validarEstructura, validarFase2b } from './lib-empaquetado.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(here, '..', '..');
 const FRONT = join(REPO, 'frontend');
-const BASE_COMMIT = '3f859210c5c4';
-const BASE_DEFECTO = resolve(REPO, '..', 'paquetes-qa', 'produccion-v4', 'cervesur-react-admin-3f859210c5c4-20261103-211438Z', 'SHA256SUMS');
+const FASE2B = process.argv.includes('--fase=2b'); // UX-08I: paquete de la fase 2B (Usuarios) sobre la fase 2A RC2 ya operando
+const BASE_COMMIT = FASE2B ? 'f539c9fd543d' : '3f859210c5c4';
+const BASE_TAG = FASE2B ? 'FASE2A' : 'FASE1';
+const BASE_DEFECTO = FASE2B
+  ? resolve(REPO, '..', 'paquetes-qa', 'produccion-fase2a-rc2', 'cervesur-react-admin-fase2a-f539c9fd543d-20261104-225140Z', 'SHA256SUMS')
+  : resolve(REPO, '..', 'paquetes-qa', 'produccion-v4', 'cervesur-react-admin-3f859210c5c4-20261103-211438Z', 'SHA256SUMS');
 const fail = message => { console.error(`\nERROR: ${message}`); process.exit(1); };
 const git = args => spawnSync('git', args, { cwd: REPO, encoding: 'utf8' }).stdout?.trim() ?? '';
 const sha = data => createHash('sha256').update(data).digest('hex');
@@ -68,7 +72,7 @@ for (const h of hosts) if (!info.allowedHosts.includes(h)) fail(`La compilación
 // 3. Ensamblado
 const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z').replace('T', '-');
 const short = commit.slice(0, 12);
-const name = `cervesur-react-admin-fase2a-${short}${dirty}-${stamp}`;
+const name = `cervesur-react-admin-fase${FASE2B ? '2b' : '2a'}-${short}${dirty}-${stamp}`;
 const ROOT = join(OUT, name);
 mkdirSync(OUT, { recursive: true });
 rmSync(ROOT, { recursive: true, force: true });
@@ -95,7 +99,13 @@ for (const d of ['e0', 'migraciones']) {
 // migraciones/repo/ (con SHA256SUMS) y e0/repo/ (ver lib-empaquetado.mjs). Defecto del RC 70a14f2: el LEEME decía «repo/…» y se copiaba a la raíz del paquete.
 colocarBaseDeDatos(ROOT, REPO, fail);
 notas.push('SQL colocados en migraciones/repo/ (con SHA256SUMS de 5 archivos) y e0/repo/');
-for (const doc of ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md']) if (existsSync(join(REPO, 'docs', doc))) copy(join(REPO, 'docs', doc), `docs/${doc}`); else notas.push(`docs/${doc} no existe: no se incluye`);
+if (FASE2B) {
+  colocarFase2b(ROOT, REPO, fail);
+  // El instalador de la fase 2A (A1/A2) y su reversión no forman parte del paquete 2B: lo instalado YA es la fase 2A.
+  for (const f of ['actualizar.sh', 'modo-escritura.sh', 'revertir-codigo.sh', 'preflight-fase2a.sh']) rmSync(join(ROOT, 'scripts', f), { force: true });
+  notas.push('fase2b/repo/ con las 4 plantillas UX-08I y su SHA256SUMS; sin los instaladores A1/A2 de la fase 2A');
+}
+for (const doc of FASE2B ? ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md', 'UX-08I-FASE-2B-AUDITORIA-GO-NO-GO.md', 'UX-08I-FASE-2B-LIBERACION.md'] : ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md']) if (existsSync(join(REPO, 'docs', doc))) copy(join(REPO, 'docs', doc), `docs/${doc}`); else notas.push(`docs/${doc} no existe: no se incluye`);
 
 // Manifiesto de lo instalado en la fase 1 (backend/ y public/ de su SHA256SUMS): lo usan preflight y actualizar.sh para exigir que lo instalado ES la fase 1
 const baseText = readFileSync(BASE_SUMS, 'utf8');
@@ -103,17 +113,17 @@ const baseMap = new Map();
 for (const linea of baseText.split(/\r?\n/)) { const m = linea.match(/^([0-9a-f]{64}) [ *]?(.+)$/); if (m) baseMap.set(m[2].replace(/^\.\//, ''), m[1]); }
 if (![...baseMap.keys()].some(p => p.startsWith('backend/')) || ![...baseMap.keys()].some(p => p.startsWith('public/'))) fail('El SHA256SUMS base no parece de un paquete de la fase 1 (sin backend/ ni public/).');
 mkdirSync(join(ROOT, 'base'), { recursive: true });
-writeFileSync(join(ROOT, 'base', `MANIFIESTO-FASE1-${BASE_COMMIT}.sha256`), [...baseMap].filter(([p]) => p.startsWith('backend/') || p.startsWith('public/')).map(([p, h]) => `${h}  ${p}`).join('\n') + '\n');
+writeFileSync(join(ROOT, 'base', `MANIFIESTO-${BASE_TAG}-${BASE_COMMIT}.sha256`), [...baseMap].filter(([p]) => p.startsWith('backend/') || p.startsWith('public/')).map(([p, h]) => `${h}  ${p}`).join('\n') + '\n');
 
 // 4. LF, VERSION
 const walk = (dir, out = []) => { for (const entry of readdirSync(dir).sort()) { const full = join(dir, entry); statSync(full).isDirectory() ? walk(full, out) : out.push(full); } return out; };
 for (const file of walk(ROOT)) if (TEXT.has(extname(file).toLowerCase()) || basename(file) === '.htaccess') lf(file);
 const construido = new Date().toISOString();
-writeFileSync(join(ROOT, 'VERSION'), `commit: ${short}${dirty}\nrama: ${branch}\nconstruido: ${construido}\nentorno: administrador React FASE 2A (modo admin_escritura tras A2; escrituras APAGADAS por defecto) sobre ${BASE_COMMIT}\nhosts-autorizados: ${info.allowedHosts.join(',')}\nproduccion: ${dirty ? 'NO (árbol con cambios: solo ensayo)' : 'sí'}\n`);
+writeFileSync(join(ROOT, 'VERSION'), `commit: ${short}${dirty}\nrama: ${branch}\nconstruido: ${construido}\nentorno: administrador React ${FASE2B ? 'FASE 2B (Usuarios; interruptor APAGADO por defecto) sobre la fase 2A' : 'FASE 2A (modo admin_escritura tras A2; escrituras APAGADAS por defecto) sobre'} ${BASE_COMMIT}\nhosts-autorizados: ${info.allowedHosts.join(',')}\nproduccion: ${dirty ? 'NO (árbol con cambios: solo ensayo)' : 'sí'}\n`);
 
 // 5. Inspección del contenido
 let files = walk(ROOT);
-const problems = [...validarEstructura(ROOT).map(m => `estructura del paquete: ${m}`)];
+const problems = [...validarEstructura(ROOT).map(m => `estructura del paquete: ${m}`), ...(FASE2B ? validarFase2b(ROOT).map(m => `fase 2B: ${m}`) : [])];
 for (const file of files) {
   const r = rel(ROOT, file);
   if (basename(file).startsWith('.env')) problems.push(`.env: ${r}`);
@@ -129,15 +139,15 @@ for (const file of files) {
   if (/IDENTIFIED BY '(?!\{PASS\}|__)[A-Za-z0-9!]{12,}'/.test(text)) problems.push(`contraseña en un SQL: ${r}`);
 }
 if (!existsSync(join(ROOT, 'backend', 'lib', 'write_support.php'))) problems.push('falta backend/lib/write_support.php');
-for (const f of ['scripts/actualizar.sh', 'scripts/modo-escritura.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/revertir-codigo.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/preflight-fase2a.sh', 'scripts/lib.sh']) if (!existsSync(join(ROOT, f))) problems.push(`falta ${f}`);
+for (const f of FASE2B ? ['scripts/instalar-codigo-2b.sh', 'scripts/privilegios-usuarios.sh', 'scripts/interruptor-usuarios.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/lib.sh'] : ['scripts/actualizar.sh', 'scripts/modo-escritura.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/revertir-codigo.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/preflight-fase2a.sh', 'scripts/lib.sh']) if (!existsSync(join(ROOT, f))) problems.push(`falta ${f}`);
 if (problems.length) { rmSync(ROOT, { recursive: true, force: true }); if (scratch) rmSync(scratch, { recursive: true, force: true }); fail(`El paquete no cumple las garantías de liberación:\n - ${problems.join('\n - ')}`); }
 
 // 6. RELEASE.json (dentro del paquete: sin el SHA del .tar.gz, que no puede contener su propio hash) y SHA256SUMS
 const claves = ['backend/lib/mode.php', 'backend/lib/admin_escritura.php', 'backend/router/AdminRouter.php', 'backend/router/AdminWriteRouter.php', 'backend/router/index.php'];
 const hashDe = p => { const f = join(ROOT, p); return existsSync(f) ? sha(readFileSync(f)) : null; };
 const releaseBase = {
-  fase: 'produccion-2a-admin-escritura', commit, rama: branch, arbol_limpio: !dirty, produccion: !dirty, construido, hosts: info.allowedHosts, modo: 'admin_escritura-fase2a',
-  base_instalada: BASE_COMMIT, escrituras: 'apagadas hasta el Paso B (empresas → reportes → accesos, uno a uno); usuarios (fase 2B) bloqueado en código en 3 capas',
+  fase: FASE2B ? 'produccion-2b-usuarios' : 'produccion-2a-admin-escritura', commit, rama: branch, arbol_limpio: !dirty, produccion: !dirty, construido, hosts: info.allowedHosts, modo: FASE2B ? 'admin_escritura-fase2b' : 'admin_escritura-fase2a',
+  base_instalada: BASE_COMMIT, escrituras: FASE2B ? 'Usuarios APAGADO por defecto (cuatro capas: ruta, guardia SQL, privilegios de la cuenta, aserción de arranque); rol y contraseña fuera de alcance (P5)' : 'apagadas hasta el Paso B (empresas → reportes → accesos, uno a uno); usuarios (fase 2B) bloqueado en código en 3 capas',
   huellas: Object.fromEntries(claves.map(p => [p, hashDe(p)])), notas
 };
 writeFileSync(join(ROOT, 'RELEASE.json'), `${JSON.stringify(releaseBase, null, 2)}\n`);
@@ -184,7 +194,7 @@ const resumen = { agregados: tot('agregados'), eliminados: tot('eliminados'), mo
 const nuevos = GRUPOS.flatMap(g => dif[g].agregados.map(a => a.ruta));
 const estado = c => (c === null ? 'NO COMPARABLE (falta el archivo base junto al SHA256SUMS)' : c ? 'CAMBIÓ' : 'SIN CAMBIOS');
 const txt = [];
-txt.push(`DIFERENCIAS del paquete ${name} frente a la fase 1 instalada (${BASE_COMMIT})`);
+txt.push(`DIFERENCIAS del paquete ${name} frente a la ${FASE2B ? 'fase 2A instalada' : 'fase 1 instalada'} (${BASE_COMMIT})`);
 txt.push(`Base: ${BASE_SUMS}`);
 txt.push(`Resumen: ${resumen.agregados} agregados · ${resumen.eliminados} eliminados · ${resumen.modificados} modificados · ${resumen.iguales} idénticos (por SHA-256 de archivo)`);
 txt.push('Nota: lo «eliminado» en scripts/, admin-mysql/, apache/ y docs/ es el kit de INSTALACIÓN de la fase 1 (instalar, pasos-instalacion, revertir = DESINSTALADOR, usuarios, TLS…): este paquete no lo');
@@ -207,7 +217,7 @@ for (const g of GRUPOS) {
 }
 const difTxt = join(OUT, 'DIFERENCIAS-vs-3f859210c5c4.txt');
 writeFileSync(difTxt, `${txt.join('\n')}\n`);
-writeFileSync(join(OUT, 'DIFERENCIAS-vs-3f859210c5c4.json'), `${JSON.stringify({ paquete: name, base: BASE_COMMIT, base_sha256sums: BASE_SUMS, resumen, afirmaciones, nuevos, grupos: dif }, null, 2)}\n`);
+writeFileSync(join(OUT, `DIFERENCIAS-vs-${BASE_COMMIT}.json`), `${JSON.stringify({ paquete: name, base: BASE_COMMIT, base_sha256sums: BASE_SUMS, resumen, afirmaciones, nuevos, grupos: dif }, null, 2)}\n`);
 
 // 8. Archivo final
 const tgz = join(OUT, `${name}.tar.gz`);
@@ -217,4 +227,4 @@ if (tar.status !== 0) fail('No se pudo crear el .tar.gz (se necesita «tar», in
 const tgzSha = sha(readFileSync(tgz));
 writeFileSync(`${tgz}.sha256`, `${tgzSha}  ${name}.tar.gz\n`);
 writeFileSync(join(OUT, `${name}.RELEASE.json`), `${JSON.stringify({ ...releaseBase, paquete: `${name}.tar.gz`, sha256: tgzSha, archivos: files.length + 1, diferencias: resumen }, null, 2)}\n`);
-console.log(`\nPaquete de la FASE 2A listo (nada se ha enviado ni instalado):\n  ${tgz}\n  SHA-256 del .tar.gz: ${tgzSha}\n  Commit: ${commit} (${branch})${dirty ? '  ⚠ ÁRBOL CON CAMBIOS: solo ensayo, produccion:false' : ', árbol limpio'}\n  Archivos: ${files.length + 1}\n  Diferencias: ${difTxt}\n  Notas: ${notas.join(' · ')}`);
+console.log(`\nPaquete de la FASE ${FASE2B ? '2B' : '2A'} listo (nada se ha enviado ni instalado):\n  ${tgz}\n  SHA-256 del .tar.gz: ${tgzSha}\n  Commit: ${commit} (${branch})${dirty ? '  ⚠ ÁRBOL CON CAMBIOS: solo ensayo, produccion:false' : ', árbol limpio'}\n  Archivos: ${files.length + 1}\n  Diferencias: ${difTxt}\n  Notas: ${notas.join(' · ')}`);

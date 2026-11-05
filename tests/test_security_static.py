@@ -1068,3 +1068,68 @@ class AdminEscrituraStaticChecks(unittest.TestCase):
         gate = text[text.index("function app_mode_write_gate"):text.index("function app_sql_write_guard")]
         self.assertIn("admin_users_locked()", gate)
         self.assertIn("fase_2b_bloqueada", text)
+
+    # ---- UX-08I · Fase 2B (Usuarios) ----
+    def test_phase_2b_templates_are_additive_and_split_sensitive_from_common(self):
+        def grants(name):
+            tpl = source(f"database/privileges/{name}")
+            return "\n".join(l for l in tpl.splitlines() if not l.strip().startswith("--"))
+        no_sens_up = grants("UX-08I-usuarios-no-sensibles.up.sql.template")
+        no_sens_down = grants("UX-08I-usuarios-no-sensibles.down.sql.template")
+        sens_up = grants("UX-08I-usuarios-sensibles.up.sql.template")
+        sens_down = grants("UX-08I-usuarios-sensibles.down.sql.template")
+        for text in (no_sens_up, sens_up):
+            self.assertNotRegex(text, r"(?i)\b(DELETE|ALL PRIVILEGES|GRANT OPTION|TRIGGER|DROP|ALTER|CREATE|IDENTIFIED BY|SUPER)\b")
+            self.assertNotRegex(text, r"(?is)ON \*\.\*")  # nada global
+            self.assertNotRegex(text, r"(?is)GRANT\s+SELECT")  # no amplían lecturas: password nunca se lee
+        self.assertNotRegex(no_sens_up, r"(?is)GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b")
+        self.assertRegex(no_sens_up, r"(?is)GRANT\s+INSERT\s*\([^)]*\bpassword\b[^)]*\)\s*ON `\{DB\}`\.`user`")
+        self.assertRegex(re.sub(r"\s+", " ", sens_up).strip(), r"^GRANT UPDATE \(role, password\) ON `\{DB\}`\.`user` TO '\{USER\}'@'\{HOST\}';$")
+        self.assertRegex(no_sens_down, r"(?is)REVOKE\s+INSERT")
+        self.assertRegex(re.sub(r"\s+", " ", sens_down).strip(), r"^REVOKE UPDATE \(role, password\) ON `\{DB\}`\.`user` FROM '\{USER\}'@'\{HOST\}';$")
+        self.assertNotRegex(no_sens_down + sens_down, r"(?i)\bDROP USER\b")  # revertir privilegios no borra cuentas
+
+    def test_phase_2b_users_are_blocked_by_default_in_four_independent_layers(self):
+        text = source("backend/lib/admin_escritura.php")
+        body = text[text.index("function admin_users_locked()"):text.index("function admin_write_capability_on")]
+        self.assertIn("ADMIN_WRITES_USUARIOS') !== '1'", body)  # solo el valor exacto 1 desbloquea
+        gate = text[text.index("function app_mode_write_gate"):text.index("function app_sql_write_guard")]
+        self.assertIn("fase_2b_bloqueada", gate)  # capa 1: puerta de rutas
+        guard = text[text.index("function app_sql_write_guard"):]
+        self.assertGreaterEqual(guard.count("admin_users_locked()"), 2)  # capa 2: guardia SQL
+        self.assertIn("usuarios_sensible", guard)  # role y password exigen su propio interruptor
+        self.assertIn("function admin_write_grants_violations", text)  # capas 3-4: privilegios cruzados con interruptores
+        assertion = text[text.index("function admin_write_assert_account"):text.index("function app_sql_write_guard")]
+        self.assertIn("admin_is_production_db()", assertion)
+        self.assertIn("app_mode_refuse", assertion)
+
+    def test_phase_2b_sensitive_user_operations_protect_the_system_and_do_not_log_passwords(self):
+        model = source("backend/models/UserModel.php")
+        for name in ("function setActive", "function updateUserRole", "function setPassword"):
+            block = model[model.index(name):]
+            block = block[:block.index("\n    }\n")]
+            self.assertIn("lockTargetWithAdminGuard", block, name)  # el actor sigue siendo administrador activo, dentro de la transacción
+            self.assertIn("audit_record", block, name)  # auditoría en la misma transacción
+            self.assertIn("session_version = session_version + 1", block, name)  # cierra sesiones del backend React
+        pw = model[model.index("function setPassword"):]
+        pw = pw[:pw.index("\n    }\n")]
+        self.assertIn("No puede cambiar su propia contraseña", pw)
+        self.assertNotRegex(pw, r"audit_record\([^;]*\$password")  # la auditoría no recibe la contraseña
+        role = model[model.index("function updateUserRole"):]
+        role = role[:role.index("\n    }\n")]
+        self.assertIn("No puedes cambiar tu propio rol", role)
+        self.assertIn("último administrador", role)
+
+    def test_phase_2b_kit_keeps_sensitive_off_and_requires_verified_privileges(self):
+        sw = source("deploy/produccion-escritura/scripts/interruptor-usuarios.sh")
+        self.assertRegex(sw, r"(?s)sensible\) fallo")
+        self.assertIn("CERVESUR_CONFIRMAR_USUARIOS", sw)
+        self.assertIn("privilegios-usuarios.sh\" --etapa no-sensibles --verificar", sw)
+        self.assertNotRegex(sw, r"ADMIN_WRITES_USUARIOS_SENSIBLE=1")  # nunca escribe el interruptor sensible en 1
+        inst = source("deploy/produccion-escritura/scripts/instalar-codigo-2b.sh")
+        self.assertIn("usuarios_apagados || abortar", inst)
+        self.assertNotRegex(inst, r"env_aplicar|reemplazar_env")  # el instalador de código no edita el .env
+        priv = source("deploy/produccion-escritura/scripts/privilegios-usuarios.sh")
+        self.assertIn("gzip -t", priv)
+        self.assertIn("--confirmo-autorizacion", priv)
+        self.assertNotRegex(priv, r"(?i)CREATE USER|DROP USER|IDENTIFIED BY")
