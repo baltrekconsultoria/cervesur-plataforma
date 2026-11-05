@@ -39,11 +39,13 @@ class WriteViolation extends PDOException {}
  * Sin interruptor el comportamiento es el de la fase 2A. En bases desechables de prueba no aplica.
  */
 function admin_users_locked() {
+    return admin_is_production_db() && getenv('ADMIN_WRITES_USUARIOS') !== '1';
+}
+
+/** ¿La base configurada es una base de negocio productiva (cervesur_portalbi o CERVESUR_PRODUCTION_DBS)? */
+function admin_is_production_db() {
     $production = app_production_databases(['CERVESUR_PRODUCTION_DBS' => getenv('CERVESUR_PRODUCTION_DBS')]);
-    if (!in_array(strtolower(trim((string)getenv('DB_NAME'))), $production, true)) {
-        return false;
-    }
-    return getenv('ADMIN_WRITES_USUARIOS') !== '1';
+    return in_array(strtolower(trim((string)getenv('DB_NAME'))), $production, true);
 }
 
 /** ¿Capacidad de escritura encendida en el servidor? Solo el valor exacto «1»; se lee del entorno en cada petición. */
@@ -155,7 +157,7 @@ function app_mode_write_gate($method, $uri) {
 function admin_write_grants_violations(array $grants, $db, $flags = null) {
     $violations = [];
     $db = strtolower((string)$db);
-    if ($flags === null) {
+    if ($flags === null) { // null = entorno actual; false = sin cruce (bases desechables de prueba)
         $flags = ['usuarios' => getenv('ADMIN_WRITES_USUARIOS') === '1', 'sensible' => admin_write_capability_on('usuarios_sensible')];
     }
     foreach ($grants as $line) {
@@ -176,7 +178,7 @@ function admin_write_grants_violations(array $grants, $db, $flags = null) {
         $allowed = ['SELECT', 'INSERT', 'UPDATE', 'USAGE'];
         if (($parts[1] ?? '') === 'audit_log') { $allowed = ['SELECT', 'INSERT', 'USAGE']; }
         foreach ($privileges as $p) { if (!in_array($p, $allowed, true)) { $violations[] = $p . (($parts[1] ?? '*') === '*' ? '' : '@' . $parts[1]); } }
-        if (($parts[1] ?? '') === 'user' || ($parts[1] ?? '*') === '*') {
+        if ($flags !== false && (($parts[1] ?? '') === 'user' || ($parts[1] ?? '*') === '*')) {
             foreach (admin_grant_columns($m[1]) as $priv => $columns) {
                 if ($priv !== 'INSERT' && $priv !== 'UPDATE') { continue; }
                 if (($parts[1] ?? '*') === '*') { $violations[] = "$priv@*(incluye user)"; continue; }
@@ -222,7 +224,9 @@ function admin_grant_columns($privilegeList) {
 function admin_write_assert_account(PDO $pdo) {
     $db = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
     $grants = $pdo->query('SHOW GRANTS FOR CURRENT_USER()')->fetchAll(PDO::FETCH_COLUMN, 0);
-    $violations = admin_write_grants_violations($grants, $db);
+    // Sobre una base productiva los privilegios de `user` se cruzan con los interruptores del servidor; en bases desechables de prueba la cuenta amplia de QA es legítima.
+    $flags = admin_is_production_db() ? null : false; // false = sin cruce con interruptores
+    $violations = admin_write_grants_violations($grants, $db, $flags);
     if ($violations) {
         app_mode_refuse(['La cuenta de escritura tiene privilegios no permitidos: ' . implode(', ', $violations)]);
     }

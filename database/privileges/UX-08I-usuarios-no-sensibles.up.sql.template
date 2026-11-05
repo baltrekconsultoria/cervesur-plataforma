@@ -1,0 +1,15 @@
+-- UX-08I · Fase 2B · Privilegios ADITIVOS de Usuarios NO SENSIBLES para la cuenta de escritura de la fase 2A (alta, edición de datos, desactivar/reactivar).
+--
+-- PLANTILLA. NO SE EJECUTA EN NINGÚN SERVIDOR REAL sin autorización expresa del DBA y del negocio, respaldo verificado y la fase 2A ya operando. Marcadores: {DB} {USER} {HOST}.
+-- No crea cuentas ni toca datos: solo concede columnas de `user` a una cuenta que YA existe (UX-08H1-cuenta-escritura-fase2a).
+-- NO concede UPDATE sobre `role` ni `password` (eso es la plantilla «sensibles», aparte). Sin DELETE, DDL, TRIGGER ni GRANT OPTION. Nada global.
+-- INSERT incluye `password` y `role` porque el alta de un usuario los fija (el rol lo impone el código: siempre `user`; la contraseña se guarda solo como hash).
+-- AVISO: GRANT/REVOKE son DDL, NO transaccionales: no hay ROLLBACK. Cada sentencia surte efecto al ejecutarse y un fallo a medias deja el estado parcial; la reversión es el .down (idempotente de efecto).
+-- Orden: 1) --simular  2) respaldo verificado  3) aplicar  4) --verificar  5) recién entonces el interruptor ADMIN_WRITES_USUARIOS=1 en el .env (autorización aparte).
+-- Verificación: SHOW GRANTS FOR '{USER}'@'{HOST}';  Reversión: UX-08I-usuarios-no-sensibles.down.sql.template
+
+GRANT INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at)
+    ON `{DB}`.`user` TO '{USER}'@'{HOST}';
+
+GRANT UPDATE (first_name, last_name, phone, email, is_active, session_version, updated_at)
+    ON `{DB}`.`user` TO '{USER}'@'{HOST}';

@@ -1,0 +1,4 @@
+-- UX-08I · Reversión de los privilegios SENSIBLES de Usuarios (rol y contraseña). Marcadores: {DB} {USER} {HOST}. No borra datos. REVOKE es DDL no transaccional.
+-- Apagar antes ADMIN_WRITES_USUARIOS_SENSIBLE en el .env. Quitar privilegios nunca impide el arranque del backend; las operaciones sensibles simplemente fallarían por permisos.
+
+REVOKE UPDATE (role, password) ON `{DB}`.`user` FROM '{USER}'@'{HOST}';

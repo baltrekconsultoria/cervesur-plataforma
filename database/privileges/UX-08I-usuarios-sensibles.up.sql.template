@@ -1,0 +1,9 @@
+-- UX-08I · Fase 2B · Privilegios SENSIBLES de Usuarios: cambio de ROL y de CONTRASEÑA. APARTE de la plantilla «no sensibles» y con su propia autorización.
+--
+-- PLANTILLA. NO SE EJECUTA EN NINGÚN SERVIDOR REAL. Requiere haber aplicado antes «usuarios-no-sensibles». Marcadores: {DB} {USER} {HOST}.
+-- Riesgo conocido (R3/R4 de UX-08H-PLAN-FASE-2): Flutter toma el rol del JWT y acepta tokens antiguos sin session_version, de modo que un cambio de rol o de contraseña
+-- NO cierra las sesiones de Flutter ya emitidas. Por eso esta etapa (P5) sigue APAGADA hasta tener aprobación y pruebas específicas.
+-- GRANT/REVOKE son DDL no transaccionales. Sin esta plantilla aplicada, el backend se niega a arrancar si ADMIN_WRITES_USUARIOS_SENSIBLE=0 y la cuenta ya tuviera estas columnas.
+-- Verificación: SHOW GRANTS FOR '{USER}'@'{HOST}';  Reversión: UX-08I-usuarios-sensibles.down.sql.template
+
+GRANT UPDATE (role, password) ON `{DB}`.`user` TO '{USER}'@'{HOST}';

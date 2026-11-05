@@ -39,6 +39,16 @@ if ((string)getenv('W_WRITE2A_PASS') !== '') {
     $tpl2a = strtr((string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template'),
         ['{DB}' => $base, '{USER}' => 'cervesur_escritura2a_aw', '{HOST}' => '%', '{PASS}' => getenv('W_WRITE2A_PASS')]);
     foreach ($statements($tpl2a) as $s) { $root->exec($s); $n++; }
+    // 3c) UX-08I: cuentas de la FASE 2B = plantilla 2A + plantillas ADITIVAS reales. 2b: usuarios NO sensibles; 2bs: además rol y contraseña. Misma clave de prueba que la 2A.
+    $noSens = (string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08I-usuarios-no-sensibles.up.sql.template');
+    $sens = (string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08I-usuarios-sensibles.up.sql.template');
+    foreach (['cervesur_escritura2b_aw' => [$noSens], 'cervesur_escritura2bs_aw' => [$noSens, $sens]] as $acct => $layers) {
+        $root->exec("DROP USER IF EXISTS '$acct'@'%'");
+        $map2b = ['{DB}' => $base, '{USER}' => $acct, '{HOST}' => '%', '{PASS}' => getenv('W_WRITE2A_PASS')];
+        foreach (array_merge([(string)file_get_contents(__DIR__ . '/../../database/privileges/UX-08H1-cuenta-escritura-fase2a.sql.template')], $layers) as $tplText) {
+            foreach ($statements(strtr($tplText, $map2b)) as $s) { $root->exec($s); $n++; }
+        }
+    }
 }
 // 4) Lista blanca de la instancia.
 $st = new PDO("mysql:host=db;dbname=$estado;charset=utf8mb4", 'root', getenv('TEST_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

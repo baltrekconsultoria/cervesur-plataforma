@@ -1,0 +1,10 @@
+-- UX-08I · Reversión de los privilegios de Usuarios NO SENSIBLES: la cuenta vuelve a tener solo lo de la fase 2A (UPDATE(last_login) sobre `user`).
+-- Marcadores: {DB} {USER} {HOST}. No borra datos ni cuentas. REVOKE es DDL no transaccional. Apagar primero ADMIN_WRITES_USUARIOS (y _SENSIBLE) en el .env.
+-- Si antes se aplicó la plantilla «sensibles», revertir ESA primero.
+-- `UPDATE (updated_at, …)` y `UPDATE (last_login)` son concesiones distintas por columna: aquí solo se retiran las de esta fase; last_login se conserva.
+
+REVOKE INSERT (username, email, first_name, last_name, phone, password, role, is_active, session_version, created_at, updated_at)
+    ON `{DB}`.`user` FROM '{USER}'@'{HOST}';
+
+REVOKE UPDATE (first_name, last_name, phone, email, is_active, session_version, updated_at)
+    ON `{DB}`.`user` FROM '{USER}'@'{HOST}';
