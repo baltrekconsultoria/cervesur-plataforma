@@ -1,0 +1,170 @@
+grupo;caso;descripcion;veredicto;evidencia
+"G1 url/metodo";"Empresa POST canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Empresa POST canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Empresa POST metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Empresa POST variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Empresa PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Empresa PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Empresa PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Empresa PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Empresa DELETE canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Empresa DELETE canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Empresa DELETE metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Empresa DELETE variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Reporte POST canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Reporte POST canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Reporte POST metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Reporte POST variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Reporte PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Reporte PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Reporte PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Reporte PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Reporte DELETE canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Reporte DELETE canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Reporte DELETE metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Reporte DELETE variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"ERU POST canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"ERU POST canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"ERU POST metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"ERU POST variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"ERU PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"ERU PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"ERU PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"ERU PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"ERU DELETE canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"ERU DELETE canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"ERU DELETE metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"ERU DELETE variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Asignacion POST canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Asignacion POST canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Asignacion POST metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Asignacion POST variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Asignacion PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Asignacion PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Asignacion PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Asignacion PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Asignacion DELETE canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Asignacion DELETE canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Asignacion DELETE metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Asignacion DELETE variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"EmpresaUsuario POST canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"EmpresaUsuario POST canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"EmpresaUsuario POST metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"EmpresaUsuario POST variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"EmpresaUsuario PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"EmpresaUsuario PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"EmpresaUsuario PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"EmpresaUsuario PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"EmpresaUsuario DELETE canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"EmpresaUsuario DELETE canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"EmpresaUsuario DELETE metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"EmpresaUsuario DELETE variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Perfil ajeno PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Perfil ajeno PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Perfil ajeno PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Perfil ajeno PUT variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Perfil ajeno GET canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Perfil ajeno GET canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Perfil ajeno GET metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Perfil ajeno GET variantes URL";"20 variantes de URL x 3 metodos";PASS;
+"G1 url/metodo";"Rol PUT canonica/usuario";"usuario normal rechazado";PASS;"HTTP 403"
+"G1 url/metodo";"Rol PUT canonica/sin sesion";"sin sesion: 401 y sin cambio";PASS;"HTTP 401"
+"G1 url/metodo";"Rol PUT metodos";"11 metodos distintos sobre la ruta canonica";PASS;
+"G1 url/metodo";"Rol PUT variantes URL";"15 variantes de URL x 3 metodos";PASS;
+"G1b control";detector;"en el arbol sin parches el detector ve el efecto en 15 de 15 escrituras (A2); sirve para demostrar que las pruebas no son vacias";PASS;vistos=15
+"G2 identidad";"Empresa POST/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Empresa POST/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Empresa PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Empresa PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Empresa DELETE/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Empresa DELETE/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Reporte POST/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Reporte POST/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Reporte PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Reporte PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Reporte DELETE/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Reporte DELETE/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"ERU POST/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"ERU POST/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"ERU PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"ERU PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"ERU DELETE/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"ERU DELETE/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Asignacion POST/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Asignacion POST/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Asignacion PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Asignacion PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Asignacion DELETE/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Asignacion DELETE/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"EmpresaUsuario POST/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"EmpresaUsuario POST/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"EmpresaUsuario PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"EmpresaUsuario PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"EmpresaUsuario DELETE/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"EmpresaUsuario DELETE/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 200"
+"G2 identidad";"Perfil ajeno PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Perfil ajeno PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 403"
+"G2 identidad";"Perfil ajeno GET/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Perfil ajeno GET/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"HTTP 403"
+"G2 identidad";"Rol PUT/rol y usuario enviados por el cliente";"cuerpo, query, $_POST y encabezados con role=admin/user_id=1 no elevan al usuario";PASS;"HTTP 403"
+"G2 identidad";"Rol PUT/override de metodo";"GET con X-HTTP-Method-Override y _method no ejecuta la escritura";PASS;"sin ruta"
+"G2 identidad";"admin con role=user del cliente";"un administrador legitimo no pierde la operacion por datos del cliente (sin regresion)";PASS;"HTTP 200 +CAMBIO"
+"G3 roles";"rol ''";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'user'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'USER'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'admin '";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol ' admin'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'administrador'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'superadmin'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'root'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol '0'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'adm'";"valor de rol no administrativo en la sesion: rechazado en 6 escrituras de 6 routers";PASS;
+"G3 roles";"rol 'admin' (comportamiento heredado)";"la guardia compara strtolower(role)==admin: es el comportamiento de produccion, no un cambio; el emisor del JWT fija el rol";INFO;"HTTP 200 +CAMBIO"
+"G3 roles";"rol 'Admin' (comportamiento heredado)";"la guardia compara strtolower(role)==admin: es el comportamiento de produccion, no un cambio; el emisor del JWT fija el rol";INFO;"HTTP 200 +CAMBIO"
+"G3 roles";"rol 'ADMIN' (comportamiento heredado)";"la guardia compara strtolower(role)==admin: es el comportamiento de produccion, no un cambio; el emisor del JWT fija el rol";INFO;"HTTP 200 +CAMBIO"
+"G4 A1 perfiles";"GET perfil ajeno";"10 identificadores ajenos o deformados como usuario 2";PASS;
+"G4 A1 perfiles";"PUT perfil ajeno";"10 identificadores ajenos o deformados como usuario 2";PASS;
+"G4 A1 perfiles";"perfil propio PUT (legitimo)";"el usuario edita su propio perfil: sigue funcionando";PASS;"HTTP 200 +CAMBIO"
+"G4 A1 perfiles";"perfil propio con ceros";"id con ceros a la izquierda = el mismo usuario: permitido; no abre otro perfil";PASS;"HTTP 200 +CAMBIO"
+"G4 A1 perfiles";"GET perfil ajeno como admin (legitimo)";"el administrador sigue accediendo a cualquier perfil";PASS;"HTTP 200"
+"G4 A1 perfiles";"PUT perfil ajeno como admin (legitimo)";"el administrador sigue accediendo a cualquier perfil";PASS;"HTTP 200 +CAMBIO"
+"G4 A1 perfiles";"perfil propio con id ajeno en el cuerpo";"PUT /api/user/profile usa el usuario de la sesion, no el id del cuerpo";PASS;"HTTP 200 +CAMBIO"
+"G4 A1 perfiles";"UserController real";"que updateProfile ignore correo/rol/contrasena enviados en el cuerpo del perfil propio";INCONCLUSO;"controlador real del legado no disponible localmente (solo un sustituto que registra la llamada); verificar con la copia de respaldo antes de A-L3"
+"G5 K1 token";"modo retirar/none";"7 metodos x 17 URL: siempre 410 o sin ruta, sin token y sin tocar la base";PASS;
+"G5 K1 token";"modo retirar/user";"7 metodos x 17 URL: siempre 410 o sin ruta, sin token y sin tocar la base";PASS;
+"G5 K1 token";"modo retirar/admin";"7 metodos x 17 URL: siempre 410 o sin ruta, sin token y sin tocar la base";PASS;
+"G5 K1 token";"modo retirar: 410 exacto";"la ruta canonica anonima responde 410 «Recurso retirado»";PASS;"HTTP 410"
+"G5 K1 token";"modo desconocido";"un valor de modo mal escrito falla CERRADO (401 anonimo), nunca abierto";PASS;
+"G5 K1 token";"modo exigir anonimo";"sin sesion: 401";PASS;"HTTP 401"
+"G5 K1 token";"modo exigir usuario asignado (legitimo)";"el usuario asignado al reporte no recibe 401 ni 403";PASS;"HTTP 200"
+"G5 K1 token";"modo exigir usuario sin asignacion";"usuario sin asignacion al reporte: 403";PASS;"HTTP 403"
+"G5 K1 token";"modo observar (predeterminado)";"ATENCION: en observar el token anonimo SIGUE entregandose (solo se registra). K1 no queda cerrado hasta que el modo sea «retirar»";INFO;"HTTP 200 -> P4b exige la atestacion de que POWERBI_AUTH_MODE=retirar en produccion"
+"G5 K1 token";"origen del modo";"POWERBI_AUTH_MODE es una constante definida por el despliegue; ningun dato de la peticion la define";PASS;"verificado por el escaneo estatico G8"
+"G6 K2 secretos";"PUT con secreto (8 variantes de clave x 3 modos)";"el secreto almacenado no cambia y nunca se devuelve";PASS;
+"G6 K2 secretos";"PUT secreto en forma no escalar #0";"matriz, objeto, numero, clave duplicada o anidado: el secreto no cambia";PASS;"secreto=SYNTH-SECRET-BBBB HTTP 400"
+"G6 K2 secretos";"PUT secreto en forma no escalar #1";"matriz, objeto, numero, clave duplicada o anidado: el secreto no cambia";PASS;"secreto=SYNTH-SECRET-BBBB HTTP 400"
+"G6 K2 secretos";"PUT secreto en forma no escalar #2";"matriz, objeto, numero, clave duplicada o anidado: el secreto no cambia";PASS;"secreto=SYNTH-SECRET-BBBB HTTP 400"
+"G6 K2 secretos";"PUT secreto en forma no escalar #3";"matriz, objeto, numero, clave duplicada o anidado: el secreto no cambia";PASS;"secreto=SYNTH-SECRET-BBBB HTTP 400"
+"G6 K2 secretos";"PUT secreto en forma no escalar #4";"matriz, objeto, numero, clave duplicada o anidado: el secreto no cambia";PASS;"secreto=SYNTH-SECRET-BBBB HTTP 200 +CAMBIO"
+"G6 K2 secretos";"PUT por formulario / $_POST";"secreto enviado por $_POST o formulario: no cambia";PASS;"HTTP 200"
+"G6 K2 secretos";"POST alta con secreto (K2e)";"el alta rechaza el secreto explicito y no crea la fila";PASS;"HTTP 400"
+"G6 K2 secretos";"lecturas de empresa (K2a)";"ninguna lectura (usuario ni admin) devuelve powerbi_clientsecret";PASS;
+"G6 K2 secretos";"EmpresaController/EmpresaModel reales";"que el controlador real no tenga otra salida del secreto distinta de la probada";INCONCLUSO;"EmpresaModel del arbol es un esqueleto construido con las lineas impresas por C-3; la comprobacion sobre el archivo real se hace con verificar-parches-en-copia.sh y el humo de la ventana"
+"G7 A3 registro";"POST /api/register cerrado";"anonimo, usuario y admin reciben 403 y no se crea ninguna cuenta";PASS;
+"G7 A3 registro";"constante mal definida";"REGISTRO_ABIERTO = «true»/1/false NO abre el registro; solo true booleano exacto";PASS;
+"G7 A3 registro";"variantes de registro";"5 metodos x 17 URL con override: ninguna crea cuenta";PASS;
+"G7 A3 registro";"reversion documentada";"con REGISTRO_ABIERTO=true (reversion) el flujo vuelve a existir: la guardia es la unica diferencia";INFO;"HTTP 200 +CAMBIO"
+"G7 A3 registro";"control sin parche";"en el arbol sin F-10 el registro anonimo SI llega al controlador (A3 demostrado); confirma que el detector ve la diferencia";PASS;"HTTP 200 +CAMBIO"
+"G7 A3 registro";"rutas alias hacia el alta";"otras rutas del legado que creen cuentas (index.php, UserController real)";INCONCLUSO;"el escaneo G8 solo cubre los routers disponibles; index.php y UserController reales no estan localmente"
+"G8 estatico";"lecturas de datos del cliente en rutas/lib";"ningun router o libreria real lee GET/POST/REQUEST/COOKIE/FILES ni encabezados para decidir identidad, rol o metodo; solo 3 usos conocidos y justificados";PASS;"{""archivo del avatar propio (POST \/api\/user\/avatar)"":2,""filtros de estado del listado GET \/api\/users (status, only_active, include_inactive)"":6,""solo comprueba si existe cabecera Authorization (modo mixto)"":1}"
+"G8 estatico";"uso de $_SESSION";"los routers de Reporte fijan $_SESSION[user_id] desde el usuario autenticado; se revisa que no se lea de la peticion";INFO;"ReporteRouter.php:77 $_SESSION|$_SESSION['user_id'] = $user['user_id'];; ReporteRouter.php:88 $_SESSION|$_SESSION['user_id'] = $user['user_id'];; ReporteRouter.php:99 $_SESSION|$_SESSION['user_id'] = $user['user_id'];; ReporteRouter.php:110 $_SESSION|$_SESSION['user_id'] = $user['user_id'];; ReporteRouter.php:121 $_SESSION|$_SESSION['user_id'] = $user['user_id'];"
+"G8 estatico";"inventario de sitios de escritura";"los routers contienen exactamente 22 sitios $method===POST/PUT/DELETE/PATCH: 15 (A2) + perfil PUT + avatar + role + login/register/logout; cualquier sitio nuevo hace fallar esta prueba";PASS;"{""AsignacionRouter.php"":3,""EmpresaReporteUsuarioRouter.php"":3,""EmpresaRouter.php"":3,""EmpresaUsuarioRouter.php"":3,""PowerBIRouter.php"":0,""ReporteRouter.php"":3,""UserRouter.php"":4,""auth.php"":3}"
+"G8 estatico";"avatar POST";"POST /api/user/avatar solo escribe el avatar del usuario de la sesion (usa $user[user_id])";PASS;"texto del router"
+"G8 estatico";"expresiones de ruta sin ancla";"toda preg_match de rutas empieza en ^ (una ruta sin ancla se podria alcanzar con prefijos)";PASS;
+"G8 estatico";"expresiones de ruta sin fin";"expresiones de rutas que no terminan en $ (reportadas, no necesariamente defecto: las lecturas /buscar/(.+) son abiertas por diseno)";INFO;ninguna
+"G8 estatico";"PCRE y salto de linea final";"en PHP «$» acepta un \n final: el id sigue pasando por la MISMA guardia (usuario normal rechazado)";PASS;"HTTP 403"
+"G9 inconcluso";"Authorization ausente, malformada, duplicada o invalida (legado)";"lib/auth_middleware.php real del legado no disponible; el arbol usa un sustituto que solo exige que el encabezado exista. Pruebas reales de JWT del legado: solo en la ventana, sobre copia del archivo (C-12 describe sus reglas)";INCONCLUSO;
+"G9 inconcluso";"cuentas inactivas y sesiones revocadas (legado)";"el middleware real consulta la base (C-12: rechaza inactivos y falla cerrado ante PDOException; acepta tokens sin session_version). No ejercitado aqui";INCONCLUSO;
+"G9 inconcluso";"normalizacion de URL y override de metodo en el front controller";"index.php del legado no disponible. Los routers reciben $uri y $method ya decididos; aqui se les entrego la peor variante posible y ninguna eludio";INCONCLUSO;
+"G9 inconcluso";"JWT_SECRET definido y no literal (D4)";"no es una propiedad del codigo: requiere atestacion de infraestructura. Si el secreto fuera el literal por defecto, el rol del legado seria falsificable";INCONCLUSO;
+"G9 inconcluso";"controladores/modelos reales de Reporte, ERU, Empresa";"esqueletos con las lineas impresas por C-3: las guardias estan en los routers, que si son los reales (4 con SHA exacta [X]; el resto sobre texto literal [R])";INCONCLUSO;

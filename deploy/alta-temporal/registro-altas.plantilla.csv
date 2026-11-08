@@ -1,0 +1,1 @@
+fecha_hora_utc,id_solicitud,solicitante,autorizador,custodio,ejecutor_dba,verificador,username,id_asignado,rol,huella_sha256_del_sql,canal_entrega_sin_valor,fecha_emision,contrasena_inicial_vigente,verificacion_acceso,resultado,firmas

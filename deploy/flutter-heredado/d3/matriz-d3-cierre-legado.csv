@@ -1,0 +1,36 @@
+grupo;caso;descripcion;veredicto;evidencia
+"R1 jwt.php real";"token valido";"se acepta";PASS;aceptado
+"R1 jwt.php real";"firma de otro secreto";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"payload alterado sin refirmar";"se rechaza";PASS;rechazado
+"R1 jwt.php real";alg=none;"se rechaza";PASS;rechazado
+"R1 jwt.php real";"alg=none con firma";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"alg=HS512 (cabecera) firmado HS512";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"sin alg";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"firma vacia";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"dos partes";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"cuatro partes";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"caducado (exp pasado)";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"exp = 0";"se rechaza";PASS;rechazado
+"R1 jwt.php real";"cadena enorme (70 KB)";"se rechaza";PASS;rechazado
+"R1 jwt.php real";vacio;"se rechaza";PASS;rechazado
+"R1 jwt.php real";"sin exp (nunca caduca)";"token firmado con el secreto y exp ausente o no numerico";HALLAZGO;"ACEPTADO: solo lo emite quien tiene JWT_SECRET; el login siempre emite exp numerico"
+"R1 jwt.php real";"exp = null (nunca caduca)";"token firmado con el secreto y exp ausente o no numerico";HALLAZGO;"ACEPTADO: solo lo emite quien tiene JWT_SECRET; el login siempre emite exp numerico"
+"R1 jwt.php real";"exp = ""abc"" (comparacion de texto: nunca caduca)";"token firmado con el secreto y exp ausente o no numerico";HALLAZGO;"ACEPTADO: solo lo emite quien tiene JWT_SECRET; el login siempre emite exp numerico"
+"R1 jwt.php real";"exp = false";"token firmado con el secreto y exp ausente o no numerico";PASS;rechazado
+"R1 jwt.php real";"payload no es un objeto (123)";"token firmado cuyo payload es un entero";HALLAZGO;"123 (validate_jwt devuelve un valor no-array y el middleware lo trata como sesion sin user_id)"
+"R3 extremo a extremo (INDICATIVO)";"admin legitimo con token real firmado";"DELETE /api/empresas/2 funciona";INDICATIVO;"HTTP 200"
+"R3 extremo a extremo (INDICATIVO)";"usuario normal";"rechazado 403, sin cambios";INDICATIVO;"HTTP 403"
+"R3 extremo a extremo (INDICATIVO)";"sin Authorization";"401, sin cambios";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"rol admin firmado con otro secreto";"401, sin cambios";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"administrador DESACTIVADO con token vigente";"401, sin cambios (la baja surte efecto de inmediato)";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"sesion REVOCADA (session_version cambiado) con token que lo trae";"401, sin cambios";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"usuario ELIMINADO con token vigente";"401, sin cambios";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"token SIN session_version tras revocar la sesion";"el codigo lo acepta «por compatibilidad con tokens antiguos» (lineas 111-118 literales): la revocacion NO alcanza a estos tokens";HALLAZGO;"HTTP 200 cambio=true"
+"R3 extremo a extremo (INDICATIVO)";"usuario DEGRADADO de admin a user, token anterior (rol admin en el token)";"el rol sale del TOKEN (linea 131 literal): conserva el permiso de administrador hasta que caduque";HALLAZGO;"HTTP 200 cambio=true"
+"R3 extremo a extremo (INDICATIVO)";"CAMBIO DE ROL con incremento de session_version en la MISMA sentencia (control compensatorio), token anterior con session_version";"401, sin cambios: el token que conservaba el rol anterior deja de valer";INDICATIVO;"HTTP 401"
+"R3 extremo a extremo (INDICATIVO)";"usuario PROMOVIDO a admin, token anterior (rol user)";"no se eleva por la base: sigue como usuario hasta reiniciar sesion";INDICATIVO;"HTTP 403"
+"R3 extremo a extremo (INDICATIVO)";"token firmado SIN user_id (administrador inactivo)";"sin user_id no se consulta la base (linea 84 literal): se acepta aunque el usuario este inactivo. Exige JWT_SECRET";HALLAZGO;"HTTP 200 cambio=true"
+"R3 extremo a extremo (INDICATIVO)";"cambio de rol (legado) como usuario normal";"403, sin cambios";INDICATIVO;"HTTP 403"
+"R3 extremo a extremo (INDICATIVO)";"perfil ajeno (A1) con token real";"403, sin cambios";INDICATIVO;"HTTP 403"
+"R5 front controller (INDICATIVO)";"index.php no lee override de metodo ni parametros del cliente";"solo REQUEST_METHOD y REQUEST_URI; ningun HTTP_X_*, $_GET, $_POST ni $_REQUEST";INDICATIVO;"texto literal 1519 B (produccion 1520 B, sha 7add7e450c6a): NO es exacto"
+"R5 front controller (INDICATIVO)";"17 escrituras x variantes de URL tras parse_url (322 peticiones, 201 sin ruta)";"usuario normal con token REAL firmado: ninguna variante cambia datos ni da 2xx/5xx";INDICATIVO;

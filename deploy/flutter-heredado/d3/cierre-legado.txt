@@ -1,0 +1,7 @@
+
+Warning: Undefined array key "alg" in /w/reales/legado/jwt.php on line 72
+
+==== D3 cierre legado: 35 casos (336 peticiones a routers) ====
+  HALLAZGO   7
+  INDICATIVO 13
+  PASS       15

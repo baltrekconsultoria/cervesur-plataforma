@@ -1,0 +1,14 @@
+caso;descripcion;resultado;compat;impacto;rol_efectivo
+K1;"login actual, usuario user";ACEPTADO;COMPATIBLE;"Flujo normal de Flutter: sin impacto";user
+K2;"login actual, administrador";ACEPTADO;COMPATIBLE;"Sin impacto";admin
+K3;"login actual, rol heredado 'usuario' (62 de 76 cuentas productivas segun C-5 previo)";ACEPTADO;COMPATIBLE;"Sin impacto: 'usuario' se trata como usuario basico";user
+K4;"token con session_version vigente distinto de 1 (cuenta con sesiones revocadas antes)";ACEPTADO;COMPATIBLE;"Sin impacto";user
+K5;"session_version desfasado (sesion revocada)";RECHAZADO;COMPATIBLE;"Debe rechazarse (es el objetivo)";
+K6;"usuario inactivo";RECHAZADO;COMPATIBLE;"Debe rechazarse (es el objetivo)";
+K7;"rol del TOKEN admin, rol en base user (degradado)";ACEPTADO;COMPATIBLE;"Se acepta como sesion pero con el rol de la BASE (user): pierde permisos de inmediato";user
+T1;"user_id como TEXTO (""2"")";RECHAZADO;INCOMPATIBLE;"RIESGO DE COMPATIBILIDAD: si el driver del servidor devuelve ids como texto, el login emitiria user_id texto";
+T2;"session_version como TEXTO (""1"")";RECHAZADO;INCOMPATIBLE;"RIESGO DE COMPATIBILIDAD: el login hace (int)$user[session_version]; es entero";
+A1;"token antiguo SIN session_version";RECHAZADO;INCOMPATIBLE;"AFECTA a tokens emitidos antes de que existiera session_version: se cerraria su sesion (relogin) una sola vez";
+A2;"token SIN exp";RECHAZADO;INCOMPATIBLE;"El login siempre emite exp; solo afectaria a tokens forjados";
+A3;"token SIN user_id";RECHAZADO;INCOMPATIBLE;"El login siempre emite user_id; solo afectaria a tokens forjados";
+R1;"usuario con rol de base inesperado ('Administrador')";RECHAZADO;INCOMPATIBLE;"AFECTA a cualquier cuenta con un rol distinto de admin/user/usuario: perderia acceso. Se verifica con la distribucion de roles de C-5 SQL antes de cualquier cambio";

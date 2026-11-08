@@ -4,6 +4,9 @@ Fuente: el código del backend PHP del repositorio (`backend/router/*.php`, cont
 
 Leyenda de la columna React: **L** = consulta (lectura) implementada en el piloto administrativo (`piloto_admin`, producción en solo lectura) · **Q** = acción de escritura implementada en la interfaz React y probada solo contra el backend sintético de QA aislado (`read_write`) · **—** = no existe / no se desarrolla.
 
+
+> **Actualización UX-09A.** La limitación «el código del cliente Flutter no está disponible» queda **parcialmente resuelta**: se analizó el paquete web compilado del Flutter desplegado (`main.dart.js` idéntico al de producción, C-4). No es el código fuente, pero permite listar las llamadas al API, las pantallas y las dependencias externas. La matriz por funcionalidad, con la evidencia del cliente, está en la sección 4.
+
 ## 1. Funciones administrativas del backend y su equivalente
 
 | # | Función (Flutter/PHP) | Ruta(s) y comprobación admin | Estado en React |
@@ -42,4 +45,36 @@ Solo los **GET** de la columna **L** (más inicio/cierre de sesión). Todo lo de
 | Activar/desactivar usuarios (5) | No existe en el backend de Flutter |
 | Cambio de rol, baja de empresa/informe (4, 9, 13) | Existen en el backend pero React nunca los expuso; fuera del MVP |
 | Detalle de otro usuario (2), estadísticas (19) | Sin pantalla equivalente en React; sin aprobar su exposición |
-| Pantallas de Flutter no visibles | El código del cliente Flutter no está disponible; si el cliente quiere paridad pantalla por pantalla, hace falta acceso a ese código o capturas |
+| Pantallas de Flutter no visibles | Resuelto en lo esencial por el análisis del paquete compilado (sección 4); la relación llamada → pantalla sigue siendo inferida |
+
+## 4. Matriz por funcionalidad con evidencia del cliente Flutter desplegado (UX-09A)
+
+Leyenda: **C** ya cubierta en React · **M** requiere migración o decisión · **T** conservar temporalmente · **O** obsoleta o prescindible, previa validación funcional. La relación llamada → pantalla es **inferida por nombres** [I]; el paquete no es el código fuente.
+
+| # | Funcionalidad en Flutter | Evidencia en el paquete | Equivalente en React | Clase |
+|---|---|---|---|---|
+| 1 | Inicio de sesión | `LoginCall`, `/loginPage` | `/login` (`password_verify` sobre el hash existente; usuarios por lista blanca en 8092) | **C** (apertura a todos: HTTPS corporativo y R-PUB) |
+| 2 | Cierre de sesión | estado local | Cierre que revoca la sesión en el servidor | **C** |
+| 3 | Inicio: dashboards asignados y «Buscar Dashboards…» | `QueryReportsCall`, `GetRUCperAsigmentCall`, `/Home` | Inicio y «Mis informes» con búsqueda y filtros | **C** |
+| 4 | Visor del informe | iframe con `enlace` (formato «publicar en la web») | `/reportes/:id` con visor que valida permiso y audita | **C**; R-PUB independiente |
+| 5 | Mis empresas | `QueryBusinessCall(es)` | `/empresas` | **C** |
+| 6 | Ver perfil propio | `ProfileCall`, `/profile` | `/perfil` (solo lectura) | **C** |
+| 7 | Editar perfil propio (nombre, apellido, teléfono, correo) | `UpdateUserProfileCall`, `/configProfile` | Perfil de solo lectura; correo bloqueado por diseño | **M** |
+| 8 | Cambiar foto | «Cambiar Foto»; `avatar` vacío; sin Firebase Storage | Sin equivalente | **O/M** |
+| 9 | Registro público «Crear Cuenta» | `RegisterCall` (sin token) | No existe; el alta es administrativa | **O** (decisión F-10) |
+| 10 | Admin · Empresas | `Create/Update/DeleteBusinessCall`, `QueryBusinessesCall`, `QueryCityCall` | `/admin/empresas` (2A) | **C** |
+| 11 | Admin · Reportes | `Create/UpdatetReport/DeleteReportCall`, `GetAllReportsCall` | `/admin/reportes` (2A; el enlace es de solo escritura) | **C** |
+| 12 | Admin · Reporte ↔ Empresa | `Create/Delete Assignment/Asigment` | `/admin/asociaciones` | **C** |
+| 13 | Admin · Usuario ↔ Empresa | `QueryAssignmentsBusinessCall` | `/admin/accesos/nueva` | **C** |
+| 14 | Admin · Reporte → Usuario | `CrearAssigmentReportToUserBusinessIDCall`, `DeleteAssigmentReportUserCall` | `/admin/accesos` | **C** |
+| 15 | Admin · Lista de usuarios | `QueryUsersCall`, `/usersManagment` | `/admin/usuarios` (lectura) | **C** |
+| 16 | Admin · Crear usuario | `RegisterCall` | 2B (vista `v_user_alta`) | **M** (P3 a P4b) |
+| 17 | Admin · Editar usuario ajeno | `UpdateUserProfileCall` con `id` | 2B (nombre y teléfono; correo bloqueado) | **M** (P4b) |
+| 18 | Admin · Desactivar/activar | **no existe en Flutter** | 2B | capacidad nueva |
+| 19 | Admin · Cambiar rol o contraseña | **sin llamada en el paquete** | P5 (bloqueado) | requisito nuevo |
+| 20 | Admin · Panel de indicadores («Accesos Hoy», «Accesos este Mes», «Sesiones», «Registros», «Uso por Empresa», «Usuarios Activos», «Total Asignaciones») | cadenas sin llamada de estadísticas | `/admin` (contadores desde listados) y `/admin/historial` | **M/O**: validar con el responsable |
+| 21 | Token OAuth de Power BI | sin consumidor | bloqueado (403) | **O** (K1: retirar) |
+| 22 | Intermediario Firebase `baltrek` | `e_("baltrek", …)` | No aplica | **O** al retirar Flutter |
+| 23 | Recursos externos | CanvasKit y fuentes en `gstatic`, `powerbi-client` en `cdnjs`, proxies CORS de terceros | React compilado para servidor no los necesita [I] | **O** al retirar Flutter |
+
+Dependencias que realmente deben migrarse o decidirse: acceso de empleados (HTTPS + R-PUB + lista blanca), Usuarios (P3 a P4b), edición del propio perfil, sustitución del registro público y validación del panel de indicadores y de la foto. No hay datos que migrar: la base es la misma.

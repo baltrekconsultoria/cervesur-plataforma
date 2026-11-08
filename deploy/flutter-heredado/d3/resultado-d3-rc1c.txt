@@ -1,0 +1,100 @@
+=== matriz de sesion existente (http_session_matrix_test.php) ===
+PASS (8e) malformed tokens (wrong number of parts, garbage, empty) are rejected (401)
+PASS (9) an alg:none token with an empty signature is rejected (401)
+PASS (9b) an alg:none token carrying a signature is rejected (401)
+PASS (9c) an alg:None (case variant) token is rejected (401)
+PASS (9d) a correctly signed HS512 token (algorithm confusion) is rejected (401)
+PASS (10a) the token works before logout
+PASS (10b) logout succeeds
+PASS (10) the same token is rejected after logout (401)
+PASS (10c) a second logout with the same token is rejected (401)
+PASS (10d) a new login after logout issues a working token with the new session_version
+PASS (11) a worker token gets 403 on POST /api/empresa-usuario/1/reactivate
+PASS (11) an anonymous call gets 401 on POST /api/empresa-usuario/1/reactivate
+PASS (11) a worker token gets 403 on POST /api/asignacion/1/reactivate
+PASS (11) an anonymous call gets 401 on POST /api/asignacion/1/reactivate
+PASS (11) a worker token gets 403 on POST /api/empresa-reporte-usuario/1/reactivate
+PASS (11) an anonymous call gets 401 on POST /api/empresa-reporte-usuario/1/reactivate
+PASS (11) a worker token gets 403 on GET /api/auditoria
+PASS (11) an anonymous call gets 401 on GET /api/auditoria
+PASS (11) a worker token gets 403 on GET /api/auditoria?entity=access&entity_id=1&correlation_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+PASS (11) an anonymous call gets 401 on GET /api/auditoria?entity=access&entity_id=1&correlation_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+PASS (11) a worker token gets 403 on POST /api/empresa-usuario
+PASS (11) an anonymous call gets 401 on POST /api/empresa-usuario
+PASS (11) a worker token gets 403 on PUT /api/empresa-usuario/1
+PASS (11) an anonymous call gets 401 on PUT /api/empresa-usuario/1
+PASS (11) a worker token gets 403 on DELETE /api/empresa-usuario/1
+PASS (11) an anonymous call gets 401 on DELETE /api/empresa-usuario/1
+PASS (11) a worker token gets 403 on POST /api/asignacion
+PASS (11) an anonymous call gets 401 on POST /api/asignacion
+PASS (11) a worker token gets 403 on PUT /api/asignacion/1
+PASS (11) an anonymous call gets 401 on PUT /api/asignacion/1
+PASS (11) a worker token gets 403 on DELETE /api/asignacion/1
+PASS (11) an anonymous call gets 401 on DELETE /api/asignacion/1
+PASS (11) a worker token gets 403 on POST /api/empresa-reporte-usuario
+PASS (11) an anonymous call gets 401 on POST /api/empresa-reporte-usuario
+PASS (11) a worker token gets 403 on PUT /api/empresa-reporte-usuario/1
+PASS (11) an anonymous call gets 401 on PUT /api/empresa-reporte-usuario/1
+PASS (11) a worker token gets 403 on DELETE /api/empresa-reporte-usuario/1
+PASS (11) an anonymous call gets 401 on DELETE /api/empresa-reporte-usuario/1
+PASS (11z) none of the rejected calls changed any relation
+ALL PASSED
+=== D3 nuevas ===
+== A. Cabecera Authorization: ausente, deformada, duplicada o invalida ==
+PASS A01 sin cabecera Authorization: 401
+PASS A02 Authorization vacia: 401
+PASS A03 «Bearer» sin token: 401
+PASS A04 «Bearer » con espacio y sin token: 401
+PASS A05 token sin esquema Bearer: 401
+PASS A06 esquema Basic con un token valido: 401
+PASS A07 basura tras el token: 401
+PASS A08 dos tokens en una misma cabecera: 401
+INFO A09 tabulador final (el servidor lo recorta o lo rechaza; nunca 5xx)
+INFO A10 esquema «bearer» en minusculas: aceptado (el esquema no distingue mayusculas, RFC 7235); el token sigue siendo exigido
+PASS A11.1 token invalido/alg=none/enorme: 401 (401)
+PASS A11.2 token invalido/alg=none/enorme: 401 (401)
+PASS A11.3 token invalido/alg=none/enorme: 401 (401)
+PASS A11.4 token invalido/alg=none/enorme: 401 (401)
+PASS A11.5 token invalido/alg=none/enorme: 401 (401)
+PASS A11.6 token invalido/alg=none/enorme: 401 (401)
+PASS A12 firma vacia: 401
+PASS A13 cabecera con otro algoritmo y misma firma: 401
+PASS A14 Authorization duplicado (usuario normal + invalido, en ambos ordenes) no abre una ruta de administrador (401/401)
+PASS A15 token firmado que RECLAMA role=admin para un usuario normal: 403 (el rol sale de MySQL)
+INFO A16 token FIRMADO con el user_id de un administrador = ese administrador (la identidad es el user_id firmado; falsificarlo exige JWT_SECRET: por eso D4 pide la atestacion del secreto). No es una elusion sin el secreto
+PASS A16b el mismo token firmado con OTRO secreto: 401
+PASS A17 control: el administrador legitimo SI accede a la ruta de administrador
+PASS A18 control: el usuario normal SI accede a la consulta permitida
+== B. Variantes de URL y de metodo contra rutas de administrador (usuario normal) ==
+PASS B01 12 variantes de ruta x 3 metodos con encabezados de rol falsos: la ruta de administrador no se abre ni rompe 
+PASS B02a las peticiones rechazadas no generan NINGUNA fila de auditoria (no hay auditoria falsa de operaciones no completadas)
+PASS B02 9 variantes de /api/register x 3 metodos como usuario normal (cuerpo con role=admin): ninguna crea cuenta 
+PASS B03 registro sin sesion: rechazado (401)
+PASS B03b registro sin sesion: no crea cuenta
+PASS B04a incluso el administrador recibe 400 si envia «role» en el alta, y no se crea nada (400)
+PASS B04 control: el administrador legitimo SI da de alta, sin «role» (200)
+PASS B04b la operacion completada SI deja su auditoria
+PASS B05 el rol del alta NO viene del cuerpo (role=admin en el cuerpo no crea un administrador)
+== C. A1: perfil ajeno ==
+PASS C01 GET perfil ajeno /3001 como usuario normal: no lee ni cambia (403)
+PASS C01 GET perfil ajeno /03001 como usuario normal: no lee ni cambia (403)
+PASS C01 GET perfil ajeno /+3001 como usuario normal: no lee ni cambia (404)
+PASS C01 GET perfil ajeno /3001abc como usuario normal: no lee ni cambia (404)
+PASS C01 GET perfil ajeno /3001.0 como usuario normal: no lee ni cambia (404)
+PASS C01 GET perfil ajeno /%33001 como usuario normal: no lee ni cambia (404)
+PASS C01 PUT perfil ajeno /3001 como usuario normal: no lee ni cambia (403)
+PASS C01 PUT perfil ajeno /03001 como usuario normal: no lee ni cambia (403)
+PASS C01 PUT perfil ajeno /+3001 como usuario normal: no lee ni cambia (404)
+PASS C01 PUT perfil ajeno /3001abc como usuario normal: no lee ni cambia (404)
+PASS C01 PUT perfil ajeno /3001.0 como usuario normal: no lee ni cambia (404)
+PASS C01 PUT perfil ajeno /%33001 como usuario normal: no lee ni cambia (404)
+PASS C02 PUT /api/user/profile con id ajeno en el cuerpo: el administrador NO cambia (200)
+PASS C03 control: el usuario ve su propio perfil (200)
+PASS C04 control: el administrador ve cualquier perfil (200)
+== D. Sesion revocada o inactiva con token valido (RC1c) ==
+PASS D01 usuario inactivo con token firmado y vigente: 401
+PASS D02 sesion revocada (session_version cambiado): 401
+PASS D03 control: tras reactivar y reemitir el token, vuelve a funcionar
+
+RESULTADO D3-RC1c: 51/51 sin fallo, 0 fallos
+codigos de salida: matriz=0 d3=0

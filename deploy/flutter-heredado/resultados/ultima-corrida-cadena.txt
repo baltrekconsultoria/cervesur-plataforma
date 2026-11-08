@@ -1,0 +1,29 @@
+— S1 intento explicito de nuevo secreto (administrador), K2d —
+OK     S1 la funcion conserva statusCode 400 y el cuerpo del backend
+OK     S1 la funcion NO convierte el 400 en 200
+OK     S1 el cliente no marca exito (gfn=false)
+OK     S1 el cliente NO muestra «Guardado»: titulo «Observación»
+OK     S1 el texto del dialogo contiene el mensaje funcional
+OK     S1 el dialogo no contiene el valor del secreto
+OK     S1 la empresa no se modifico en ningun campo (sin escritura parcial) y el secreto original sigue
+OK     S1 el backend recibio la cabecera Bearer del cliente (la identidad del token llego: admin-1)
+— S2 edicion normal con secreto vacio —
+OK     S2 estado 200 y titulo «Guardado»
+OK     S2 los demas campos se guardan y el secreto no cambia
+OK     S2 la respuesta que ve el cliente no trae el secreto
+OK     S3 secreto enmascarado: «Guardado», demas campos guardados y secreto intacto
+— S4 usuario no administrador —
+OK     S4 usuario normal: 403 conservado, «Observación» con «Acceso denegado»
+OK     S4 sin cambios en la empresa
+OK     S5 token invalido: 401 conservado y «Observación»
+— S6 contraste: modo K2c (silencioso) —
+OK     S6 con K2c el cliente SI mostraba «Guardado» aunque el secreto no cambio (el defecto de exito aparente)
+— S7 backend inaccesible (la plantilla falla) —
+OK     S7 la callable falla; el cliente cae en estado 400 por defecto: «Observación» SIN texto (nunca «Guardado»)
+— S8 la llamada generada con returnBody=false —
+OK     S8 el estado 400 se conserva pero el cuerpo se pierde: «Observación» SIN texto (nunca «Guardado»)
+— Seguridad de los registros —
+OK     el registro del backend PHP no contiene el valor del secreto ni la cabecera Authorization
+OK     la plantilla de la funcion no contiene ninguna llamada de registro (console.*); el codigo desplegado real NO se pudo revisar
+
+RESULTADO CADENA: 20/20 OK, 0 fallas

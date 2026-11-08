@@ -1,0 +1,89 @@
+-- C-5 · Consultas de SOLO LECTURA para el DBA (P2, P4a, Anexo B, R-PUB y tamaño de la rotación de secretos).
+-- NO se ejecutó en producción. La ejecuta el DBA con su propia cuenta y la autorización específica `A-C5`.
+--
+-- Garantías de diseño: solo SET de la sesión, START TRANSACTION READ ONLY, SELECT y SHOW. Ninguna consulta devuelve contraseñas, hashes,
+-- correos, nombres, teléfonos, enlaces de informes ni secretos de empresa: solo conteos, estructuras y nombres de cuentas/objetos.
+-- Uso:  mysql --table -u <cuenta_dba> -p < c5-dba-solo-lectura.sql.template > salida-c5-dba.txt        (la clave se escribe en el prompt)
+-- Base: cervesur_portalbi (si se llama distinto, reemplazar en las secciones que usan information_schema).
+
+SET SESSION TRANSACTION READ ONLY;
+START TRANSACTION READ ONLY;
+
+SELECT '1. Servidor' AS seccion;
+SELECT VERSION() AS version, @@version_comment AS comentario, @@version_compile_os AS so, @@character_set_server AS charset_srv, @@collation_server AS collation_srv;
+SELECT 'P4a exige MySQL >= 8.0.18 (WITH CHECK OPTION + DEFINER bloqueado)' AS nota;
+
+SELECT '2. Tamano de la base (espacio para el respaldo de P2: libre >= 3 x esto)' AS seccion;
+SELECT table_schema AS base, ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) AS mb, SUM(table_rows) AS filas_aprox
+  FROM information_schema.tables WHERE table_schema = 'cervesur_portalbi' GROUP BY table_schema;
+SELECT table_name AS tabla, table_rows AS filas_aprox, ROUND((data_length + index_length) / 1024 / 1024, 2) AS mb
+  FROM information_schema.tables WHERE table_schema = 'cervesur_portalbi' ORDER BY (data_length + index_length) DESC;
+
+SELECT '3. Estructura de user (sin datos)' AS seccion;
+SHOW CREATE TABLE cervesur_portalbi.user\G
+SHOW INDEX FROM cervesur_portalbi.user;
+SELECT column_name AS columna, column_type AS tipo, is_nullable AS nulo, column_default AS defecto
+  FROM information_schema.columns WHERE table_schema = 'cervesur_portalbi' AND table_name = 'user' ORDER BY ordinal_position;
+
+SELECT '4. Unicidad de correo y usuario (riesgo A1: cambiar el correo ajeno)' AS seccion;
+SELECT 'correo duplicado (mismo valor)' AS control, COUNT(*) AS grupos FROM (SELECT email FROM cervesur_portalbi.user GROUP BY email HAVING COUNT(*) > 1) t
+UNION ALL
+SELECT 'usuario duplicado (mismo valor)', COUNT(*) FROM (SELECT username FROM cervesur_portalbi.user GROUP BY username HAVING COUNT(*) > 1) t
+UNION ALL
+SELECT 'correo duplicado ignorando mayusculas', COUNT(*) FROM (SELECT LOWER(email) FROM cervesur_portalbi.user GROUP BY LOWER(email) HAVING COUNT(*) > 1) t
+UNION ALL
+SELECT 'usuario con el mismo texto que el correo de otra cuenta', COUNT(*) FROM cervesur_portalbi.user a JOIN cervesur_portalbi.user b ON a.username = b.email AND a.id <> b.id;
+
+SELECT '5. Cuentas por rol y estado (solo conteos)' AS seccion;
+SELECT role AS rol, is_active AS activo, COUNT(*) AS cuentas FROM cervesur_portalbi.user GROUP BY role, is_active ORDER BY role, is_active;
+
+SELECT '6. Altas de cuentas por mes, ultimos 18 meses (frecuencia del alta - decide el momento de cerrar el registro, F-10)' AS seccion;
+SELECT DATE_FORMAT(created_at, '%Y-%m') AS mes, COUNT(*) AS altas
+  FROM cervesur_portalbi.user WHERE created_at >= (NOW() - INTERVAL 18 MONTH) GROUP BY DATE_FORMAT(created_at, '%Y-%m') ORDER BY mes;
+SELECT 'cuentas sin fecha de alta' AS control, COUNT(*) AS cuentas FROM cervesur_portalbi.user WHERE created_at IS NULL;
+
+SELECT '7. Cuentas MySQL relacionadas (solo nombre, host, bloqueo y plugin - sin credenciales)' AS seccion;
+SELECT user AS cuenta, host, account_locked AS bloqueada, plugin FROM mysql.user
+  WHERE user NOT IN ('mysql.sys', 'mysql.session', 'mysql.infoschema') ORDER BY user, host;
+SELECT 'P4a: la cuenta cervesur_vista_alta NO debe existir' AS nota, COUNT(*) AS existe FROM mysql.user WHERE user = 'cervesur_vista_alta';
+
+SELECT '8. Privilegios de las cuentas (el DBA completa los nombres y descomenta - SHOW GRANTS no muestra claves)' AS seccion;
+SHOW GRANTS FOR CURRENT_USER();
+-- SHOW GRANTS FOR '<cuenta_que_usa_el_backend_de_Flutter>'@'<host>';
+-- SHOW GRANTS FOR 'cervesur_escritura_adm'@'127.0.0.1';
+-- SHOW GRANTS FOR '<cuenta_de_lectura_de_React>'@'<host>';
+
+SELECT '9. Vistas, disparadores y claves foraneas de la base' AS seccion;
+SELECT table_name AS vista, definer, security_type, check_option, is_updatable
+  FROM information_schema.views WHERE table_schema = 'cervesur_portalbi';
+SHOW TRIGGERS FROM cervesur_portalbi;
+SELECT table_name AS tabla, constraint_name AS restriccion, referenced_table_name AS referencia
+  FROM information_schema.key_column_usage WHERE table_schema = 'cervesur_portalbi' AND referenced_table_name IS NOT NULL ORDER BY table_name;
+SHOW INDEX FROM cervesur_portalbi.user_empresa_reporte;
+SHOW INDEX FROM cervesur_portalbi.empresa;
+
+SELECT '10. Plugins de interes' AS seccion;
+SELECT plugin_name AS plugin, plugin_status AS estado FROM information_schema.plugins WHERE plugin_name IN ('mysql_no_login', 'validate_password', 'caching_sha2_password', 'mysql_native_password');
+
+SELECT '11. R-PUB: forma de los enlaces de informes (AGREGADO por forma - no se lee ningun enlace)' AS seccion;
+SELECT CASE
+         WHEN enlace IS NULL OR enlace = '' THEN 'vacio'
+         WHEN enlace LIKE 'https://app.powerbi.com/view?r=%' THEN 'publicar_en_la_web'
+         WHEN enlace LIKE 'https://app.powerbi.com/reportEmbed%' THEN 'incrustado_autenticado'
+         WHEN enlace LIKE 'https://app.powerbi.com/%' THEN 'powerbi_otra_forma'
+         ELSE 'otra_plataforma'
+       END AS forma, activo, COUNT(*) AS informes
+  FROM cervesur_portalbi.reporte GROUP BY forma, activo ORDER BY forma, activo;
+
+SELECT '12. D-5: cuantas empresas tienen secreto cargado (solo conteo - no se lee el valor)' AS seccion;
+SELECT COUNT(*) AS empresas, SUM(powerbi_clientsecret IS NOT NULL AND powerbi_clientsecret <> '') AS con_secreto,
+       COUNT(DISTINCT NULLIF(powerbi_tenant, '')) AS tenants_distintos, COUNT(DISTINCT NULLIF(powerbi_client, '')) AS clientes_distintos
+  FROM cervesur_portalbi.empresa;
+
+SELECT '13. Tablas de la aplicacion React presentes' AS seccion;
+SELECT table_schema AS base, table_name AS tabla FROM information_schema.tables
+  WHERE table_name IN ('audit_log', 'v_user_alta') OR table_schema LIKE 'cervesur_react%' ORDER BY table_schema, table_name;
+SHOW DATABASES LIKE 'cervesur%';
+
+COMMIT;
+SELECT 'FIN: nada fue modificado.' AS fin;

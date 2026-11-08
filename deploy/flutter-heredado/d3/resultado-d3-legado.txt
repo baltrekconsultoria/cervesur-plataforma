@@ -1,0 +1,7 @@
+
+==== D3 legado: 169 casos registrados (1872 peticiones reales a routers) ====
+  PASS       154
+  FAIL       0
+  INCONCLUSO 8
+  INFO       7
+VEREDICTO-LEGADO: SIN FALLOS (hay INCONCLUSOS)

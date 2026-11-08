@@ -1,0 +1,367 @@
+lint-fin
+OK     [A2 escrituras] Empresa POST [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Empresa POST [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa POST [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Empresa POST [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Empresa POST [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa POST [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Empresa PUT [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Empresa PUT [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa PUT [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Empresa PUT [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Empresa PUT [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa PUT [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Empresa DELETE [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Empresa DELETE [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa DELETE [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Empresa DELETE [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Empresa DELETE [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Empresa DELETE [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte POST [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Reporte POST [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte POST [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte POST [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Reporte POST [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte POST [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte PUT [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Reporte PUT [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte PUT [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte PUT [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Reporte PUT [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte PUT [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte DELETE [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Reporte DELETE [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte DELETE [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Reporte DELETE [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Reporte DELETE [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Reporte DELETE [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU POST [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] ERU POST [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU POST [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU POST [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] ERU POST [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU POST [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU PUT [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] ERU PUT [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU PUT [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU PUT [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] ERU PUT [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU PUT [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU DELETE [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] ERU DELETE [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU DELETE [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] ERU DELETE [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] ERU DELETE [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] ERU DELETE [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion POST [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Asignacion POST [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion POST [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion POST [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Asignacion POST [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion POST [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion PUT [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Asignacion PUT [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion PUT [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion PUT [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Asignacion PUT [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion PUT [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion DELETE [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] Asignacion DELETE [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion DELETE [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] Asignacion DELETE [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] Asignacion DELETE [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] Asignacion DELETE [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario POST [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] EmpresaUsuario POST [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario POST [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario POST [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario POST [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario POST [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario PUT [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] EmpresaUsuario PUT [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario PUT [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario PUT [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario PUT [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario PUT [v6/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario DELETE [orig/usuario normal]: ROJO, un usuario no administrador escribe (A2)
+OK     [A2 escrituras] EmpresaUsuario DELETE [orig/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario DELETE [orig/sin sesion]: 401 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario DELETE [v6/usuario normal]: 403 y sin efecto
+OK     [A2 escrituras] EmpresaUsuario DELETE [v6/admin]: la operacion legitima se realiza
+OK     [A2 escrituras] EmpresaUsuario DELETE [v6/sin sesion]: 401 y sin efecto
+OK     [autoria] Reporte PUT [orig]: updated_by=999 (ROJO: toma el cuerpo)
+OK     [autoria] Reporte PUT [v6]: updated_by=1 (usuario autenticado)
+OK     [autoria] Reporte PUT [solo_d]: updated_by=1 (usuario autenticado)
+OK     [autoria] Reporte PUT [solo_e]: updated_by=1 (usuario autenticado)
+OK     [autoria] Reporte PUT [orig/usuario 2 declara que edita el usuario 3]: ROJO, la autoria falsa se guarda
+OK     [autoria] Reporte PUT [v6/cuerpo no JSON]: rechazo y sin cambios
+OK     [autoria] Reporte PUT [solo_d/cuerpo no JSON]: rechazo y sin cambios
+OK     [autoria] Reporte POST [orig]: created_by del usuario autenticado, no del cuerpo (no regresion)
+OK     [autoria] ERU POST [orig]: created_by del usuario autenticado (no regresion)
+OK     [autoria] ERU PUT [orig]: updated_by del usuario autenticado (no regresion)
+OK     [autoria] ERU DELETE [orig]: updated_by del usuario autenticado (no regresion)
+OK     [autoria] Empresa PUT [orig]: updated_by del usuario autenticado (no regresion)
+OK     [autoria] Reporte POST [v6]: created_by del usuario autenticado, no del cuerpo (no regresion)
+OK     [autoria] ERU POST [v6]: created_by del usuario autenticado (no regresion)
+OK     [autoria] ERU PUT [v6]: updated_by del usuario autenticado (no regresion)
+OK     [autoria] ERU DELETE [v6]: updated_by del usuario autenticado (no regresion)
+OK     [autoria] Empresa PUT [v6]: updated_by del usuario autenticado (no regresion)
+OK     [asignaciones ERU] crear con usuario inactivo (4) [orig]: ROJO, se acepta
+OK     [asignaciones ERU] crear con usuario inactivo (4) [v6]: se rechaza
+OK     [asignaciones ERU] crear con usuario inactivo (4) [solo_g]: se rechaza
+OK     [asignaciones ERU] crear con reporte inactivo (er 2) [orig]: ROJO, se acepta
+OK     [asignaciones ERU] crear con reporte inactivo (er 2) [v6]: se rechaza
+OK     [asignaciones ERU] crear con reporte inactivo (er 2) [solo_g]: se rechaza
+OK     [asignaciones ERU] crear con empresa inactiva (er 4) [orig]: ROJO, se acepta
+OK     [asignaciones ERU] crear con empresa inactiva (er 4) [v6]: se rechaza
+OK     [asignaciones ERU] crear con empresa inactiva (er 4) [solo_g]: se rechaza
+OK     [asignaciones ERU] crear con destino valido [orig]: se acepta
+OK     [asignaciones ERU] crear con destino valido [v6]: se acepta
+OK     [asignaciones ERU] crear con destino valido [solo_g]: se acepta
+OK     [asignaciones ERU] reasignar empresa_reporte_id a una asignacion inactiva (4) [orig]: ROJO, se acepta
+OK     [asignaciones ERU] reasignar empresa_reporte_id a una asignacion inactiva (4) [v6]: se rechaza
+OK     [asignaciones ERU] reasignar empresa_reporte_id a una asignacion inactiva (4) [solo_g]: se rechaza
+OK     [asignaciones ERU] reasignar user_id a un usuario inactivo (4) [orig]: ROJO, se acepta
+OK     [asignaciones ERU] reasignar user_id a un usuario inactivo (4) [v6]: se rechaza
+OK     [asignaciones ERU] reasignar user_id a un usuario inactivo (4) [solo_g]: se rechaza
+OK     [asignaciones ERU] modificar solo notas [v6]: se acepta
+OK     [asignaciones ERU] reasignar a usuario y asignacion validos [v6]: se acepta
+OK     [asignaciones ERU] modificar solo notas [solo_g]: se acepta
+OK     [asignaciones ERU] reasignar a usuario y asignacion validos [solo_g]: se acepta
+OK     [Empresa modelo] solo F-5f, PUT con rol user: el modelo rechaza aunque el router no tenga guardia
+OK     [Empresa modelo] solo F-5f, DELETE con rol user: el modelo rechaza
+OK     [Empresa modelo] solo F-5f, PUT con rol USER: el modelo rechaza aunque el router no tenga guardia
+OK     [Empresa modelo] solo F-5f, DELETE con rol USER: el modelo rechaza
+OK     [Empresa modelo] PUT con rol admin [solo_f]: se permite (comparacion sin distinguir mayusculas)
+OK     [Empresa modelo] PUT con rol admin [v6]: se permite (comparacion sin distinguir mayusculas)
+OK     [Empresa modelo] PUT con rol ADMIN [solo_f]: se permite (comparacion sin distinguir mayusculas)
+OK     [Empresa modelo] PUT con rol ADMIN [v6]: se permite (comparacion sin distinguir mayusculas)
+OK     [Empresa modelo] PUT con rol Admin [solo_f]: se permite (comparacion sin distinguir mayusculas)
+OK     [Empresa modelo] PUT con rol Admin [v6]: se permite (comparacion sin distinguir mayusculas)
+OK     [K2 secretos] GET /api/empresas [orig/user]: ROJO, devuelve el secreto
+OK     [K2 secretos] GET /api/empresas [v6/user]: sin secreto, sin la clave, estado 200
+OK     [K2 secretos] GET /api/empresas [v6/user]: se conservan campos no sensibles (nombre, powerbi_tenant, powerbi_client)
+OK     [K2 secretos] GET /api/empresas [orig/admin]: ROJO, devuelve el secreto
+OK     [K2 secretos] GET /api/empresas [v6/admin]: sin secreto, sin la clave, estado 200
+OK     [K2 secretos] GET /api/empresas [v6/admin]: se conservan campos no sensibles (nombre, powerbi_tenant, powerbi_client)
+OK     [K2 secretos] GET /api/empresas/1 [orig/user]: ROJO, devuelve el secreto
+OK     [K2 secretos] GET /api/empresas/1 [v6/user]: sin secreto, sin la clave, estado 200
+OK     [K2 secretos] GET /api/empresas/1 [v6/user]: se conservan campos no sensibles (nombre, powerbi_tenant, powerbi_client)
+OK     [K2 secretos] GET /api/empresas/1 [orig/admin]: ROJO, devuelve el secreto
+OK     [K2 secretos] GET /api/empresas/1 [v6/admin]: sin secreto, sin la clave, estado 200
+OK     [K2 secretos] GET /api/empresas/1 [v6/admin]: se conservan campos no sensibles (nombre, powerbi_tenant, powerbi_client)
+OK     [K2 secretos] K2d intento explicito (texto nuevo): HTTP 400, success=false y mensaje funcional exacto
+OK     [K2 secretos] K2d intento explicito (texto nuevo): sin escritura parcial (ni nombre, ciudad, tenant, client, updated_by) y secreto original
+OK     [K2 secretos] K2d intento explicito (texto nuevo): el cliente lo muestra como Observacion, no como Guardado
+OK     [K2 secretos] K2d intento explicito (texto nuevo): ni la respuesta ni el registro contienen el valor recibido
+OK     [K2 secretos] K2d intento explicito (texto nuevo): el registro anota usuario y empresa
+OK     [K2 secretos] K2d intento explicito (un caracter): HTTP 400, success=false y mensaje funcional exacto
+OK     [K2 secretos] K2d intento explicito (un caracter): sin escritura parcial (ni nombre, ciudad, tenant, client, updated_by) y secreto original
+OK     [K2 secretos] K2d intento explicito (un caracter): el cliente lo muestra como Observacion, no como Guardado
+OK     [K2 secretos] K2d intento explicito (un caracter): ni la respuesta ni el registro contienen el valor recibido
+OK     [K2 secretos] K2d intento explicito (un caracter): el registro anota usuario y empresa
+OK     [K2 secretos] K2d intento explicito (texto con espacios): HTTP 400, success=false y mensaje funcional exacto
+OK     [K2 secretos] K2d intento explicito (texto con espacios): sin escritura parcial (ni nombre, ciudad, tenant, client, updated_by) y secreto original
+OK     [K2 secretos] K2d intento explicito (texto con espacios): el cliente lo muestra como Observacion, no como Guardado
+OK     [K2 secretos] K2d intento explicito (texto con espacios): ni la respuesta ni el registro contienen el valor recibido
+OK     [K2 secretos] K2d intento explicito (texto con espacios): el registro anota usuario y empresa
+OK     [K2 secretos] K2d intento explicito (parecido a mascara): HTTP 400, success=false y mensaje funcional exacto
+OK     [K2 secretos] K2d intento explicito (parecido a mascara): sin escritura parcial (ni nombre, ciudad, tenant, client, updated_by) y secreto original
+OK     [K2 secretos] K2d intento explicito (parecido a mascara): el cliente lo muestra como Observacion, no como Guardado
+OK     [K2 secretos] K2d intento explicito (parecido a mascara): ni la respuesta ni el registro contienen el valor recibido
+OK     [K2 secretos] K2d intento explicito (parecido a mascara): el registro anota usuario y empresa
+OK     [K2 secretos] K2d edicion normal con secreto [cadena vacia]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [cadena vacia]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [solo espacios]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [solo espacios]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [enmascarado ********]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [enmascarado ********]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [enmascarado con puntos]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [enmascarado con puntos]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [null JSON]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [null JSON]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [texto null]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [texto null]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d edicion normal con secreto [texto undefined]: HTTP 200, Guardado, los demas campos se guardan y el secreto no cambia
+OK     [K2 secretos] K2d edicion normal [texto undefined]: la respuesta no trae el secreto
+OK     [K2 secretos] K2d valor no textual [true]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d valor no textual [numero 0]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d valor no textual [numero 123]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d valor no textual [false]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d valor no textual [arreglo]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d valor no textual [objeto]: se trata como intento explicito (400, sin escritura)
+OK     [K2 secretos] K2d + F-5a: un usuario normal con intento recibe 403 (la guardia va primero) y no hay efecto
+OK     [K2 secretos] K2d sin A2: aun asi se rechaza el intento (400) y no hay efecto
+OK     [K2 secretos] K2d: sin sesion, 401 antes de cualquier otra cosa
+OK     [K2 secretos] K2d: un modo desconocido falla cerrado (rechaza)
+OK     [K2 secretos] regresion K2c (modo bloquear): descarta el secreto en silencio, guarda el resto y responde 200
+OK     [K2 secretos] regresion K2b (modo ignorar_vacio): un valor real se guarda
+OK     [K2 secretos] regresion K2c sin A2 (modo bloquear): protege el secreto aunque el rol no se compruebe
+OK     [K2 secretos] PUT con secreto real [orig/usuario normal]: ROJO, el secreto se reemplaza (integridad)
+OK     [K2 secretos] PUT con secreto vacio [v6, modo permitir]: vuelve al comportamiento original (interruptor)
+OK     [K2 secretos] PUT con secreto vacio [v6, modo ignorar_vacio]: no borra el secreto
+OK     [K2 secretos] D-15 ROJO [orig/usuario normal]: puede crear una empresa con credenciales propias (sin A2 cerrado)
+OK     [K2 secretos] K2e [v6/admin] alta con secreto explicito: 400, mensaje funcional y no se crea la empresa
+OK     [K2 secretos] K2e [v6/admin] ni la respuesta ni el registro contienen el valor
+OK     [K2 secretos] K2e [v6/admin] el cliente lo muestra como Observacion
+OK     [K2 secretos] K2e [solo_k2/user] alta con secreto explicito: 400, mensaje funcional y no se crea la empresa
+OK     [K2 secretos] K2e [solo_k2/user] ni la respuesta ni el registro contienen el valor
+OK     [K2 secretos] K2e [solo_k2/user] el cliente lo muestra como Observacion
+OK     [K2 secretos] K2e alta normal [sin la clave]: se crea la empresa y la columna del secreto queda NULL (no cadena vacia)
+OK     [K2 secretos] K2e alta normal [cadena vacia]: se crea la empresa y la columna del secreto queda NULL (no cadena vacia)
+OK     [K2 secretos] K2e alta normal [espacios]: se crea la empresa y la columna del secreto queda NULL (no cadena vacia)
+OK     [K2 secretos] K2e alta normal [enmascarado]: se crea la empresa y la columna del secreto queda NULL (no cadena vacia)
+OK     [K2 secretos] K2e alta normal [null JSON]: se crea la empresa y la columna del secreto queda NULL (no cadena vacia)
+OK     [K2 secretos] K2e alta con valor no textual [true]: se rechaza
+OK     [K2 secretos] K2e alta con valor no textual [numero]: se rechaza
+OK     [K2 secretos] K2e alta con valor no textual [arreglo]: se rechaza
+OK     [K2 secretos] K2e + F-5a: un usuario normal recibe 403 (la guardia va primero) y no se crea nada
+OK     [K2 secretos] K2e modo 'permitir' por constante: vuelve al comportamiento original (interruptor)
+OK     [K2 secretos] K2e un modo desconocido falla cerrado (rechaza)
+OK     [K2 secretos] K2e no altera las empresas existentes (nombre, secreto)
+OK     [K1 Power BI] GET tokens [orig, sin sesion]: ROJO, entrega token a un anonimo
+OK     [K1 Power BI] respuesta sin credenciales de la empresa
+OK     [K1 Power BI] GET tokens id inexistente [orig]: ROJO menor, responde "null" (variable sin asignar)
+OK     [K1 Power BI] [observar] sin Authorization: estado 200
+OK     [K1 Power BI] [observar] sin Authorization: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [observar] sin Authorization: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [observar] con token, usuario no asignado: estado 200
+OK     [K1 Power BI] [observar] con token, usuario no asignado: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [observar] con token, usuario no asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] sin Authorization (cliente antiguo): estado 200
+OK     [K1 Power BI] [mixto] sin Authorization (cliente antiguo): token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [mixto] sin Authorization (cliente antiguo): el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] con token, asignado: estado 200
+OK     [K1 Power BI] [mixto] con token, asignado: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [mixto] con token, asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] con token, NO asignado: estado 403
+OK     [K1 Power BI] [mixto] con token, NO asignado: no se entrega token
+OK     [K1 Power BI] [mixto] con token, NO asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] con token de administrador: estado 200
+OK     [K1 Power BI] [mixto] con token de administrador: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [mixto] con token de administrador: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] con token invalido: estado 401
+OK     [K1 Power BI] [mixto] con token invalido: no se entrega token
+OK     [K1 Power BI] [mixto] con token invalido: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [mixto] con token, otro usuario asignado: estado 200
+OK     [K1 Power BI] [mixto] con token, otro usuario asignado: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [mixto] con token, otro usuario asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [exigir] sin Authorization: estado 401
+OK     [K1 Power BI] [exigir] sin Authorization: no se entrega token
+OK     [K1 Power BI] [exigir] sin Authorization: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [exigir] con token, asignado: estado 200
+OK     [K1 Power BI] [exigir] con token, asignado: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [exigir] con token, asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [exigir] con token, NO asignado: estado 403
+OK     [K1 Power BI] [exigir] con token, NO asignado: no se entrega token
+OK     [K1 Power BI] [exigir] con token, NO asignado: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [exigir] con token de administrador: estado 200
+OK     [K1 Power BI] [exigir] con token de administrador: token sintetico y ninguna credencial en la respuesta
+OK     [K1 Power BI] [exigir] con token de administrador: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [exigir] con token invalido: estado 401
+OK     [K1 Power BI] [exigir] con token invalido: no se entrega token
+OK     [K1 Power BI] [exigir] con token invalido: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [xx] modo desconocido: falla cerrado, sin Authorization: estado 401
+OK     [K1 Power BI] [xx] modo desconocido: falla cerrado, sin Authorization: no se entrega token
+OK     [K1 Power BI] [xx] modo desconocido: falla cerrado, sin Authorization: el registro no contiene secretos ni tokens
+OK     [K1 Power BI] [observar] el registro anota modo, id y ausencia de Authorization para medir (T0/T2)
+OK     [K1 Power BI] id inexistente [v6/exigir/admin]: 400 con JSON {success:false,message} en lugar de "null"
+OK     [K1 Power BI] [mixto] asignacion dada de baja (activo=0): se deniega
+OK     [K1 Power BI] modo por defecto del paquete = observar: sin cambio de comportamiento al desplegar
+OK     [cadena A2 -> K1] [solo_k1/exigir] usuario 2 pide el informe 3 sin asignacion: 403
+OK     [cadena A2 -> K1] [solo_k1/exigir] tras autoasignarse por POST ERU: ROJO, ya obtiene el token (K1 eludido sin F-5c)
+OK     [cadena A2 -> K1] [v6/exigir] usuario 2 pide el informe 3 sin asignacion: 403
+OK     [cadena A2 -> K1] [v6/exigir] tras autoasignarse por POST ERU: 403, la autoasignacion no prospera con F-5c
+OK     [K1 retirar] [retirar] sin Authorization, informe 1: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] sin Authorization, informe 1: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] sin Authorization, informe 3: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] sin Authorization, informe 3: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] sin Authorization, informe 99: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] sin Authorization, informe 99: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de usuario, informe 1: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de usuario, informe 1: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de usuario, informe 3: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de usuario, informe 3: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de usuario, informe 99: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de usuario, informe 99: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de administrador, informe 1: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de administrador, informe 1: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de administrador, informe 3: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de administrador, informe 3: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token de administrador, informe 99: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token de administrador, informe 99: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token invalido, informe 1: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token invalido, informe 1: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token invalido, informe 3: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token invalido, informe 3: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] con token invalido, informe 99: HTTP 410 «Recurso retirado» sin token ni credenciales
+OK     [K1 retirar] [retirar] con token invalido, informe 99: no consulto la base (la base sin tablas no produjo error) y el registro anota la llamada sin secretos
+OK     [K1 retirar] [retirar] ni siquiera el administrador recibe el token del informe 1 (a diferencia de «exigir»)
+OK     [K1 retirar] contraste [exigir] el administrador SI recibe el token (por eso «retirar» es un modo aparte)
+OK     [K1 retirar] contraste [orig] sin sesion se entrega el token (K1, rojo)
+OK     [K1 retirar] [retirar] otro metodo HTTP no coincide con la ruta (el router no responde): sin cambios
+OK     [F-10 registro] F-10 ROJO [orig/sin sesion]: se crea una cuenta con la API publica (A3)
+OK     [F-10 registro] F-10 ROJO [orig/usuario normal]: tambien un usuario sin privilegios crea cuentas
+OK     [F-10 registro] F-10 [v6] sin sesion ni cabecera: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [v6] sin sesion ni cabecera: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [v6] con token de usuario normal: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [v6] con token de usuario normal: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [v6] con token de administrador: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [v6] con token de administrador: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [v6] con token invalido: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [v6] con token invalido: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [v6] cuerpo no JSON: tambien 403 (se cierra antes de leer el cuerpo)
+OK     [F-10 registro] F-10 [v6] campos faltantes: 403 y sin efecto
+OK     [F-10 registro] F-10 [v6] /api/login no cambia: misma respuesta que antes del parche
+OK     [F-10 registro] F-10 [v6] /api/logout no cambia: misma respuesta que antes del parche
+OK     [F-10 registro] F-10 [v6] GET /api/register: sin cambios (no es la ruta cerrada)
+OK     [F-10 registro] F-10 [solo_f10] sin sesion ni cabecera: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [solo_f10] sin sesion ni cabecera: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [solo_f10] con token de usuario normal: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [solo_f10] con token de usuario normal: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [solo_f10] con token de administrador: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [solo_f10] con token de administrador: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [solo_f10] con token invalido: 403 y no se crea ninguna cuenta
+OK     [F-10 registro] F-10 [solo_f10] con token invalido: el cliente lo muestra como Observacion con el motivo
+OK     [F-10 registro] F-10 [solo_f10] cuerpo no JSON: tambien 403 (se cierra antes de leer el cuerpo)
+OK     [F-10 registro] F-10 [solo_f10] campos faltantes: 403 y sin efecto
+OK     [F-10 registro] F-10 [solo_f10] /api/login no cambia: misma respuesta que antes del parche
+OK     [F-10 registro] F-10 [solo_f10] /api/logout no cambia: misma respuesta que antes del parche
+OK     [F-10 registro] F-10 [solo_f10] GET /api/register: sin cambios (no es la ruta cerrada)
+OK     [F-10 registro] F-10 reversion por constante REGISTRO_ABIERTO=true: vuelve a registrar (interruptor de emergencia)
+OK     [A1 perfiles] GET perfil ajeno [orig/usuario normal]: ROJO, se entrega
+OK     [A1 perfiles] PUT perfil ajeno [orig/usuario normal]: ROJO, se escribe
+OK     [A1 perfiles] GET perfil propio [orig]: 200
+OK     [A1 perfiles] PUT perfil propio [orig]: se escribe
+OK     [A1 perfiles] GET perfil ajeno [orig/admin]: 200
+OK     [A1 perfiles] PUT perfil ajeno [orig/rol ADMIN]: se escribe
+OK     [A1 perfiles] GET perfil sin sesion [orig]: 401
+OK     [A1 perfiles] GET perfil ajeno [v6/usuario normal]: 403
+OK     [A1 perfiles] PUT perfil ajeno [v6/usuario normal]: 403 y sin escritura
+OK     [A1 perfiles] GET perfil propio [v6]: 200
+OK     [A1 perfiles] PUT perfil propio [v6]: se escribe
+OK     [A1 perfiles] GET perfil ajeno [v6/admin]: 200
+OK     [A1 perfiles] PUT perfil ajeno [v6/rol ADMIN]: se escribe
+OK     [A1 perfiles] GET perfil sin sesion [v6]: 401
+OK     [lecturas sin cambio] GET /api/reportes/1 [orig/usuario normal]: 200 con datos
+OK     [lecturas sin cambio] GET /api/reportes [orig/usuario normal]: 200
+OK     [lecturas sin cambio] GET ERU/1 [orig/usuario normal]: 200 con la relacion
+OK     [lecturas sin cambio] GET /api/asignacion [orig/usuario normal]: 200
+OK     [lecturas sin cambio] GET /api/empresas [orig/usuario normal]: 200 y 2 empresas activas
+OK     [lecturas sin cambio] GET /api/reportes/1 [v6/usuario normal]: 200 con datos
+OK     [lecturas sin cambio] GET /api/reportes [v6/usuario normal]: 200
+OK     [lecturas sin cambio] GET ERU/1 [v6/usuario normal]: 200 con la relacion
+OK     [lecturas sin cambio] GET /api/asignacion [v6/usuario normal]: 200
+OK     [lecturas sin cambio] GET /api/empresas [v6/usuario normal]: 200 y 2 empresas activas
+
+RESULTADO v6: 354/354 OK, 0 fallas
+
+== Regresion K2 (tests/regresion_k2.sh)
+RESULTADO: 111/111 OK, 0 fallas
+RESULTADO EXTRA: 85/85 OK, 0 fallas
+
+== Mutaciones F-10 y K1 retirar
+f10_guardia_invertida: fallan 1
+f10_http_200: fallan 10
+k1_retirar_sin_410: fallan 13
+k1_retirar_modo_invalido: fallan 25
