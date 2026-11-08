@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/jwt.php';
+require_once __DIR__ . '/roles.php';
 
 /**
  * Obtiene la clave JWT desde variables de entorno o detiene la ejecución si no está configurada.
@@ -119,12 +120,18 @@ function authenticate_user($jwt_secret) {
         return false;
     }
 
+    // Un rol no reconocido no concede acceso (ni siquiera de usuario básico)
+    $normalized_role = normalize_role($row['role'] ?? null);
+    if ($normalized_role === null) {
+        return false;
+    }
+
     // Devolver datos del usuario autenticado
     return [
         'user_id' => $payload['user_id'],
         'username' => $payload['username'],
         'email' => $payload['email'],
-        'role' => $row['role']
+        'role' => $normalized_role
     ];
 }
 

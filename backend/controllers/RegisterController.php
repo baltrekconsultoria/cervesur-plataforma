@@ -13,7 +13,8 @@ class RegisterController {
     }
 
     /**
-     * Registra un nuevo usuario en la base de datos
+     * Crea un usuario (operación administrativa: la ruta exige un administrador autenticado).
+     * Siempre con rol 'user', is_active = 1 y session_version = 1.
      * @param array $data Datos del usuario a registrar
      * @return array Resultado del registro
      */
@@ -73,7 +74,7 @@ class RegisterController {
         $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
 
         // Insertar usuario
-        $sql = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, :role, NOW(), NOW())";
+        $sql = "INSERT INTO user (first_name, last_name, username, email, phone, password, role, is_active, session_version, created_at, updated_at) VALUES (:first_name, :last_name, :username, :email, :phone, :password, :role, 1, 1, NOW(), NOW())";
         $stmt = $this->pdo->prepare($sql);
 
         $result = $stmt->execute([
@@ -83,7 +84,8 @@ class RegisterController {
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'password' => $passwordHash,
-            'role' => 'usuario'
+            // Fijo: el rol jamás proviene de la petición. Para otorgar 'admin' existe PUT /api/user/{id}/role.
+            'role' => 'user'
         ]);
 
         if ($result) {

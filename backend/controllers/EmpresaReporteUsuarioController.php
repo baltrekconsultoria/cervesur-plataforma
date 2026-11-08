@@ -22,7 +22,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->getAll($user_id, $role);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -36,7 +36,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->getById($id, $userId, $role);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -50,7 +50,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->getByEmpresaRuc($ruc, $userId, $role);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -66,7 +66,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->getByEmpresaNombre($nombre, $userId, $role);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -80,7 +80,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->getByUserId($userId, $requestUserId, $role);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -105,7 +105,7 @@ class EmpresaReporteUsuarioController {
             $data['created_by'] = $authUserId;
             return $this->model->create($data);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -128,7 +128,7 @@ class EmpresaReporteUsuarioController {
             $data['updated_by'] = $authUserId;
             return $this->model->update($id, $data);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 
@@ -147,7 +147,7 @@ class EmpresaReporteUsuarioController {
         try {
             return $this->model->delete($id, $authUserId);
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error interno: ' . $e->getMessage()];
+            return ['success' => false, 'message' => public_error_message('Error interno', $e)];
         }
     }
 }

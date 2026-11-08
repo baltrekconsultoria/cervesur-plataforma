@@ -39,7 +39,7 @@ class ReporteController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al crear el reporte: ' . $e->getMessage()
+                'message' => public_error_message('Error al crear el reporte', $e)
             ];
         }
     }
@@ -55,7 +55,7 @@ class ReporteController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al actualizar el reporte: ' . $e->getMessage()
+                'message' => public_error_message('Error al actualizar el reporte', $e)
             ];
         }
     }
@@ -71,7 +71,7 @@ class ReporteController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al eliminar el reporte: ' . $e->getMessage()
+                'message' => public_error_message('Error al eliminar el reporte', $e)
             ];
         }
     }
@@ -92,7 +92,7 @@ class ReporteController {
 
             echo json_encode($result);
         } catch (Exception $e) {
-            error_log("Error en ReporteController::getAll: " . $e->getMessage());
+            error_log(public_error_message('Error en ReporteController::getAll', $e));
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -126,7 +126,7 @@ class ReporteController {
 
             echo json_encode($result);
         } catch (Exception $e) {
-            error_log("Error en ReporteController::getById: " . $e->getMessage());
+            error_log(public_error_message('Error en ReporteController::getById', $e));
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -160,7 +160,7 @@ class ReporteController {
 
             echo json_encode($result);
         } catch (Exception $e) {
-            error_log("Error en ReporteController::getByGrupoId: " . $e->getMessage());
+            error_log(public_error_message('Error en ReporteController::getByGrupoId', $e));
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -194,7 +194,7 @@ class ReporteController {
 
             echo json_encode($result);
         } catch (Exception $e) {
-            error_log("Error en ReporteController::getByReporteId: " . $e->getMessage());
+            error_log(public_error_message('Error en ReporteController::getByReporteId', $e));
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -219,7 +219,7 @@ class ReporteController {
 
             echo json_encode($result);
         } catch (Exception $e) {
-            error_log("Error en ReporteController::getActivos: " . $e->getMessage());
+            error_log(public_error_message('Error en ReporteController::getActivos', $e));
             http_response_code(500);
             echo json_encode([
                 'success' => false,

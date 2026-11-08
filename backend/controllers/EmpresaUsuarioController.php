@@ -79,7 +79,7 @@ class EmpresaUsuarioController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al asignar usuario a empresa: ' . $e->getMessage()
+                'message' => public_error_message('Error al asignar usuario a empresa', $e)
             ];
         }
     }
@@ -96,7 +96,7 @@ class EmpresaUsuarioController {
             return [
                 'success' => false,
                 'data' => [],
-                'message' => 'Error al listar asignaciones empresa-usuario: ' . $e->getMessage()
+                'message' => public_error_message('Error al listar asignaciones empresa-usuario', $e)
             ];
         }
     }
@@ -126,7 +126,7 @@ class EmpresaUsuarioController {
             return [
                 'success' => false,
                 'data' => null,
-                'message' => 'Error al obtener relación empresa-usuario: ' . $e->getMessage()
+                'message' => public_error_message('Error al obtener relación empresa-usuario', $e)
             ];
         }
     }
@@ -156,7 +156,7 @@ class EmpresaUsuarioController {
             return [
                 'success' => false,
                 'data' => [],
-                'message' => 'Error al obtener relaciones por RUC: ' . $e->getMessage()
+                'message' => public_error_message('Error al obtener relaciones por RUC', $e)
             ];
         }
     }
@@ -186,7 +186,7 @@ class EmpresaUsuarioController {
             return [
                 'success' => false,
                 'data' => [],
-                'message' => 'Error al obtener relaciones por nombre de empresa: ' . $e->getMessage()
+                'message' => public_error_message('Error al obtener relaciones por nombre de empresa', $e)
             ];
         }
     }
@@ -236,7 +236,7 @@ class EmpresaUsuarioController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al actualizar relación empresa-usuario: ' . $e->getMessage()
+                'message' => public_error_message('Error al actualizar relación empresa-usuario', $e)
             ];
         }
     }
@@ -276,7 +276,7 @@ class EmpresaUsuarioController {
         } catch (Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Error al eliminar relación empresa-usuario: ' . $e->getMessage()
+                'message' => public_error_message('Error al eliminar relación empresa-usuario', $e)
             ];
         }
     }

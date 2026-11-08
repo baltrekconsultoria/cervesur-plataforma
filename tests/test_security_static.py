@@ -46,7 +46,9 @@ class SecurityStaticChecks(unittest.TestCase):
     def test_current_role_read_from_database(self):
         text = source("backend/lib/auth_middleware.php")
         self.assertIn("SELECT session_version, is_active, role FROM user", text)
-        self.assertIn("'role' => $row['role']", text)
+        self.assertIn("normalize_role($row['role']", text)
+        self.assertIn("'role' => $normalized_role", text)
+        self.assertNotIn("$payload['role']", text)
 
     def test_jwt_requires_expiration_and_session_version(self):
         text = source("backend/lib/jwt.php")
@@ -76,6 +78,31 @@ class SecurityStaticChecks(unittest.TestCase):
         for path in ("backend/controllers/PowerBIController.php", "backend/controllers/EmpresaController.php", "backend/lib/db.php"):
             self.assertNotIn(". $e->getMessage()", source(path))
         self.assertNotIn('response["error_description"]', source("backend/controllers/PowerBIController.php"))
+
+    def test_register_requires_administrator_and_ignores_request_roles(self):
+        text = source("backend/router/auth.php")
+        block = text[text.index("$uri === '/api/register'"):text.index("/api/logout")]
+        self.assertIn("require_auth(", block)
+        self.assertLess(block.index("require_auth("), block.index("file_get_contents('php://input')"))
+        self.assertIn("!== 'admin'", block)
+        controller = source("backend/controllers/RegisterController.php")
+        self.assertIn("'role' => 'user'", controller)
+        self.assertNotIn("$data['role']", controller)
+        self.assertNotIn("'usuario'", controller)
+        self.assertIn("is_active, session_version", controller)
+
+    def test_roles_are_normalised_in_one_place(self):
+        self.assertIn("normalize_role(", source("backend/lib/auth_middleware.php"))
+        self.assertIn("normalize_role(", source("backend/controllers/AuthController.php"))
+
+    def test_no_exception_message_reaches_http_responses(self):
+        import re
+        for path in sorted((ROOT / "backend").rglob("*.php")):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if "getMessage()" in line and "error_log(" not in line and "public_error_message" not in line and "lib/errors.php" not in str(path).replace("\\", "/"):
+                    self.fail(f"{path.relative_to(ROOT)}:{number} expone getMessage()")
+                self.assertNotIn("'sqlstate'", line)
+        self.assertIn("display_errors", source("backend/router/index.php"))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

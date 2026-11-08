@@ -3,6 +3,8 @@
 require_once __DIR__ . '/../backend/models/EmpresaModel.php';
 require_once __DIR__ . '/../backend/controllers/PowerBIController.php';
 require_once __DIR__ . '/../backend/lib/jwt.php';
+require_once __DIR__ . '/../backend/lib/roles.php';
+require_once __DIR__ . '/../backend/lib/errors.php';
 
 function check($condition, $name) {
     if (!$condition) { fwrite(STDERR, "FAIL: $name\n"); exit(1); }
@@ -72,3 +74,21 @@ unset($missingIdentity['email']);
 check(validate_jwt(generate_jwt($missingIdentity, $jwtSecret), $jwtSecret) === false, 'strict JWT rejects incomplete identity');
 
 check(validate_jwt($validToken, 'different-synthetic-secret') === false, 'strict JWT rejects invalid signature');
+
+// SEC-05A: política de roles
+check(normalize_role('admin') === 'admin' && normalize_role(' Admin ') === 'admin' && normalize_role('ADMIN') === 'admin', 'role policy normalises admin');
+check(normalize_role('user') === 'user' && normalize_role('usuario') === 'user' && normalize_role('USUARIO') === 'user', "role policy maps legacy 'usuario' to 'user'");
+foreach (['', 'root', 'superadmin', 'administrator', 'admin;', 'admin user', null, 1, true, [], ['admin']] as $bad) {
+    check(normalize_role($bad) === null, 'role policy rejects ' . json_encode($bad));
+}
+
+// SEC-05A: los mensajes públicos no incluyen el detalle de la excepción
+$captured = tempnam(sys_get_temp_dir(), 'err');
+$previousLog = ini_set('error_log', $captured);
+$publicMessage = public_error_message('Error al consultar', new PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'db.secret' doesn't exist"));
+ini_set('error_log', $previousLog === false ? '' : $previousLog);
+$logged = (string)file_get_contents($captured);
+@unlink($captured);
+check($publicMessage === 'Error al consultar', 'public error message is the generic text');
+check(strpos($publicMessage, 'SQLSTATE') === false && strpos($publicMessage, 'secret') === false, 'public error message hides database detail');
+check(strpos($logged, 'SQLSTATE[42S02]') !== false, 'technical detail is kept in the internal log');
