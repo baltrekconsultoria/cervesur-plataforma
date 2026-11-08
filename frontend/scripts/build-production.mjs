@@ -13,7 +13,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = 'dist-production';
+// `--pilot` (UX-07D.4): misma compilación de servidor + aviso de contexto del piloto visual; salida en dist-pilot/. No cambia nada más.
+const PILOT_USUARIOS = process.argv.includes('--pilot-usuarios'); // UX-07D.4B: usuarios reales con permisos individuales
+const PILOT_ADMIN = process.argv.includes('--pilot-admin'); // UX-07E.B: administración de SOLO LECTURA para administradores autorizados
+const PILOT = process.argv.includes('--pilot') || PILOT_USUARIOS || PILOT_ADMIN;
+const PILOT_MODE = PILOT_ADMIN ? 'admin' : PILOT_USUARIOS ? 'usuarios' : 'operador';
+const OUT = PILOT_ADMIN ? 'dist-pilot-admin' : PILOT_USUARIOS ? 'dist-pilot-usuarios' : PILOT ? 'dist-pilot' : 'dist-production';
 const fail = message => { console.error(`\nERROR: ${message}`); process.exit(1); };
 
 const hosts = (process.env.CERVESUR_ALLOWED_HOSTS ?? '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
@@ -28,7 +33,7 @@ for (const name of ['.env', '.env.local', '.env.production', '.env.production.lo
   if (existsSync(file) && /^\s*VITE_/m.test(readFileSync(file, 'utf8'))) fail(`${name} define variables VITE_*: no se admite en la compilación de servidor.`);
 }
 
-const config = { VITE_DEPLOY_TARGET: 'server', VITE_API_PROVIDER: 'http', VITE_API_BASE_URL: 'same-origin', VITE_ALLOWED_HOSTS: hosts.join(',') };
+const config = { VITE_DEPLOY_TARGET: 'server', VITE_API_PROVIDER: 'http', VITE_API_BASE_URL: 'same-origin', VITE_ALLOWED_HOSTS: hosts.join(','), ...(PILOT ? { VITE_PILOT: 'true', VITE_PILOT_MODE: PILOT_MODE } : {}) };
 const run = (script, args, env = {}) => {
   const result = spawnSync(process.execPath, [join(root, script), ...args], { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } });
   if (result.status !== 0) process.exit(result.status ?? 1);
@@ -36,6 +41,6 @@ const run = (script, args, env = {}) => {
 
 run('node_modules/typescript/bin/tsc', ['--noEmit']);
 run('node_modules/vite/bin/vite.js', ['build', '--mode', 'production', '--outDir', OUT, '--emptyOutDir'], config);
-writeFileSync(join(root, OUT, 'build-info.json'), `${JSON.stringify({ target: 'server', provider: 'http', apiBase: 'same-origin', allowedHosts: hosts }, null, 2)}\n`);
+writeFileSync(join(root, OUT, 'build-info.json'), `${JSON.stringify({ target: 'server', provider: 'http', apiBase: 'same-origin', allowedHosts: hosts, ...(PILOT ? { pilot: true, pilotMode: PILOT_MODE } : {}) }, null, 2)}\n`);
 run('scripts/verify-production-build.mjs', [OUT, ...hosts]);
 console.log(`\nListo: ${OUT}/ (dominios autorizados: ${hosts.join(', ')}). No se ha desplegado nada.`);

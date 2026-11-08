@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router';
 import { isApiError } from '../../api/errors';
 import { useApp } from '../../app/AppProvider';
 import { homePath, sanitizeReturnTo } from '../../auth/returnTo';
+import { isPilotBuild, pilotMode } from '../../app/pilot';
 import { Button } from '../../components/ui';
 
 // Cuentas de demostración: solo existen con el proveedor simulado; la compilación de servidor las elimina del bundle.
@@ -44,7 +45,7 @@ export function LoginPage() {
       <section className="login-card" aria-labelledby="login-title">
         <span className="eyebrow">Acceso seguro</span>
         <h1 id="login-title">Bienvenido</h1>
-        <p>Use una cuenta autorizada para consultar los informes asignados.</p>
+        <p>{pilotMode() === 'admin' ? 'Piloto administrativo de solo consulta: ingrese con su cuenta de administrador de Cervesur (usuario o correo y su contraseña habitual). Solo entran los administradores autorizados para el piloto.' : pilotMode() === 'usuarios' ? 'Piloto de acceso restringido: ingrese con su cuenta de Cervesur (usuario o correo y su contraseña habitual). Solo verá los informes que tiene asignados.' : isPilotBuild() ? 'Acceso exclusivo del operador autorizado del piloto (clave propia del piloto; no use la contraseña de un empleado).' : 'Use una cuenta autorizada para consultar los informes asignados.'}</p>
         <div role="alert">
           {sessionExpired && <div className="alert warning"><strong>Su sesión venció (401).</strong> Ingrese nuevamente para continuar donde estaba.</div>}
           {error && <div className="alert danger">{error}</div>}

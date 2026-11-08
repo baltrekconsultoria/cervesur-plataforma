@@ -55,6 +55,9 @@ jobs:
           docker run --rm --network none \
             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
             cervesur-ci-php:local php tests/security_unit.php
+          docker run --rm --network none \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            cervesur-ci-php:local php tests/mode_unit.php
 
       - name: Run static security tests
         run: python -m unittest discover -s tests -v
@@ -68,9 +71,10 @@ jobs:
           db_name="cervesur-ci-db-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           app_name="cervesur-ci-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           appprod_name="cervesur-ci-appprod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ro_prefix="cervesur-ci-ro-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           cleanup() {
-            docker rm --force "$app_name" "$appprod_name" "$db_name" >/dev/null 2>&1 || true
+            docker rm --force "$app_name" "$appprod_name" "${ro_prefix}-appro" "${ro_prefix}-appdiag" "${ro_prefix}-appbad1" "${ro_prefix}-appbad2" "${ro_prefix}-appbad3" "${ro_prefix}-appvis" "${ro_prefix}-appvis0" "${ro_prefix}-appvisall" "${ro_prefix}-appvthr" "${ro_prefix}-appvbad1" "${ro_prefix}-appvbad2" "${ro_prefix}-appusr" "${ro_prefix}-appusr0" "${ro_prefix}-appusrthr" "${ro_prefix}-appusrhttps" "${ro_prefix}-appusrbad1" "${ro_prefix}-appusrbad2" "${ro_prefix}-appadm" "${ro_prefix}-appadm0" "${ro_prefix}-appadmthr" "${ro_prefix}-appadmhttps" "${ro_prefix}-appadmbad" "$db_name" >/dev/null 2>&1 || true
             docker network rm "$network_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -159,3 +163,141 @@ jobs:
           docker run --detach --name "$appprod_name" --network "$network_name" --network-alias appprod             --read-only --tmpfs /tmp             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_USER=root --env DB_PASS             --env DB_CHARSET=utf8mb4 --env JWT_SECRET --env JWT_EXPIRATION=3600 --env PHP_CLI_SERVER_WORKERS=4             cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
           sleep 1
           docker run --rm --network "$network_name"             --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work             --env TEST_DB_PASS             cervesur-ci-php:local php tests/isolated/http_productive_ids_test.php
+
+          # UX-07D.3A: modo de solo lectura y de diagnóstico con CUENTAS MySQL de solo lectura (permisos SELECT por columna, creadas con el procedimiento
+          # administrativo real) y tres configuraciones inválidas que deben rechazarse (503) sin abrir la base de datos.
+          RO_DIAG_PASS="Aa1!$(openssl rand -hex 12)"; RO_PILOT_PASS="Aa1!$(openssl rand -hex 12)"
+          RO_DIAG_TOKEN="$(openssl rand -hex 20)"; RO_JWT="$(openssl rand -hex 20)"
+          export RO_DIAG_PASS RO_PILOT_PASS RO_DIAG_TOKEN
+          echo "::add-mask::$RO_DIAG_PASS"; echo "::add-mask::$RO_PILOT_PASS"; echo "::add-mask::$RO_DIAG_TOKEN"; echo "::add-mask::$RO_JWT"
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env RO_DIAG_PASS --env RO_PILOT_PASS \
+            cervesur-ci-php:local php tests/isolated/setup_readonly_accounts.php
+          start_ro() {
+            local name="$1"; shift
+            docker run --detach --name "${ro_prefix}-${name}" --network "$network_name" --network-alias "$name" \
+              --read-only --tmpfs /tmp --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_CHARSET=utf8mb4 --env JWT_EXPIRATION=900 --env PHP_CLI_SERVER_WORKERS=4 "$@" \
+              cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          }
+          start_ro appro --env CERVESUR_MODE=read_only --env DB_USER=cervesur_ro_pilot --env DB_PASS="$RO_PILOT_PASS" --env JWT_SECRET="$RO_JWT"
+          start_ro appdiag --env CERVESUR_REQUIRED_MODE=diagnostico --env CERVESUR_MODE=diagnostico --env DB_USER=cervesur_ro_diag --env DB_PASS="$RO_DIAG_PASS" --env CERVESUR_DIAG_TOKEN="$RO_DIAG_TOKEN"
+          start_ro appbad1 --env CERVESUR_MODE=solo_lectura --env DB_USER=cervesur_ro_pilot --env DB_PASS="$RO_PILOT_PASS" --env JWT_SECRET="$RO_JWT"
+          docker run --detach --name "${ro_prefix}-appbad2" --network "$network_name" --network-alias appbad2 \
+            --read-only --tmpfs /tmp --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env DB_HOST=db --env DB_NAME=cervesur_portalbi --env DB_USER=root --env DB_PASS --env JWT_SECRET="$RO_JWT" \
+            cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          start_ro appbad3 --env CERVESUR_MODE=read_only --env DB_USER=root --env DB_PASS --env JWT_SECRET="$RO_JWT"
+          sleep 2
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS \
+            cervesur-ci-php:local php tests/isolated/http_permissions_matrix_test.php
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env RO_DIAG_PASS --env RO_PILOT_PASS --env RO_DIAG_TOKEN \
+            cervesur-ci-php:local php tests/isolated/http_readonly_test.php
+          for suite in privilegios_minimos_test.php conexion_solo_lectura_test.php; do
+            docker run --rm --network "$network_name" \
+              --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env TEST_DB_PASS --env RO_DIAG_PASS --env RO_DIAG_TOKEN \
+              cervesur-ci-php:local php "tests/isolated/$suite"
+          done
+
+          # UX-07D.4 express: piloto visual (consulta real de empresas e informes para UN operador autorizado) con la cuenta cervesur_ro_visor de 15 columnas.
+          RO_VISOR_PASS="Aa1!$(openssl rand -hex 12)"; PILOT_PASS="$(openssl rand -hex 14)"; export RO_VISOR_PASS PILOT_PASS
+          echo "::add-mask::$RO_VISOR_PASS"; echo "::add-mask::$PILOT_PASS"
+          PILOT_HASH="$(docker run --rm --env PILOT_PASS cervesur-ci-php:local php -r 'echo password_hash(getenv("PILOT_PASS"), PASSWORD_BCRYPT);')"
+          echo "::add-mask::$PILOT_HASH"
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env RO_VISOR_PASS \
+            cervesur-ci-php:local php tests/isolated/setup_visor_account.php
+          PILOT_IDS="$(docker exec "$db_name" mysql -N -uroot --password="$TEST_DB_PASS" fixture_prod -e 'SELECT GROUP_CONCAT(id) FROM (SELECT id FROM reporte WHERE activo = 1 ORDER BY id LIMIT 2) x' 2>/dev/null)"
+          export PILOT_IDS
+          PJ1="$(openssl rand -hex 24)"; PJ2="$(openssl rand -hex 24)"
+          echo "::add-mask::$PJ1"; echo "::add-mask::$PJ2"
+          start_vis() {
+            local name="$1"; shift
+            docker run --detach --name "${ro_prefix}-${name}" --network "$network_name" --network-alias "$name" \
+              --tmpfs /tmp --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_CHARSET=utf8mb4 --env DB_USER=cervesur_ro_visor --env DB_PASS="$RO_VISOR_PASS" \
+              --env CERVESUR_REQUIRED_MODE=piloto_visual --env CERVESUR_PILOT_STATE_DIR=/tmp/estado --env PHP_CLI_SERVER_WORKERS=4 "$@" \
+              cervesur-ci-php:local sh -c 'mkdir -p /tmp/estado && exec php -S 0.0.0.0:8080 tests/isolated/router.php' >/dev/null
+          }
+          start_vis appvis --env CERVESUR_MODE=piloto_visual --env JWT_SECRET="$PJ1" --env CERVESUR_PILOT_OPERATOR_HASH="$PILOT_HASH" --env CERVESUR_PILOT_VISOR_IDS="$PILOT_IDS"
+          start_vis appvis0 --env CERVESUR_MODE=piloto_visual --env JWT_SECRET="$PJ2" --env CERVESUR_PILOT_OPERATOR_HASH="$PILOT_HASH" --env CERVESUR_PILOT_VISOR_IDS=
+          start_vis appvisall --env CERVESUR_MODE=piloto_visual --env JWT_SECRET="$PJ2" --env CERVESUR_PILOT_OPERATOR_HASH="$PILOT_HASH" --env CERVESUR_PILOT_VISOR_IDS=TODOS
+          start_vis appvthr --env CERVESUR_MODE=piloto_visual --env JWT_SECRET="$PJ1" --env CERVESUR_PILOT_OPERATOR_HASH="$PILOT_HASH" --env CERVESUR_PILOT_VISOR_IDS=
+          start_vis appvbad1 --env CERVESUR_MODE=piloto_visual --env JWT_SECRET="$PJ1" --env CERVESUR_PILOT_VISOR_IDS=
+          start_vis appvbad2 --env JWT_SECRET="$PJ1" --env CERVESUR_PILOT_OPERATOR_HASH="$PILOT_HASH" --env CERVESUR_PILOT_VISOR_IDS=
+          sleep 3
+          for suite in piloto_privilegios_test.php http_piloto_test.php; do
+            docker run --rm --network "$network_name" \
+              --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env TEST_DB_PASS --env RO_VISOR_PASS --env PILOT_PASS --env PILOT_IDS \
+              cervesur-ci-php:local php "tests/isolated/$suite"
+          done
+
+          # UX-07D.4B: piloto con usuarios reales (tres cuentas: catálogo de 21 columnas, autenticación de 9 y estado propio) sobre datos sintéticos.
+          gen_pass() { echo "Aa1!$(openssl rand -hex 12)"; }
+          U_AUTH_PASS="$(gen_pass)"; U_CAT_PASS="$(gen_pass)"; U_STATE_PASS="$(gen_pass)"; US1="$(openssl rand -hex 24)"; US2="$(openssl rand -hex 24)"
+          export U_AUTH_PASS U_CAT_PASS U_STATE_PASS; U_SECRET="$US1"; export U_SECRET
+          for v in "$U_AUTH_PASS" "$U_CAT_PASS" "$U_STATE_PASS" "$US1" "$US2"; do echo "::add-mask::$v"; done
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env U_AUTH_PASS --env U_CAT_PASS --env U_STATE_PASS \
+            cervesur-ci-php:local php tests/isolated/setup_usuarios_cuentas.php
+          start_usr() {
+            local name="$1"; shift
+            docker run --detach --name "${ro_prefix}-${name}" --network "$network_name" --network-alias "$name" \
+              --tmpfs /tmp --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_CHARSET=utf8mb4 --env DB_USER=cervesur_ro_catalogo --env DB_PASS="$U_CAT_PASS" \
+              --env AUTH_DB_USER=cervesur_ro_auth --env AUTH_DB_PASS="$U_AUTH_PASS" \
+              --env STATE_DB_NAME=estado_piloto_test --env STATE_DB_USER=cervesur_react_estado --env STATE_DB_PASS="$U_STATE_PASS" \
+              --env CERVESUR_REQUIRED_MODE=piloto_usuarios --env CERVESUR_MODE=piloto_usuarios --env PHP_CLI_SERVER_WORKERS=4 "$@" \
+              cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          }
+          start_usr appusr --env CERVESUR_PILOT_SECRET="$US1" --env CERVESUR_PILOT_VISOR_IDS=TODOS --env CERVESUR_INSECURE_TESTS=SI --env CERVESUR_PILOT_MAX_FALLOS_IP=100000
+          start_usr appusr0 --env CERVESUR_PILOT_SECRET="$US1" --env CERVESUR_PILOT_VISOR_IDS= --env CERVESUR_INSECURE_TESTS=SI --env CERVESUR_PILOT_MAX_FALLOS_IP=100000
+          start_usr appusrthr --env CERVESUR_PILOT_SECRET="$US2" --env CERVESUR_PILOT_VISOR_IDS=TODOS --env CERVESUR_INSECURE_TESTS=SI
+          start_usr appusrhttps --env CERVESUR_PILOT_SECRET="$US1" --env CERVESUR_PILOT_VISOR_IDS=TODOS
+          start_usr appusrbad1 --env CERVESUR_PILOT_VISOR_IDS=TODOS --env CERVESUR_INSECURE_TESTS=SI
+          start_usr appusrbad2 --env CERVESUR_PILOT_SECRET="$US1" --env STATE_DB_NAME=fixture_prod --env CERVESUR_INSECURE_TESTS=SI
+          sleep 3
+          for suite in piloto_usuarios_privilegios_test.php http_usuarios_test.php; do
+            docker run --rm --network "$network_name" \
+              --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env TEST_DB_PASS --env U_AUTH_PASS --env U_CAT_PASS --env U_STATE_PASS --env U_SECRET \
+              cervesur-ci-php:local php "tests/isolated/$suite"
+          done
+
+          # UX-07E.B: piloto ADMINISTRATIVO de solo lectura (cuentas propias _adm y base de estado propia, mismas columnas mínimas) sobre datos sintéticos.
+          A_AUTH_PASS="$(gen_pass)"; A_CAT_PASS="$(gen_pass)"; A_STATE_PASS="$(gen_pass)"; AS1="$(openssl rand -hex 24)"; AS2="$(openssl rand -hex 24)"
+          export A_AUTH_PASS A_CAT_PASS A_STATE_PASS; A_SECRET="$AS1"; export A_SECRET
+          for v in "$A_AUTH_PASS" "$A_CAT_PASS" "$A_STATE_PASS" "$AS1" "$AS2"; do echo "::add-mask::$v"; done
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env A_AUTH_PASS --env A_CAT_PASS --env A_STATE_PASS \
+            cervesur-ci-php:local php tests/isolated/setup_admin_cuentas.php
+          start_adm() {
+            local name="$1"; shift
+            docker run --detach --name "${ro_prefix}-${name}" --network "$network_name" --network-alias "$name" \
+              --tmpfs /tmp --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+              --env DB_HOST=db --env DB_NAME=fixture_prod --env DB_CHARSET=utf8mb4 --env DB_USER=cervesur_ro_catalogo_adm --env DB_PASS="$A_CAT_PASS" \
+              --env AUTH_DB_USER=cervesur_ro_auth_adm --env AUTH_DB_PASS="$A_AUTH_PASS" \
+              --env STATE_DB_NAME=estado_admin_test --env STATE_DB_USER=cervesur_react_estado_adm --env STATE_DB_PASS="$A_STATE_PASS" \
+              --env CERVESUR_REQUIRED_MODE=piloto_admin --env CERVESUR_MODE=piloto_admin --env PHP_CLI_SERVER_WORKERS=4 "$@" \
+              cervesur-ci-php:local php -S 0.0.0.0:8080 tests/isolated/router.php >/dev/null
+          }
+          start_adm appadm --env CERVESUR_PILOT_SECRET="$AS1" --env CERVESUR_PILOT_VISOR_IDS=TODOS --env CERVESUR_INSECURE_TESTS=SI --env CERVESUR_PILOT_MAX_FALLOS_IP=100000
+          start_adm appadm0 --env CERVESUR_PILOT_SECRET="$AS1" --env CERVESUR_PILOT_VISOR_IDS= --env CERVESUR_INSECURE_TESTS=SI --env CERVESUR_PILOT_MAX_FALLOS_IP=100000
+          start_adm appadmthr --env CERVESUR_PILOT_SECRET="$AS2" --env CERVESUR_PILOT_VISOR_IDS=TODOS --env CERVESUR_INSECURE_TESTS=SI
+          start_adm appadmhttps --env CERVESUR_PILOT_SECRET="$AS1" --env CERVESUR_PILOT_VISOR_IDS=TODOS
+          start_adm appadmbad --env CERVESUR_PILOT_SECRET="$AS1" --env STATE_DB_NAME=fixture_prod --env CERVESUR_INSECURE_TESTS=SI
+          sleep 3
+          docker run --rm --network "$network_name" \
+            --volume "$GITHUB_WORKSPACE:/work:ro" --workdir /work \
+            --env TEST_DB_PASS --env A_AUTH_PASS --env A_CAT_PASS --env A_STATE_PASS --env A_SECRET \
+            cervesur-ci-php:local php tests/isolated/http_admin_piloto_test.php

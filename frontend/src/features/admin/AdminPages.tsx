@@ -14,7 +14,7 @@ import { ReportDialog } from './ReportDialog';
 import { RevokeDialog } from './RevokeDialog';
 
 const crumbs = (label: string) => [{ label: 'Administración', to: '/admin' }, { label }];
-const NOTE = 'Estructura inicial de solo lectura: las altas, ediciones y asignaciones simuladas del prototipo UX-04B se portarán en la siguiente etapa.';
+const NOTE = 'Versión de solo consulta: las altas, ediciones y asignaciones todavía no están habilitadas. Los datos mostrados son los del servicio; no se modifica nada desde esta pantalla.';
 
 interface AdminData { users: User[]; companies: Company[]; reports: Report[]; assignments: Assignment[] }
 
@@ -60,6 +60,7 @@ export function AdminDashboardPage() {
 }
 
 function Dashboard({ data, capabilities }: { data: AdminData; capabilities: ApiCapabilities }) {
+  const { provider } = useApp();
   const { users, companies, reports, assignments } = data;
   const directory = capabilities.adminDirectory;
   const statuses = assignments.map(a => assignmentStatus(a, users, reports, companies));
@@ -85,7 +86,7 @@ function Dashboard({ data, capabilities }: { data: AdminData; capabilities: ApiC
         <div className="dash-cols">
           <div className="panel">
             <h2>Requiere atención</h2>
-            <p className="muted">Calculado con los datos sintéticos actuales.</p>
+            <p className="muted">{provider === 'http' ? 'Calculado con los datos reales que el servicio entregó en esta consulta (solo lectura).' : 'Calculado con los datos de demostración (sintéticos) de este entorno.'}</p>
             <ul className="attention-list">
               {item('Informes activos sin usuarios con acceso', unassigned, '/admin/reportes?status=unassigned')}
               {item('Asignaciones sin efecto', statuses.length - effective, '/admin/accesos?effect=off')}

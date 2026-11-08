@@ -42,6 +42,13 @@ function Home() {
   return <Navigate to={user ? homePath(user.role) : '/login'} replace />;
 }
 
+// Piloto visual (UX-07D.4): la compilación `build:pilot` NO registra las pantallas de administración (alta, edición, eliminación ni asignación): el valor se
+// sustituye en tiempo de compilación y el bundler elimina esas pantallas. Es una reducción de superficie; la protección real sigue siendo el servidor (403).
+const PILOT = import.meta.env.VITE_PILOT === 'true';
+// Piloto ADMINISTRATIVO de solo lectura (UX-07E.B): conserva las pantallas de consulta de administración y elimina en compilación el asistente de accesos y las asociaciones empresa–informe
+// (únicas pantallas con acciones de escritura sin condición de capacidad). Es reducción de superficie: el servidor rechaza cualquier escritura con 403.
+const ADMIN_PILOT = PILOT && import.meta.env.VITE_PILOT_MODE === 'admin';
+
 export function App() {
   return (
     <Routes>
@@ -54,15 +61,17 @@ export function App() {
         </Route>
         <Route path="/reportes/:reportId" element={<ViewerPage />} />
         <Route path="/perfil" element={<ProfilePage />} />
+        {(!PILOT || ADMIN_PILOT) && (
         <Route element={<RequireRole role="admin" />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/usuarios" element={<AdminUsersPage />} />
           <Route path="/admin/empresas" element={<AdminCompaniesPage />} />
           <Route path="/admin/reportes" element={<AdminReportsPage />} />
           <Route path="/admin/accesos" element={<AdminAccessPage />} />
-          <Route path="/admin/accesos/nueva" element={<AccessWizardPage />} />
-          <Route path="/admin/asociaciones" element={<CompanyReportsPage />} />
+          {!ADMIN_PILOT && <Route path="/admin/accesos/nueva" element={<AccessWizardPage />} />}
+          {!ADMIN_PILOT && <Route path="/admin/asociaciones" element={<CompanyReportsPage />} />}
         </Route>
+        )}
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

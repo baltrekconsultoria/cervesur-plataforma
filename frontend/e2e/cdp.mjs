@@ -17,9 +17,9 @@ function browserPath() {
   return found;
 }
 
-export async function launch({ width = 1366, height = 850, mobile = false, port = 9333 } = {}) {
+export async function launch({ width = 1366, height = 850, mobile = false, port = 9333, args = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'cdp-'));
-  const proc = spawn(browserPath(), [...(process.env.CI ? ['--no-sandbox'] : []), '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+  const proc = spawn(browserPath(), [...(process.env.CI ? ['--no-sandbox'] : []), '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, '--no-first-run', '--disable-gpu', ...args, 'about:blank'], { stdio: 'ignore' });
   let targets;
   for (let i = 0; i < 60; i++) {
     try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (targets.find(t => t.type === 'page')) break; } catch { /* el navegador aún arranca */ }

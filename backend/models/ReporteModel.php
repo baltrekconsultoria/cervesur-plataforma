@@ -224,7 +224,8 @@ class ReporteModel {
     }
 
     private function reportBaseSql() {
-        return "SELECT r.*, u.username as created_by_username
+        return "SELECT r.id, r.nombre, r.descripcion, r.enlace, r.grupo_id, r.reporte_id, r.created_by, r.updated_by, r.created_at, r.updated_at, r.activo,
+                       u.username as created_by_username
                 FROM reporte r
                 LEFT JOIN user u ON r.created_by = u.id
                 WHERE r.activo = 1";

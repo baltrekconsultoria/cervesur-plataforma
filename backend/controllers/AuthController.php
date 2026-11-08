@@ -23,7 +23,8 @@ class AuthController {
      */
     public function login($login, $password) {
         // Buscar usuario por email o username
-        $sql = "SELECT * FROM user WHERE (email = :email OR username = :username) LIMIT 1";
+        // Columnas explícitas (UX-07D.3A): solo lo que el login necesita, de modo que una cuenta con permisos SELECT por columna baste.
+        $sql = "SELECT id, username, email, password, first_name, last_name, role, is_active, session_version FROM user WHERE (email = :email OR username = :username) LIMIT 1";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             'email' => $login,
@@ -45,8 +46,10 @@ class AuthController {
             ];
         }
 
-        // Actualizar último login
-        $this->updateLastLogin($user['id']);
+        // Actualizar último login. En solo lectura (UX-07D.3A) NO se escribe nada en la base de datos.
+        if (!app_mode_is_read_only()) {
+            $this->updateLastLogin($user['id']);
+        }
 
         // Generar JWT
         require_once __DIR__ . '/../lib/jwt.php';

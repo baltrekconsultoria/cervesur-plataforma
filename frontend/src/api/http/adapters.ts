@@ -17,7 +17,7 @@ import type { Assignment, Company, CompanyDetail, CompanyInput, Report, ReportDe
  */
 export interface UserDto { id: number | string; username: string; email: string; first_name?: string | null; last_name?: string | null; phone?: string | null; role: unknown; is_active?: boolean | number | string | null }
 /** Fila de GET /api/reportes?view=minimal. `id` es la identidad (entero de MySQL); `reporte_id` es la referencia histórica y NO es única ni UUID. */
-export interface ReportDto { id?: number | string; reporte_id?: string | null; nombre: string; descripcion?: string | null; activo?: boolean | number | string | null }
+export interface ReportDto { id?: number | string; reporte_id?: string | null; nombre: string; descripcion?: string | null; activo?: boolean | number | string | null; visor_autorizado?: boolean | number | string | null }
 export interface CompanyDto { id: number | string; nombre: string; ciudad?: string | null; ruc?: string | null; activo?: boolean | number | string | null }
 /** Fila de GET /api/asignacion?view=minimal: relación empresa–informe (`reporte_id` es el id NUMÉRICO del informe). */
 export interface AssignmentDto { id?: number | string; empresa_id: number | string; reporte_id: number | string; activo?: boolean | number | string | null }
@@ -141,7 +141,8 @@ export function toReport(dto: ReportDto): Report {
     companyId: '',
     companyIds: [],
     group: '',
-    active: toActive(dto.activo)
+    active: toActive(dto.activo),
+    ...(dto.visor_autorizado !== undefined && dto.visor_autorizado !== null ? { linkAuthorized: toActive(dto.visor_autorizado) } : {})
   };
 }
 

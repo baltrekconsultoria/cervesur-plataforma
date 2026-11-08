@@ -12,6 +12,10 @@ interface ImportMetaEnv {
   readonly VITE_DEPLOY_TARGET?: string;
   /** Lista pública de dominios autorizados (separados por comas) para la compilación de servidor. */
   readonly VITE_ALLOWED_HOSTS?: string;
+  /** `true`: compilación del piloto visual (UX-07D.4): aviso de contexto; la fija `npm run build:pilot`. */
+  readonly VITE_PILOT?: string;
+  /** `operador` (un operador autorizado) o `usuarios` (usuarios reales con permisos individuales); lo fija `npm run build:pilot` / `build:pilot-usuarios`. */
+  readonly VITE_PILOT_MODE?: string;
   /** Solo modo `qa`: `real-public` activa el visor con un informe público real de Power BI (opt-in explícito). */
   readonly VITE_POWERBI_VIEWER_MODE?: string;
 }

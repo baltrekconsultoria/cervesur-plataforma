@@ -5,7 +5,7 @@ import { Button } from './ui';
  * Diálogo modal accesible basado en <dialog>. `onClose` se invoca con Escape o al cerrar con el botón de cancelar.
  * jsdom no implementa `showModal`: en ese caso se recurre al atributo `open` (solo ocurre en pruebas unitarias).
  */
-export function Dialog({ title, children, onClose, labelId }: { title: string; children: ReactNode; onClose: () => void; labelId: string }) {
+export function Dialog({ title, children, onClose, labelId, closeOnBackdrop = false }: { title: string; children: ReactNode; onClose: () => void; labelId: string; closeOnBackdrop?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
@@ -15,7 +15,8 @@ export function Dialog({ title, children, onClose, labelId }: { title: string; c
     return () => { if (dialog.open && typeof dialog.close === 'function') dialog.close(); };
   }, []);
   return (
-    <dialog ref={ref} className="modal" aria-labelledby={labelId} onCancel={event => { event.preventDefault(); onClose(); }}>
+    <dialog ref={ref} className="modal" aria-labelledby={labelId} onCancel={event => { event.preventDefault(); onClose(); }}
+      onClick={closeOnBackdrop ? event => { if (event.target === ref.current) onClose(); } : undefined}>
       <div className="modal-head"><h2 id={labelId}>{title}</h2></div>
       {children}
     </dialog>

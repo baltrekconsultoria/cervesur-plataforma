@@ -47,6 +47,8 @@ export interface Report {
   companyIds: string[];
   group: string;
   active: boolean;
+  /** El servidor entrega el enlace de este informe en el visor (autorizado para el piloto). Ausente si el proveedor no lo informa; solo un indicador, nunca el enlace. */
+  linkAuthorized?: boolean;
 }
 
 /** Acceso efectivo de un usuario a un informe a través de una empresa (user_empresa_reporte). */
