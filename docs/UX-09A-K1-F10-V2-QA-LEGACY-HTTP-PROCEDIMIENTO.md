@@ -46,3 +46,50 @@ El programa valida primero SHA-256 de las copias de routers reales; a continuaci
 Pruebas: K1 410 para 6 modos y IDs 0/123 + Authorization simulada; F-10 403 con bandera sin definir/abierta/cerrada; sintaxis y hashes. Si `LEGACY_QA_HTTP_FAIL=0` y `LEGACY_QA_HTTP=PASS`, puede cerrarse la evidencia HTTP sobre copias reales **con dependencias simuladas**.
 
 **No demuestra** login/logout autenticos, Apache ni ausencia de consumidores. K1 Lote 2 y F-10 Lote 4 requieren autorizaciones independientes y su comprobacion funcional. P4b sigue **NO-GO**.
+
+
+## Evidencia de ejecucion sobre copias legacy — 10/11/2026
+
+**Origen:** salida suministrada por el operador tras ejecutar el arnes en la
+carpeta aislada `/home/usr_cervesur/cervesur-k1-f10-qa-v2`.
+
+Antes de esta ejecucion hubo un fallo **del ejecutor Python**, no de los
+routers: la funcion `http` ocultaba el modulo `http.client`. Se corrigio
+el alias del modulo (`http_client`) y se incorporo autoprueba del helper
+al CI del PR. La ejecucion repetida produjo:
+
+```text
+QA_SCRIPT_FIX=PASS
+PASS SHA256 router/PowerBIRouter.php
+PASS SHA256 router/auth.php
+PASS SHA256 lib/powerbi_authz.php
+PASS PHP lint router/PowerBIRouter.php
+PASS PHP lint router/auth.php
+PASS PHP lint lib/powerbi_authz.php
+PASS localhost HTTP server; PHP -n; open_basedir; sin DB
+PASS K1: 12 escenarios (6 modos x IDs 0,123) -> HTTP 410
+PASS K1: 1 escenario Authorization simulada -> HTTP 410
+PASS F10: 3 configuraciones -> HTTP 403
+LEGACY_QA_HTTP_PASS=19
+LEGACY_QA_HTTP_FAIL=0
+LEGACY_QA_HTTP=PASS
+```
+
+**Cobertura:** 3 hashes + 3 sintaxis PHP + 13 escenarios K1 + 3 escenarios F-10
+= 19 comprobaciones registradas como PASS. El arranque HTTP local se verifico
+por separado. El ejecutor descargado anteriormente fue corregido en el host
+QA mediante las dos sustituciones necesarias; no se modificaron los PHP.
+
+**Alcance del resultado:** HTTP real a un servidor PHP CLI local con **copias
+exactas** de los routers heredados parcheados, dependencias aisladas con stubs,
+sin acceso a Azure, MySQL, Apache corporativo ni login/logout real. Los
+resultados **no constituyen aprobacion para fusionar ni desplegar**.
+
+**CI del commit `e3b9191b47565255f3b4de7082fbc164a9222ed2`:**
+- [K1/F-10 v2 synthetic QA](https://github.com/baltrekconsultoria/cervesur-plataforma/actions/runs/42767387645): **Success**.
+- [Backend CI](https://github.com/baltrekconsultoria/cervesur-plataforma/actions/runs/42767387624): **Success**.
+
+**Puertas aun abiertas:** validacion documentada de consumidores de K1,
+procedimiento de altas F-10 aprobado y ensayado por DBA/responsable funcional,
+C5-B a cargo del DBA, regresiones integradas y autorizaciones individuales
+por lote. P4b sigue NO-GO.
