@@ -133,6 +133,23 @@ La revisión del operador, sobre los siete `Include` resueltos (seis nombres com
 - Los archivos comunes también contienen bloques `LocationMatch` orientados a API; no se ha inspeccionado todavía el detalle de las expresiones, ni las posibles `RewriteCond` ligadas a las reglas de prohibición.
 - `/var/www/cervesur/.htaccess` del legado mantiene una regla API clasificada con destino `backend/api.php`.
 
-**Valoración:** se encontró una explicación técnica **plausible y muy fuerte para las 19 denegaciones de VirtualHosts React con `RewriteRule [F]`**, sin necesidad de que las llamadas llegaran al router PHP legado. Sin embargo, la salida no demuestra que cada regla se aplicase efectivamente a cada solicitud: faltan condiciones, orden y excepciones, así como confirmar el motivo de la llamada al VirtualHost RO. Los registros observados no acreditan ausencia de consumidores de K1 en la ruta heredada.
+**Valoración corregida por la revisión posterior (sección 10):** la mera presencia de `RewriteRule [F]` **no atribuye las 19 denegaciones a esa regla**. La comprobación estática posterior no halló coincidencia con la ruta K1 de ejemplo. Se mantienen abiertas otras explicaciones para los 403, incluido control de acceso o tratamiento en capas posteriores. Sin embargo, la salida no demuestra que cada regla se aplicase efectivamente a cada solicitud: faltan condiciones, orden y excepciones, así como confirmar el motivo de la llamada al VirtualHost RO. Los registros observados no acreditan ausencia de consumidores de K1 en la ruta heredada.
 
 **Próximo control mínimo:** revisar de forma estática el número de `RewriteCond` asociadas a cada `RewriteRule [F]` y el alcance de las reglas `Location`/`LocationMatch`; correlacionar con la petición K1 **sin realizar llamadas activas**. Después, validación con responsable de sistemas y responsable funcional. **K1 NO-GO**.
+
+## 10. Contraste final de `RewriteRule [F]` con K1 (10/11/2026)
+
+El operador ejecutó `K1_VERIFICACION_REGLAS=FINALIZADA`. Sobre los archivos comunes con regla prohibitiva, los resultados fueron `REGLA_PROHIBITIVA_K1_MATCH=NO`, `CONDICIONES_PREVIAS=0` y `REGLAS_F=1`; el archivo `react-ro-common.conf` mostró `REGLAS_F=0` y `LOCATION_RAIZ_DENEGADA=1`.
+
+**Corrección necesaria:** la hipótesis anterior de que las reglas `[F]` explicaban las 19 respuestas 403 **no quedó corroborada**. Un patrón `ORIGEN=API` clasificado por palabras no equivale a que su expresión regular coincida con `/api/powerbi/tokens/123`. La comprobación no observó esa coincidencia bajo los dos formatos de ruta ensayados.
+
+**Límites del comprobador:** `CONDICIONES_PREVIAS=0` no garantiza ausencia de condiciones efectivas; el script reinicia el contador ante otras líneas, y no reproduce necesariamente el orden y la semántica de Apache `mod_rewrite`. Tampoco analiza el alcance específico de `LocationMatch`, cabeceras, `RewriteCond`, ni los controles que podrían generar 403. El resultado `MATCH=NO` **no identifica por sí solo el componente que emitió 403**.
+
+**Conclusión técnica vigente:**
+- Hay **20 GET de `curl` a rutas K1 exactas, todas 403**, registradas solo en VirtualHosts React; no hay respuesta 200 observada en la muestra.
+- La atribución de esos 403 a `RewriteRule [F]` se **retira**.
+- La vía de API del legado se reescribe hacia `backend/api.php`, pero los logs heredados no prueban cobertura de su tráfico actual.
+- La prueba sobre copias de routers heredados **19/19 PASS** acredita el comportamiento esperado del parche, **no** la ausencia de consumidores.
+- Queda pendiente corroborar uso real con infraestructura, el responsable funcional y cobertura de registros. **K1 NO-GO; no A-L2**.
+
+**Próxima acción:** en lugar de continuar infiriendo a partir de contadores, solicitar al responsable de infraestructura verificación puntual del origen de los 403 y del enrutamiento mediante las reglas completas bajo revisión segura. En paralelo, obtener inventario de integraciones y conformidad funcional. No realizar peticiones de prueba a producción ni revelar contenidos sensibles.
