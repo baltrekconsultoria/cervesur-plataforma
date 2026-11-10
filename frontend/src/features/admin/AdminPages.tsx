@@ -185,7 +185,7 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
-                  {u.id !== me?.id && !u.loginBlocked && u.active && canManageSensitiveUsers(capabilities) && <>
+                  {me?.role === 'admin' && u.id !== me.id && !u.loginBlocked && u.active && canManageSensitiveUsers(capabilities) && <>
                     {' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button>
                     {' '}<Button variant="secondary" size="sm" aria-label={`Asignar nueva contraseña a ${u.displayName}`} onClick={() => { setNotice(''); setPasswordReset(u); }}>Asignar contraseña</Button>
                   </>}
