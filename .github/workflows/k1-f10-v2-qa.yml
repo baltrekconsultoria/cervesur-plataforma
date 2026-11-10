@@ -40,6 +40,12 @@ jobs:
           set -euo pipefail
           python3 tests/isolated/test_k1_f10_v2_http.py
 
+      - name: Validate optional legacy-routers QA harness (syntax only)
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/isolated/test_k1_f10_v2_legacy_http.py
+          python3 tests/isolated/test_k1_f10_v2_legacy_http.py --help
+
       - name: Explain coverage boundary
         run: |
           echo "Only synthetic PHP fixture HTTP tests. Legacy backend E2E and production deployment remain NO-GO."
