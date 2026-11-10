@@ -88,3 +88,17 @@ El operador ejecutó una segunda lectura de solo lectura sobre los registros acc
 **Siguiente acción autorizada:** inspección estática, sin publicar contenido sensible, de directivas de enrutamiento de `.htaccess`, `conf-enabled`, `sites-enabled` y cobertura reciente por VirtualHost. No efectuar pruebas HTTP activas, cambios de permisos, recargas ni modificaciones productivas.
 
 **Veredicto:** K1 continúa **NO-GO**; A-L2 aún pendiente.
+
+## 7. Revisión adicional de rutas e .htaccess (salida operador 10/11/2026)
+
+Ejecución de solo lectura `K1_CONFIG_ADICIONAL=FINALIZADA`:
+
+- `sites-enabled`: 11 configuraciones; nueve VirtualHosts React y variantes corporativas muestran **`Include=1`** cada uno. Algunos contienen un bloque `<Location>` que el conteo anterior (solo `Location_API`) no destacó. Ninguno mostró `ProxyPass`, `RewriteRule` o referencias API **directas** en su archivo de VirtualHost.
+- `cervesur.conf`: `AllowOverride=1`, `Require all denied=1` y `<Directory>=1`; **no se ha determinado a qué alcance/ruta corresponde** la denegación, y no debe interpretarse automáticamente como bloqueo de API.
+- `/var/www/cervesur/.htaccess`: 14 líneas activas, **3 referencias a API**, **3 `RewriteRule` y 9 `RewriteCond`**. Sin contenido de estas reglas todavía no se puede confirmar el destino real de las peticiones a `backend/api.php`.
+- `backend/.htaccess`, `backend/router/.htaccess` y `frontend/.htaccess`: ausentes en rutas comprobadas.
+- Registros activos de React y del legado: **0 bytes** desde las rotaciones del 04/11 al 06/11 (según archivo); `access.log` general tiene **87 bytes** y modificación el 10/11 a las 04:55, mostrando que al menos un log de Apache sí recibió actividad nueva. Esto **no** demuestra que los VirtualHosts de aplicación recibieran solicitudes recientes.
+
+**Interpretación:** el análisis previo no era una inspección de configuración efectiva, porque deja fuera la directiva `Include` presente en los VirtualHosts React. Se requiere revisar **metadatos y clasificación de las reglas en los archivos incluidos**, junto con la clasificación de destinos de las tres reglas de `.htaccess`, **sin mostrar contraseñas, contenido íntegro ni destinos privados de proxy**. La existencia de 20 `curl` HTTP 403 no demuestra que el servidor heredado rechazó esas llamadas, ni que todos los consumidores hayan sido retirados.
+
+**K1 sigue NO-GO.** No solicitar ni ejecutar cambios en Apache, en logs, permisos o aplicaciones.
