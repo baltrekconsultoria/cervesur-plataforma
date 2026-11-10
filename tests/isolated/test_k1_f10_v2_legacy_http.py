@@ -11,7 +11,7 @@ si llegan a ejecutarse. Esto NO valida login/logout real ni la capa Apache.
 """
 import argparse
 import hashlib
-import http.client
+import http.client as http_client
 import json
 import os
 from pathlib import Path
@@ -70,7 +70,7 @@ function get_jwt_secret_or_fail(...$args) {
 """
 
 def http(port, method, path, headers=None, body=None):
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn = http_client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         conn.request(method, path, body=body, headers=headers or {})
         response = conn.getresponse()
@@ -82,6 +82,28 @@ def http(port, method, path, headers=None, body=None):
         return response.status, parsed
     finally:
         conn.close()
+
+def self_test_http_helper():
+    """Prueba autonoma: detecta colisiones de nombres antes del QA HTTP."""
+    from unittest.mock import Mock, patch
+
+    response = Mock()
+    response.status = 200
+    response.read.return_value = b'{"qa":true}'
+    connection = Mock()
+    connection.getresponse.return_value = response
+
+    with patch.object(http_client, "HTTPConnection", return_value=connection) as constructor:
+        status, payload = http(18432, "GET", "/qa/health")
+        constructor.assert_called_once_with("127.0.0.1", 18432, timeout=5)
+        connection.request.assert_called_once_with("GET", "/qa/health", body=None, headers={})
+        connection.close.assert_called_once_with()
+
+    if status != 200 or payload != {"qa": True}:
+        raise RuntimeError("QA_HTTP_HELPER_SELFTEST=FAIL")
+    print("QA_HTTP_HELPER_SELFTEST=PASS")
+    return 0
+
 
 def verify_sources(source):
     if not source.is_dir():
@@ -106,9 +128,15 @@ def verify_sources(source):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-dir", required=True, type=Path,
+    parser.add_argument("--source-dir", type=Path,
                         help="Solo ruta de la carpeta QA cervesur-k1-f10-qa-v2")
+    parser.add_argument("--self-test-http", action="store_true",
+                        help="Prueba la funcion de transporte HTTP sin router ni servidor")
     args = parser.parse_args()
+    if args.self_test_http:
+        return self_test_http_helper()
+    if args.source_dir is None:
+        parser.error("--source-dir es obligatorio, excepto con --self-test-http")
     source = args.source_dir.expanduser()
     contents = verify_sources(source)
     if shutil.which("php") is None:
