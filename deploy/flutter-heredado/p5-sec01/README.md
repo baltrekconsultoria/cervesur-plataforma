@@ -5,7 +5,7 @@
 
 ## Qué está listo
 
-- `candidato/p5_strict_auth.php`: helper independiente que verifica JWT HS256 firmado, `user_id`, `session_version`, `exp`, `username`, `email`; exige 24 h máximas (D4: 86400 s) con un margen de reloj de 60 s; lee `is_active`, `session_version` y **rol actual de la base** por cada solicitud, normaliza `usuario` → `user` y falla cerrado ante inactivos, cambios de sesión, errores de BD o roles no reconocidos.
+- `candidato/p5_strict_auth.php`: helper independiente que verifica JWT HS256 firmado, `user_id`, `session_version`, `exp`, `username`, `email`; exige `exp` vigente y no más de 86400 + 60 s por delante del reloj de validación (D4); esto **no demuestra la duración total desde la emisión** porque el login legado no aporta `iat`; lee `is_active`, `session_version` y **rol actual de la base** por cada solicitud, normaliza `usuario` → `user` y falla cerrado ante inactivos, cambios de sesión, errores de BD o roles no reconocidos.
 - `tests/p5_strict_auth_test.php`: matriz con usuarios **sintéticos** y SQLite en memoria; NO usa credenciales, JWT_SECRET, servidor ni datos productivos.
 - `candidato/p5_legacy_adapter.php`: convierte cabecera `Authorization: Bearer` en token compacto y ejecuta comprobación estricta; rechaza cabeceras duplicadas, malformadas y parámetros de identidad ajenos. **Aún no se invoca desde el middleware productivo**.
 - `tests/p5_adapter_contract_test.php`: **10/10 PASS** de cabeceras y casos negativos.
