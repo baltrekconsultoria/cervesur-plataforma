@@ -106,7 +106,8 @@ try {
     $a = 'Bearer ' . sign_test($admin, $secret);
     $h = 'Bearer ' . sign_test($historico, $secret);
     [$s, $body] = http_test($port, '/qa/me');
-    check_http('401 sin Authorization', $s === 401 && str_contains($body, 'Token inválido'));
+    check_http('401 sin Authorization', $s === 401 && is_array($anon = json_decode($body, true))
+        && str_contains((string)($anon['message'] ?? ''), 'Token inválido'));
     [$s] = http_test($port, '/qa/me', 'Basic abc');
     check_http('401 sin Bearer', $s === 401);
     [$s, $body] = http_test($port, '/qa/me', $u);
