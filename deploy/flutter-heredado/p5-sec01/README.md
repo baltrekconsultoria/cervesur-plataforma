@@ -1,15 +1,21 @@
 # Cervesur P5-SEC01 — Candidato de autenticación estricta
 
 **10/11/2026 — preparado en GitHub, no instalado.**
-**Estado:** código aislado pendiente de QA. **NO-GO para fusionar/desplegar/activar P5**.
+**Estado:** núcleo y adaptador HTTP aislados **64/64 PASS** en GitHub Actions (32 JWT + 10 cabeceras + 22 HTTP); falta integración sobre el middleware real, C-5/D4 y prueba de Flutter. **NO-GO para fusionar/desplegar/activar P5**.
 
 ## Qué está listo
 
 - `candidato/p5_strict_auth.php`: helper independiente que verifica JWT HS256 firmado, `user_id`, `session_version`, `exp`, `username`, `email`; exige 24 h máximas (D4: 86400 s) con un margen de reloj de 60 s; lee `is_active`, `session_version` y **rol actual de la base** por cada solicitud, normaliza `usuario` → `user` y falla cerrado ante inactivos, cambios de sesión, errores de BD o roles no reconocidos.
 - `tests/p5_strict_auth_test.php`: matriz con usuarios **sintéticos** y SQLite en memoria; NO usa credenciales, JWT_SECRET, servidor ni datos productivos.
+- `candidato/p5_legacy_adapter.php`: convierte cabecera `Authorization: Bearer` en token compacto y ejecuta comprobación estricta; rechaza cabeceras duplicadas, malformadas y parámetros de identidad ajenos. **Aún no se invoca desde el middleware productivo**.
+- `tests/p5_adapter_contract_test.php`: **10/10 PASS** de cabeceras y casos negativos.
+- `tests/p5_legacy_http_router.php` y `tests/p5_http_integration_test.php`: servidor de pruebas limitado a `127.0.0.1`, SQLite temporal y secreto sintético, **22/22 PASS**; sin rutas de escritura.
+- CI de verificación: https://github.com/baltrekconsultoria/cervesur-plataforma/actions/runs/42826970619 — **64/64 PASS**, sintaxis PHP y control de alcance. Los seis archivos de código y pruebas del PR coinciden por blob SHA con el snapshot de CI; el workflow existe solo en la rama de pruebas.
 - Los métodos tienen prefijo `p5_strict_` para evitar colisiones con las funciones heredadas.
 
 **Seguridad de alcance:** este helper no se invoca desde ninguna ruta existente. No cambia `auth_middleware.php`, `jwt.php`, los permisos SQL, el administrador 8443, Flutter, el puerto 80 o la base productiva. No confundir un QA PASS de este helper con la seguridad de todo el sistema.
+
+**Fuente exacta:** consultar `PROCEDIMIENTO-FUENTE-LEGADA.md` para transferencia de solo lectura por VPN/SSH y custodia de una copia saneada. No subir ni exponer archivos productivos sin autorización.
 
 ## Por qué no reemplazamos el middleware directamente
 
