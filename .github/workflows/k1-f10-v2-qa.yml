@@ -45,6 +45,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tests/isolated/test_k1_f10_v2_legacy_http.py
           python3 tests/isolated/test_k1_f10_v2_legacy_http.py --help
+          python3 tests/isolated/test_k1_f10_v2_legacy_http.py --self-test-http
 
       - name: Explain coverage boundary
         run: |
