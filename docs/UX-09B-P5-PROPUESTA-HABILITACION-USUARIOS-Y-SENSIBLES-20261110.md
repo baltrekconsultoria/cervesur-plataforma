@@ -58,3 +58,29 @@ Se solicita habilitar (i) creación y edición de Usuarios y (ii) cambio de role
 4. Liberar primero U-BASIC con P4b y P4c verificadas, después U-SENSITIVE en ventana/PR independiente.
 
 **Referencia:** `UX-09B-TABLERO-EJECUCION.md`, `UX-09B-PUERTAS-DE-SEGURIDAD.md`, `UX-09B-QA-USUARIOS.md`, `UX-09B-D3-CIERRE-Y-P4B.md`, `UX-08I-FASE-2B-VISTA-CANDIDATO.md`.
+
+## 6. Auditoría P5-A1 sobre código candidato (10/11/2026, solo lectura de GitHub)
+
+**Alcance revisado:** `backend/models/UserModel.php`, `backend/controllers/UserController.php`, `backend/router/AdminWriteRouter.php`, `backend/lib/admin_escritura.php`, `backend/lib/auth_middleware.php`, `backend/lib/jwt.php`, `backend/lib/pilot_sesion.php`, `frontend/src/features/admin/{AdminPages,UserDialogs,NewUserDialog}.tsx` y `frontend/src/api/types.ts`. Referencia de la rama `feat/cervesur-ux-09a-cierre-usuarios`. **No se inspeccionó esta vez el código real del backend heredado desplegado**, ni se ejecutaron operaciones contra producción.
+
+### A1. Backend y controles
+
+1. `UserModel::updateUserRole()` (aprox. líneas 501-532) comprueba actor administrador activo bajo bloqueo transaccional, impide editar el propio rol o degradar al último administrador, permite cambiar sólo a `admin` o `user`, incrementa `session_version` y escribe `user.role` en auditoría. El valor histórico `usuario` puede permanecer si no se cambia; no se debe asumir que no existe en la base real.
+2. `UserModel::setPassword()` (aprox. líneas 536-552) aplica validación del actor mediante `lockTargetWithAdminGuard()`, rechaza auto-cambio desde el panel, guarda `password_hash(PASSWORD_DEFAULT)`, incrementa `session_version` y audita `user.password` sin exponer contraseña ni hash en el evento. Falta verificar el flujo de entrega/reemisión de contraseña y la interfaz.
+3. `AdminWriteRouter.php` exige sesión opaca del administrador y fija identidad de actor; `admin_escritura.php` distingue las capacidades `usuarios` y `usuarios_sensible` y separa las rutas `PUT /api/users/{id}/password` y `PUT /api/user/{id}/role`.
+4. La implementación de `auth_middleware.php` en **esta rama de GitHub** exige consultar `is_active`, `session_version` y `role` actuales en BD; `jwt.php` exige campos obligatorios y expiración. **Esto no demuestra que el legado productivo use esos mismos archivos**. La auditoría D3 documenta comportamiento anterior de JWT/rol en los archivos del servidor, que debe contrastarse mediante hashes y pruebas aisladas antes de P5.
+5. La cuenta mínima de Fase 2B **no** concede `UPDATE(role)` o `UPDATE(password)`; diseñar privilegios sensibles separados con el DBA, auditables y revocables, sin ampliar implícitamente la cuenta existente.
+
+### A2. Frontend y funcionalidad
+
+1. `AdminPages.tsx` contiene diálogo de **Cambiar rol**, conectado a `api.changeUserRole`.
+2. El botón usa `capabilities.usersSensitive !== false` (aprox. línea 175), que acepta un valor ausente (`undefined`). **Recomendación de defensa en profundidad:** cambiarlo por `=== true` junto con prueba de ausencia/error de capacidades, de modo que el frontend falle cerrado. La API seguirá siendo control de seguridad principal.
+3. `NewUserDialog.tsx` sí tiene campo de **contraseña inicial** para altas (P4c); **no equivale a la reemisión de contraseña de usuarios existentes**.
+4. En los componentes administrativos y el contrato `ApiService` revisados no se halló una acción/formulario de **cambiar contraseña existente**; crear componente y contrato explícito para P5, con confirmación, manejo seguro del secreto, control de habilitación y mensajes sobre cierre de sesiones.
+5. Debe comprobarse que las capacidades `usuarios_sensible` y `usersSensitive` se mapean correctamente en el adaptador HTTP. Un indicador de interfaz nunca constituye autorización.
+
+### A3. Dictamen y siguiente verificación
+
+**P5-A1: auditoría estática inicial completada, CON HALLAZGOS; P5 sigue NO-GO**. El código candidato incorpora reglas relevantes de seguridad; resta cerrar paridad con producción, UI de contraseña, privilegios mínimos y pruebas adversariales.
+
+**P5-A2 propuesta:** comparar **solo huellas Git blob SHA-1** de archivos de autorización y Usuarios instalados en el administrador 8443 y en el legado `/var/www/cervesur/backend`, sin abrir `.env`, leer tokens, contraseñas ni imprimir archivos PHP. Reportar únicamente `COINCIDE_REFERENCIA` / `DIFIERE` / `AUSENTE`. Un hash coincidente demuestra igualdad de archivo, no funcionamiento correcto del despliegue completo. No efectuar `PUT`, `POST`, `DELETE`, `GRANT` ni migraciones.
