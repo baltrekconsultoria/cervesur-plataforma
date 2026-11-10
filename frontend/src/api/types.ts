@@ -213,6 +213,13 @@ export function canWrite(capabilities: ApiCapabilities, group: WriteGroup): bool
   return capabilities.adminWrites && (capabilities.writes ? capabilities.writes[group] === true : true);
 }
 
+/** P5: operaciones sensibles solo con una autorización afirmativa y explícita del servidor. */
+export function canManageSensitiveUsers(capabilities: ApiCapabilities): boolean {
+  return capabilities.adminWrites === true
+    && capabilities.writes?.usuarios === true
+    && capabilities.usersSensitive === true;
+}
+
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */
 export interface ApiClient {
   readonly capabilities: ApiCapabilities;
