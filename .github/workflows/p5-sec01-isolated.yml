@@ -30,10 +30,17 @@ jobs:
           php -l deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
       - name: Synthetic claims, role and session revocation matrix
         run: php deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
-      - name: Assert no production integration
+      - name: Verify all changed files are isolated
         run: |
-          if git diff --name-only origin/feat/cervesur-ux-09a-cierre-usuarios...HEAD 2>/dev/null | grep -E '^backend/|^frontend/|^database/'; then
+          git fetch --no-tags --depth=1 origin feat/cervesur-ux-09a-cierre-usuarios
+          changed="$(git diff --name-only FETCH_HEAD HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^(backend/|frontend/|database/)' ; then
             echo "Unexpected live application changes"
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Ev '^(deploy/flutter-heredado/p5-sec01/|\.github/workflows/p5-sec01-isolated.yml$)' ; then
+            echo "Unexpected files outside P5-SEC01"
             exit 1
           fi
           echo 'P5_SEC01_ISOLATED=PASS'
