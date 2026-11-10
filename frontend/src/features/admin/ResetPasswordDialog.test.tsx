@@ -36,8 +36,8 @@ beforeEach(() => {
 });
 
 function fill(password: string, confirmation: string) {
-  fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: password } });
-  fireEvent.change(screen.getByLabelText('Confirmar nueva contraseña'), { target: { value: confirmation } });
+  fireEvent.change(screen.getByLabelText(/Nueva contraseña/), { target: { value: password } });
+  fireEvent.change(screen.getByLabelText(/Confirmar nueva contraseña/), { target: { value: confirmation } });
 }
 
 describe('P5-UI02: validación en el navegador', () => {
@@ -76,8 +76,8 @@ describe('P5-UI02: diálogo de cambio de contraseña', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Asignar contraseña' }));
     await waitFor(() => expect(ctx.reset).toHaveBeenCalledWith('2', 'clave-nueva-muy-segura'));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
-    expect(screen.getByLabelText('Confirmar nueva contraseña')).toHaveValue('');
+    expect(screen.getByLabelText(/Nueva contraseña/)).toHaveValue('');
+    expect(screen.getByLabelText(/Confirmar nueva contraseña/)).toHaveValue('');
   });
 
   it('ante un 403 no confirma éxito, no refleja mensaje sensible y borra los campos', async () => {
@@ -88,8 +88,8 @@ describe('P5-UI02: diálogo de cambio de contraseña', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Asignar contraseña' }));
     await waitFor(() => expect(screen.getByText('No tiene permiso para cambiar contraseñas.')).toBeInTheDocument());
     expect(screen.queryByText(/No autorizado: clave-nueva-muy-segura/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
-    expect(screen.getByLabelText('Confirmar nueva contraseña')).toHaveValue('');
+    expect(screen.getByLabelText(/Nueva contraseña/)).toHaveValue('');
+    expect(screen.getByLabelText(/Confirmar nueva contraseña/)).toHaveValue('');
     expect(onSaved).not.toHaveBeenCalled();
   });
 
