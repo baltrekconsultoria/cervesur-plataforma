@@ -1,4 +1,5 @@
 import { ApiError } from '../errors';
+import { canManageSensitiveUsers } from '../types';
 import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, Role, UserAccess, UserDetail, UserEdit, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toUserAccess, toUserDetail, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
@@ -292,6 +293,12 @@ export class HttpApiClient implements ApiClient {
   async changeUserRole(id: string, role: Role): Promise<void> {
     if (role !== 'admin' && role !== 'user') throw new ApiError(400, 'Rol no válido.');
     await this.mutate('PUT', `/api/user/${this.pk(id, 'Usuario no válido.')}/role`, { role });
+  }
+
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    // Evita transmitir credenciales cuando falta la capacidad P5; el backend vuelve a autorizar.
+    if (!canManageSensitiveUsers(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
+    await this.mutate('PUT', `/api/users/${this.pk(id, 'Usuario no válido.')}/password`, { password });
   }
 
   async getUserAccess(id: string): Promise<UserAccess[]> {
