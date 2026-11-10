@@ -123,3 +123,16 @@ Ninguno de estos archivos tiene una referencia **literal** a `powerbi/tokens`. E
 **Próximo control:** clasificar solamente los bloques de rutas API, sus directivas de autorización y los flags de las reglas Rewrite. Confirmar luego con responsable funcional/infraestructura la ausencia de consumidores reales y la ventana de cobertura vigente.
 
 **Decisión inalterada:** K1 **NO-GO**, PR #13 en Draft; sin cambios productivos ni firma A-L2.
+
+## 9. Clasificación de alcance y prohibición de rutas React (salida 10/11/2026)
+
+La revisión del operador, sobre los siete `Include` resueltos (seis nombres comunes; `react-usuarios-common.conf` apareció más de una vez), reporta:
+
+- `react-usuarios-common.conf`, `react-admin-qa-common.conf`, `react-compat-common.conf`, `react-piloto-common.conf` y `react-common.conf`: **`RewriteRule` en contexto general con `ORIGEN=API` y `PROHIBIR=SI`**. Estos archivos se utilizan en los VirtualHosts donde se registraron **19 de las 20** llamadas K1 que recibieron HTTP 403.
+- `react-ro-common.conf`: **sin `RewriteRule` de prohibición** en el desglose; presenta `Location` para raíz con `Require all denied`. En su VirtualHost se observó **1** llamada K1 con HTTP 403. Su origen exacto sigue por confirmar.
+- Los archivos comunes también contienen bloques `LocationMatch` orientados a API; no se ha inspeccionado todavía el detalle de las expresiones, ni las posibles `RewriteCond` ligadas a las reglas de prohibición.
+- `/var/www/cervesur/.htaccess` del legado mantiene una regla API clasificada con destino `backend/api.php`.
+
+**Valoración:** se encontró una explicación técnica **plausible y muy fuerte para las 19 denegaciones de VirtualHosts React con `RewriteRule [F]`**, sin necesidad de que las llamadas llegaran al router PHP legado. Sin embargo, la salida no demuestra que cada regla se aplicase efectivamente a cada solicitud: faltan condiciones, orden y excepciones, así como confirmar el motivo de la llamada al VirtualHost RO. Los registros observados no acreditan ausencia de consumidores de K1 en la ruta heredada.
+
+**Próximo control mínimo:** revisar de forma estática el número de `RewriteCond` asociadas a cada `RewriteRule [F]` y el alcance de las reglas `Location`/`LocationMatch`; correlacionar con la petición K1 **sin realizar llamadas activas**. Después, validación con responsable de sistemas y responsable funcional. **K1 NO-GO**.
