@@ -1,6 +1,7 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
 import { classifyPowerBiLink } from '../../domain/powerbiLink';
+import { canManageSensitiveUsers } from '../types';
 import type { Role, UserAccess, UserDetail, UserEdit, AuditEntry, AuditPage, AuditQuery, ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { createSeed, type Seed } from './seed';
 
@@ -339,6 +340,19 @@ export class MockApi implements ApiClient {
     user.role = role;
     for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
     this.record('user.role', 'user', id, { role: before }, { role });
+  }
+
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    const me = this.requireUserAdmin();
+    if (!canManageSensitiveUsers(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
+    const target = this.seed.users.find(u => u.id === id);
+    if (!target) throw new ApiError(404, 'Usuario no encontrado');
+    if (target.id === me.id) throw new ApiError(409, 'No puede cambiar su propia contraseña desde este panel');
+    const bytes = new TextEncoder().encode(password).length;
+    if (bytes < 12 || bytes > 72) throw new ApiError(400, 'La contraseña debe tener entre 12 y 72 bytes');
+    // El mock no almacena contraseñas. Solo simula invalidación de sesiones y auditoría sin secretos.
+    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
+    this.record('user.password', 'user', id, null, { password_changed: true, session_revocada: true });
   }
 
   async getUserAccess(id: string): Promise<UserAccess[]> {
