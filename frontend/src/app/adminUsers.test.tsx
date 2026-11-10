@@ -19,10 +19,15 @@ class UsersMock extends MockApi {
   }
 }
 
-async function setup(enabled = true) {
+async function setup(enabled = true, sensitive = false) {
   const tokens = createMemoryTokenStore();
   const mock = new UsersMock(tokens);
   mock.userAdminEnabled = enabled;
+  if (sensitive) {
+    // Solo este escenario simula una autorizacion P5 explicita del servidor.
+    mock.capabilities.writes = { empresas: true, reportes: true, accesos: true, usuarios: true };
+    mock.capabilities.usersSensitive = true;
+  }
   render(
     <MemoryRouter initialEntries={['/login']}>
       <AppProvider services={{ tokens, client: mock, mock }}>
@@ -89,7 +94,7 @@ describe('UX-08B.3 · Usuarios', () => {
   });
 
   it('cambiar el rol pide confirmación y deja al usuario como administrador', async () => {
-    const t = await setup();
+    const t = await setup(true, true);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cambiar rol de María Ríos' })).toBeInTheDocument());
     await t.user.click(screen.getByRole('button', { name: 'Cambiar rol de María Ríos' }));
     expect(within(await t.dialog()).getByText(/Convertir a/)).toBeInTheDocument();
