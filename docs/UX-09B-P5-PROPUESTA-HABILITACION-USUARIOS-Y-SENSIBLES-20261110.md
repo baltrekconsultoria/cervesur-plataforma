@@ -110,3 +110,41 @@ El punto de atención crítico para **P5** es el legado: `auth_middleware.php` y
 3. No ejecutar solicitudes de cambio de rol/contraseña ni pruebas con cuentas productivas.
 
 **Veredicto:** Admin Fase 2A se mantiene operativa; **P5 NO-GO**. Siguiente diseño de permisos y UI puede avanzar en aislado en paralelo, pero el uso productivo requiere cierre de legado.
+
+## 8. P5-A3 — Verificación de versiones y señales de autenticación heredada (10/11/2026)
+
+**Fuente:** salida del operador desde `presupuestos` de `CERVESUR P5-A3: CONTROL DE VERSION Y SESIONES`. La inspección leyó archivos PHP sin imprimir su contenido, sin consultar base de datos y sin modificar producción.
+
+### Confirmación de Fase 2A
+
+- `/opt/cervesur-react-admin/backend/models/UserModel.php` → `COINCIDE_RC2`.
+- `/opt/cervesur-react-admin/backend/controllers/UserController.php` → `COINCIDE_RC2`.
+
+**Rectificación de P5-A2:** las diferencias frente a RC1c provenían de una referencia incorrecta para la versión desplegada; **no son anomalías**. Los cinco archivos principales comparados en P5-A2 son coherentes con Fase 2A. Este alcance no sustituye un inventario de release completo.
+
+### Indicadores del legado Flutter
+
+| Indicador del script P5-A3 | Resultado |
+| --- | --- |
+| `MIDDLEWARE` y `JWT` | PRESENTE |
+| Consulta a tabla `user` | PATRON_PRESENTE |
+| Menciones `session_version`, `is_active`, `role` en middleware | PATRON_PRESENTE |
+| `AUTH_ROLE_DESDE_PAYLOAD` | **PATRON_PRESENTE** |
+| `AUTH_ROLE_DESDE_FILA_DB` | **PATRON_NO_ENCONTRADO** |
+| `JWT_REFERENCIA_EXP` | PATRON_PRESENTE |
+| `JWT_REFERENCIA_SESSION_VERSION` | **PATRON_NO_ENCONTRADO** |
+| `JWT_REFERENCIA_USER_ID`, `RELOJ`, `FIRMA` | PATRON_PRESENTE |
+
+**Interpretación correcta:** estas búsquedas de expresiones son **indicadores estáticos**, no la prueba completa de una vulnerabilidad; `role` puede obtenerse de una variable de nombre distinto y `session_version` puede comprobarse en middleware aunque no se mencione en `jwt.php`. La prueba de comportamiento más fuerte es **D3** (`UX-09B-D3-CIERRE-Y-P4B.md`, sección 4), que usando el texto literal auditado del legado y el `jwt.php` real reportó: (a) rol anterior retenido tras degradación, (b) aceptación de tokens firmados que omiten `session_version`, y (c) falta de caducidad de un token firmado sin `exp`. D3 sigue teniendo casos inconclusos por falta de determinados archivos reales para réplica completa y no es una prueba extremo a extremo del despliegue.
+
+**Impacto en P5:** **no habilitar cambio de rol ni contraseña** hasta disponer de una ruta de autenticación y revocación cerrada en Flutter/legado. No basta confiar en que un cambio de rol incremente `session_version` porque el legado puede aceptar tokens antiguos que no llevan ese campo. La documentación D3 recomendó exigir identidad/versión y obtener el rol de la base; para P5 debe además validarse la exigencia estricta de expiración y firma, manteniendo el contrato funcional de 24 h.
+
+### P5-A4 — Correctivo propuesto para desarrollo aislado
+
+1. **Legado:** basar un parche mínimo en la copia exacta autorizada del `auth_middleware.php` y `jwt.php` productivos, nunca reemplazarlos ciegamente por archivos de RC1c. Exigir `user_id`, `session_version`, `exp` válidos, comprobar el rol actual del usuario activo contra BD en cada petición y rechazar token obsoleto; preservar errores HTTP y contrato de Flutter.
+2. **React:** actualizar controles del frontend para mostrar cambios de rol/contraseña únicamente con capacidades sensibles afirmativas, crear formulario de reemisión de contraseña (no existe actualmente como flujo de UI administrativo) y garantizar autorización de backend independiente de botones.
+3. **DBA:** permisos mínimos de `UPDATE(role, password, session_version, updated_at)` para una vía sensible segregada; mantener bloqueos de autoedición, último admin, concurrencia y auditoría transaccional. Sin ampliar permisos de Fase 2A o de 2B básica anticipadamente.
+4. **Pruebas aisladas:** validar denegación a usuario no admin, tokens antiguos sin campos, rol degradado, administrador promovido, cambio de contraseña, revocación de sesiones, regresión de login Flutter, auditoría 1 por operación, caída segura ante error de auditoría, y restauración.
+5. **Dependencias externas:** ejecutar C-5/D4, obtener distribución real de roles, confirmar comportamiento de Flutter ante 401, preservar `JWT_EXPIRATION=86400` decidido, definir firmas y ventanas. **No ejecutar pruebas con modificaciones de usuarios reales sin autorización específica**.
+
+**Veredicto P5-A3:** **PASS de paridad RC2, hallazgo de seguridad heredada confirmado como riesgo para P5 por la evidencia D3, P5 NO-GO**. Continuar diseño/QA aislado; no habilitar interruptores ni modificar producción.
