@@ -1,0 +1,3 @@
+4564cc38cf4cb94c5a79347c2b27f2ebc839158ec204e58c76ec5ce0480d8233  patches/K1-v2-cierre-incondicional.diff
+1c363ecb1ec8baac31ef7513ac17da290407506fe8cef4ab5a0150268cee9f62  patches/F10-v2-cierre-incondicional.diff
+4137cff3cab2d2390dbd82e73500e37d432e9f259b1f0931da8f163d5350e3a1  lib/powerbi_authz.php
