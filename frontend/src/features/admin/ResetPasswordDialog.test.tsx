@@ -11,13 +11,14 @@ const ctx = vi.hoisted(() => ({
     writes: { empresas: true, reportes: true, accesos: true, usuarios: true },
     usersSensitive: true
   },
-  actorId: '1'
+  actorId: '1' as string | null,
+  actorRole: 'admin' as 'admin' | 'user'
 }));
 vi.mock('../../app/AppProvider', () => ({
   useApp: () => ({
     api: { resetUserPassword: ctx.reset },
     capabilities: ctx.caps,
-    user: { id: ctx.actorId }
+    user: ctx.actorId ? { id: ctx.actorId, role: ctx.actorRole } : null
   })
 }));
 
@@ -33,6 +34,7 @@ beforeEach(() => {
   ctx.caps.writes.usuarios = true;
   ctx.caps.usersSensitive = true;
   ctx.actorId = '1';
+  ctx.actorRole = 'admin';
 });
 
 function fill(password: string, confirmation: string) {
@@ -64,6 +66,17 @@ describe('P5-UI02: diálogo de cambio de contraseña', () => {
     expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
     ctx.caps.usersSensitive = true;
     ctx.actorId = '2';
+    rerender(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
+    expect(ctx.reset).not.toHaveBeenCalled();
+  });
+
+  it('sin identidad administrativa no permite abrir el diálogo', () => {
+    ctx.actorId = null;
+    const { rerender } = render(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
+    ctx.actorId = '1';
+    ctx.actorRole = 'user';
     rerender(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
     expect(ctx.reset).not.toHaveBeenCalled();
