@@ -33,7 +33,8 @@ export function ResetPasswordDialog({ user, onClose, onSaved }: {
 
   // No se confía en el botón: incluso el diálogo exige capacidad sensible explícita.
   const allowed = canManageSensitiveUsers(capabilities)
-    && actor?.id !== user.id
+    && actor?.role === 'admin'
+    && actor.id !== user.id
     && user.active
     && !user.loginBlocked;
 
