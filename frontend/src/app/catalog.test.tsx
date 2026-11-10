@@ -51,6 +51,7 @@ class CatalogApi implements ApiClient {
   deactivateUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   reactivateUser() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   changeUserRole() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
+  resetUserPassword() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
   getUserAccess() { return Promise.reject(new ApiError(501, 'x', 'not_integrated')); }
 }
 
