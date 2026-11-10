@@ -13,13 +13,14 @@ En PowerShell de Windows del custodio autorizado, con la VPN activa:
 ```powershell
 $dest = Join-Path $env:USERPROFILE 'Documents\Cervesur-P5-SEC01'
 New-Item -Path $dest -ItemType Directory -Force | Out-Null
-ssh usr_cervesur@192.168.200.12 'test -r /var/www/cervesur/backend/lib/auth_middleware.php && echo P5_LEIBLE=SI || echo P5_LEIBLE=NO'
+$sshTarget = '<USUARIO_SSH>@<HOST_VPN>'
+ssh $sshTarget 'test -r /var/www/cervesur/backend/lib/auth_middleware.php && echo P5_LEIBLE=SI || echo P5_LEIBLE=NO'
 ```
 
 Sólo si aparece `P5_LEIBLE=SI`:
 
 ```powershell
-scp 'usr_cervesur@192.168.200.12:/var/www/cervesur/backend/lib/auth_middleware.php' (Join-Path $dest 'auth_middleware.original.php')
+scp ($sshTarget + ':/var/www/cervesur/backend/lib/auth_middleware.php') (Join-Path $dest 'auth_middleware.original.php')
 $file = Join-Path $dest 'auth_middleware.original.php'
 $bytes = (Get-Item -LiteralPath $file).Length
 $sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash.ToLowerInvariant()
