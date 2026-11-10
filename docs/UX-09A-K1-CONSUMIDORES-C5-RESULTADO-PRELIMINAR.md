@@ -61,3 +61,17 @@ Distribución K1 por archivos de acceso:
 5. Solo después definir la autorización A-L2 y la ventana posterior al Lote 1 K2, con respaldo y reversión.
 
 **No se autoriza fusión, despliegue, cambio de permisos, reinicio o alteración de configuración productiva.**
+
+## 5. Segundo desglose — ruta exacta, herramienta y tiempo (operador, 10/11/2026)
+
+El operador ejecutó una segunda lectura de solo lectura sobre los registros accesibles de Apache con clasificación de ruta, agente y hora. Resultado confirmado en la salida:
+
+- `K1_TOTAL=20`, `K1_RUTAS_EXACTAS=20`, `K1_RUTAS_VARIANTES=0`.
+- 20/20 `GET`; 20/20 `HTTP 403`; 20/20 `curl`.
+- Sólo VirtualHosts React y QA; **ninguna línea registrada en `cervesur_access.log` del legado**.
+- Ventanas temporales: **28/10/2026 20h–05/11/2026 03h**, horas según la cadena de tiempo de los logs, sin conversión automática de zona horaria.
+- Concentración: 28/10 (2 líneas), 29/10 (6), 30/10 (8), 03/11 (3) y 05/11 (1): 20 líneas en total. *Esta distribución horaria no demuestra identidad ni causalidad*.
+
+**Hipótesis:** pruebas técnicas con curl, coherentes con la actividad de QA del periodo. **No se considera evidencia suficiente para atribución** sin correlación con la persona/proceso o registro de prueba. No hay evidencia de HTTP 200 para esta ruta en la muestra, pero los `403` podrían emitirse en una capa previa (Apache/React) y la ausencia de eventos recientes en el log heredado impide cerrar la cobertura.
+
+**Decisión:** K1 continúa **NO-GO**. Próximo control: inspección **estática, solo lectura** de `CustomLog` y reglas de `ProxyPass`/`RewriteRule`/`Require`/`<Location>` de los VirtualHosts relevantes, sin cambiar configuración ni emitir solicitudes de prueba. Confirmar dónde se registran los accesos reales al backend heredado antes de aprobar A-L2.
