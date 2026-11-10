@@ -1,0 +1,39 @@
+name: P5-SEC01 isolated PHP security QA
+
+on:
+  push:
+    branches:
+      - ci/cervesur-p5-sec01-qa
+
+permissions:
+  contents: read
+
+jobs:
+  strict-session:
+    name: Strict JWT and session policy unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout code (never touches production)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Prepare PHP SQLite isolated
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y php8.3-cli php8.3-sqlite3
+          php -v
+          php -m | grep -i '^pdo_sqlite$'
+      - name: Syntax PHP
+        run: |
+          php -l deploy/flutter-heredado/p5-sec01/candidato/p5_strict_auth.php
+          php -l deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
+      - name: Synthetic claims, role and session revocation matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
+      - name: Assert no production integration
+        run: |
+          if git diff --name-only origin/feat/cervesur-ux-09a-cierre-usuarios...HEAD 2>/dev/null | grep -E '^backend/|^frontend/|^database/'; then
+            echo "Unexpected live application changes"
+            exit 1
+          fi
+          echo 'P5_SEC01_ISOLATED=PASS'
