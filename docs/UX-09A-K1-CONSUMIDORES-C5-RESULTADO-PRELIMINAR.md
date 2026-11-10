@@ -102,3 +102,24 @@ Ejecución de solo lectura `K1_CONFIG_ADICIONAL=FINALIZADA`:
 **Interpretación:** el análisis previo no era una inspección de configuración efectiva, porque deja fuera la directiva `Include` presente en los VirtualHosts React. Se requiere revisar **metadatos y clasificación de las reglas en los archivos incluidos**, junto con la clasificación de destinos de las tres reglas de `.htaccess`, **sin mostrar contraseñas, contenido íntegro ni destinos privados de proxy**. La existencia de 20 `curl` HTTP 403 no demuestra que el servidor heredado rechazó esas llamadas, ni que todos los consumidores hayan sido retirados.
 
 **K1 sigue NO-GO.** No solicitar ni ejecutar cambios en Apache, en logs, permisos o aplicaciones.
+
+## 8. Inspección de archivos incluidos y reglas del legado (10/11/2026)
+
+El operador confirmó que los nueve VirtualHosts React incluyen uno de los archivos comunes siguientes:
+
+| Archivo incluido | Líneas activas | Referencias a API | Reglas relevantes |
+| --- | ---: | ---: | --- |
+| `react-usuarios-common.conf` (reutilizado por admin y usuarios) | 59 | 3 | 1 RewriteRule, 1 Require denied, 2 Location |
+| `react-admin-qa-common.conf` | 46 | 3 | 1 RewriteRule, 1 Location |
+| `react-compat-common.conf` | 46 | 3 | 1 RewriteRule, 1 Location |
+| `react-piloto-common.conf` | 47 | 3 | 1 RewriteRule, 1 Require denied, 2 Location |
+| `react-common.conf` | 36 | 3 | 1 RewriteRule, 1 Location |
+| `react-ro-common.conf` | 45 | 1 | 1 Require denied, 1 Location |
+
+Ninguno de estos archivos tiene una referencia **literal** a `powerbi/tokens`. Esta ausencia **no** excluye reglas genéricas de denegación (por ejemplo, `/api/*`). El archivo `/var/www/cervesur/.htaccess` contiene una regla de API cuyo destino fue clasificado como `backend/api.php`, y dos reglas de otro destino. En la revisión no se observaron archivos `.htaccess` adicionales en `backend`, `router` ni `frontend`.
+
+**Interpretación limitada:** el flujo de entrada de API del legado es identificable en la reescritura, pero aún no se conoce el alcance concreto de los bloques `Location`, `Require` y `RewriteRule` incluidos en React. Por lo tanto, los 20 `GET` con `curl` y HTTP 403 todavía **no son atribuibles definitivamente** a una regla Apache ni a pruebas QA.
+
+**Próximo control:** clasificar solamente los bloques de rutas API, sus directivas de autorización y los flags de las reglas Rewrite. Confirmar luego con responsable funcional/infraestructura la ausencia de consumidores reales y la ventana de cobertura vigente.
+
+**Decisión inalterada:** K1 **NO-GO**, PR #13 en Draft; sin cambios productivos ni firma A-L2.
