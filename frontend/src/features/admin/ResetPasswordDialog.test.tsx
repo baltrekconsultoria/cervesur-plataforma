@@ -11,8 +11,8 @@ const ctx = vi.hoisted(() => ({
     writes: { empresas: true, reportes: true, accesos: true, usuarios: true },
     usersSensitive: true
   },
-  actorId: '1' as string | null,
-  actorRole: 'admin' as 'admin' | 'user'
+  actorId: '1',
+  actorRole: 'admin'
 }));
 vi.mock('../../app/AppProvider', () => ({
   useApp: () => ({
@@ -44,10 +44,9 @@ function fill(password: string, confirmation: string) {
 
 describe('P5-UI02: validación en el navegador', () => {
   it('rechaza contraseña corta y confirmación ausente', () => {
-    expect(validatePasswordReset('corta', '')).toEqual({
-      password: expect.stringContaining('12 bytes'),
-      confirmation: expect.stringContaining('Confirme')
-    });
+    const errors = validatePasswordReset('corta', '');
+    expect(errors.password).toContain('12 bytes');
+    expect(errors.confirmation).toContain('Confirme');
   });
 
   it('rechaza divergencia y más de 72 bytes UTF-8', () => {
@@ -72,7 +71,7 @@ describe('P5-UI02: diálogo de cambio de contraseña', () => {
   });
 
   it('sin identidad administrativa no permite abrir el diálogo', () => {
-    ctx.actorId = null;
+    ctx.actorId = '';
     const { rerender } = render(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
     ctx.actorId = '1';

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { isApiError } from '../../api/errors';
 import { canManageSensitiveUsers, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
-import { Dialog, DialogFooter, submitHandler } from '../../components/Dialog';
+import { Dialog, DialogFooter } from '../../components/Dialog';
 
 type PasswordErrors = { password?: string; confirmation?: string };
 
@@ -82,7 +82,7 @@ export function ResetPasswordDialog({ user, onClose, onSaved }: {
 
   return (
     <Dialog title="Asignar nueva contraseña" labelId="us-reset-title" onClose={close}>
-      <form noValidate onSubmit={submitHandler(save)}>
+      <form noValidate onSubmit={event => { event.preventDefault(); void save(); }}>
         <div className="modal-body">
           <p>Cuenta: <strong>{user.username}</strong>. La contraseña anterior no se puede consultar ni recuperar.</p>
           <p className="form-note">La nueva contraseña se guardará únicamente si el servidor autoriza la operación. Las sesiones de este usuario deberán invalidarse; su comportamiento en Flutter requiere validación antes de liberar P5.</p>
