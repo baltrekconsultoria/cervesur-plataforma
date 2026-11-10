@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
+import { canManageSensitiveUsers, canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
@@ -14,6 +14,7 @@ import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { NewUserDialog } from './NewUserDialog';
 import { UserAccessDialog, UserEditDialog } from './UserDialogs';
 import { ReportDialog } from './ReportDialog';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { RevokeDialog } from './RevokeDialog';
 
 const crumbs = (label: string) => [{ label: 'Administración', to: '/admin' }, { label }];
@@ -116,6 +117,7 @@ export function AdminUsersPage() {
   const [viewing, setViewing] = useState<User | null>(null);
   const [toggling, setToggling] = useState<{ user: User; to: 'off' | 'on' } | null>(null);
   const [roleChange, setRoleChange] = useState<User | null>(null);
+  const [passwordReset, setPasswordReset] = useState<User | null>(null);
   const [notice, setNotice] = useState('');
   // UX-08B.3: los botones de edición, estado y rol solo aparecen si el SERVIDOR tiene habilitada la administración de usuarios.
   const userAdmin = useAsync(async () => (canWrite(capabilities, 'usuarios') ? api.getUserAdminEnabled().catch(() => false) : false), [api, capabilities.adminWrites, capabilities.writes]);
@@ -141,7 +143,18 @@ export function AdminUsersPage() {
             : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
         </ConfirmActionDialog>
       )}
-      {roleChange && (
+      {passwordReset && canManageSensitiveUsers(capabilities) && (
+        <ResetPasswordDialog
+          user={passwordReset}
+          onClose={() => setPasswordReset(null)}
+          onSaved={() => {
+            setNotice(`Contraseña de «${passwordReset.displayName}» actualizada. Comunique la nueva clave por un canal seguro.`);
+            setPasswordReset(null);
+            bump();
+          }}
+        />
+      )}
+      {roleChange && canManageSensitiveUsers(capabilities) && (
         <ConfirmActionDialog
           title="Cambiar rol" labelId="us-role-title" confirmLabel={roleChange.role === 'admin' ? 'Quitar rol de administrador' : 'Hacer administrador'} savingLabel="Guardando…"
           variant={roleChange.role === 'admin' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el rol. Intente nuevamente."
@@ -172,7 +185,10 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
-                  {u.id !== me?.id && !u.loginBlocked && u.active && capabilities.usersSensitive !== false && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
+                  {me?.role === 'admin' && u.id !== me.id && !u.loginBlocked && u.active && canManageSensitiveUsers(capabilities) && <>
+                    {' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button>
+                    {' '}<Button variant="secondary" size="sm" aria-label={`Asignar nueva contraseña a ${u.displayName}`} onClick={() => { setNotice(''); setPasswordReset(u); }}>Asignar contraseña</Button>
+                  </>}
                   {u.id !== me?.id && (u.active
                     ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'off' }); }}>Desactivar</Button></>
                     : <>{' '}<Button variant="secondary" size="sm" aria-label={`Reactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'on' }); }}>Reactivar</Button></>)}

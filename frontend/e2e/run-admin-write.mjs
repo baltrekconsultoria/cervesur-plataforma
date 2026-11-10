@@ -19,7 +19,6 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
 const results = [];
 let current = '';
 const ok = (name, cond, extra = '') => results.push([cond ? 'PASS' : 'FAIL', `${current} · ${name}`, extra]);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /** Servidor de la compilación + proxy `/api` al backend (la compilación usa el mismo origen). */
 function serve(port, api) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canWrite, type ApiCapabilities } from '../types';
+import { canManageSensitiveUsers, canWrite, type ApiCapabilities } from '../types';
 import { createMemoryTokenStore } from '../tokenStore';
 import { toReportDetail, reportBody } from './adapters';
 import { HttpApiClient } from './httpApi';
@@ -25,6 +25,20 @@ describe('UX-08H · capacidades de escritura del servidor', () => {
   it('sin detalle por grupo rige adminWrites para todo (compatibilidad con el mock y la fase 1)', () => {
     expect(canWrite(base, 'empresas')).toBe(true);
     expect(canWrite({ ...base, adminWrites: false }, 'usuarios')).toBe(false);
+  });
+
+  it('P5: privilegios sensibles fallan cerrado si falta cualquiera de las capacidades explícitas', () => {
+    const enabled: ApiCapabilities = {
+      ...base,
+      writes: { empresas: true, reportes: true, accesos: true, usuarios: true },
+      usersSensitive: true
+    };
+    expect(canManageSensitiveUsers(enabled)).toBe(true);
+    expect(canManageSensitiveUsers({ ...enabled, usersSensitive: false })).toBe(false);
+    expect(canManageSensitiveUsers({ ...enabled, usersSensitive: undefined })).toBe(false);
+    expect(canManageSensitiveUsers({ ...enabled, writes: undefined })).toBe(false);
+    expect(canManageSensitiveUsers({ ...enabled, adminWrites: false })).toBe(false);
+    expect(canManageSensitiveUsers({ ...enabled, writes: { ...enabled.writes!, usuarios: false } })).toBe(false);
   });
 
   it('con detalle por grupo solo se ofrece lo que el servidor habilitó', () => {

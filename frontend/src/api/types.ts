@@ -213,6 +213,13 @@ export function canWrite(capabilities: ApiCapabilities, group: WriteGroup): bool
   return capabilities.adminWrites && (capabilities.writes ? capabilities.writes[group] === true : true);
 }
 
+/** P5: operaciones sensibles solo con una autorización afirmativa y explícita del servidor. */
+export function canManageSensitiveUsers(capabilities: ApiCapabilities): boolean {
+  return capabilities.adminWrites === true
+    && capabilities.writes?.usuarios === true
+    && capabilities.usersSensitive === true;
+}
+
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */
 export interface ApiClient {
   readonly capabilities: ApiCapabilities;
@@ -274,6 +281,8 @@ export interface ApiClient {
   reactivateUser(id: string): Promise<void>;
   /** Cambio de rol; el servidor rechaza (409) cambiar el propio o degradar al último administrador activo, y cierra las sesiones del usuario. */
   changeUserRole(id: string, role: Role): Promise<void>;
+  /** P5: reasigna la contraseña de otro usuario; requiere la capacidad sensible explícita del servidor. */
+  resetUserPassword(id: string, password: string): Promise<void>;
   /** Empresas e informes del usuario con su efectividad (solo lectura). */
   getUserAccess(id: string): Promise<UserAccess[]>;
 }
