@@ -148,3 +148,19 @@ El punto de atención crítico para **P5** es el legado: `auth_middleware.php` y
 5. **Dependencias externas:** ejecutar C-5/D4, obtener distribución real de roles, confirmar comportamiento de Flutter ante 401, preservar `JWT_EXPIRATION=86400` decidido, definir firmas y ventanas. **No ejecutar pruebas con modificaciones de usuarios reales sin autorización específica**.
 
 **Veredicto P5-A3:** **PASS de paridad RC2, hallazgo de seguridad heredada confirmado como riesgo para P5 por la evidencia D3, P5 NO-GO**. Continuar diseño/QA aislado; no habilitar interruptores ni modificar producción.
+
+## 9. P5-A4 — Huellas de la línea base heredada (10/11/2026)
+
+La comprobación de solo lectura realizada por el operador en `presupuestos` comparó **tamaño y prefijo SHA-256 (12 caracteres)** de cinco archivos instalados con el inventario D3 del 05/11/2026.
+
+| Archivo heredado | Resultado |
+| --- | --- |
+| `lib/auth_middleware.php` | COINCIDE_HUELLA_D3 |
+| `lib/jwt.php` | COINCIDE_HUELLA_D3 |
+| `models/UserModel.php` | COINCIDE_HUELLA_D3 |
+| `controllers/UserController.php` | COINCIDE_HUELLA_D3 |
+| `router/UserRouter.php` | COINCIDE_HUELLA_D3 |
+
+**Resultado:** `ARCHIVOS_COINCIDENTES=5/5`, `ARCHIVOS_MODIFICADOS=NO`, `SECRETOS_MOSTRADOS=NO`. Esta coincidencia permite utilizar D3 como línea base documentada y descartar, respecto a estos cinco archivos, una deriva de versión desde aquel inventario. No acredita pruebas end-to-end ni ausencia de riesgos en sesiones antiguas.
+
+**Decisión:** cerrar auditoría de huellas P5-A4; preparar cambios seguros **solamente en rama independiente** (frontend con capacidad sensible explícita) y mantener un correctivo específico del backend heredado condicionado a una copia autorizada exacta y pruebas aisladas. No se habilitan flags, permisos SQL ni endpoints productivos. **P5 NO-GO**.
