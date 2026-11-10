@@ -1,0 +1,66 @@
+name: P5-SEC01 isolated MySQL 8 QA
+
+on:
+  push:
+    branches:
+      - ci/cervesur-p5-sec01-mysql
+
+permissions:
+  contents: read
+
+jobs:
+  mysql-security:
+    name: P5 strict JWT against MySQL 8
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-ci-only-2026
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot --password=synthetic-ci-only-2026"
+          --health-interval=5s
+          --health-timeout=4s
+          --health-retries=20
+    env:
+      CI: 'true'
+      P5_MYSQL_ISOLATED_ONLY: '1'
+      P5_MYSQL_HOST: 127.0.0.1
+      P5_MYSQL_DB: p5_sec01_ci
+      P5_MYSQL_PASSWORD: synthetic-ci-only-2026
+    steps:
+      - name: Checkout isolated snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: PHP with PDO MySQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y php8.3-cli php8.3-mysql
+          php -v
+          php -m | grep -i '^pdo_mysql$'
+      - name: Syntax candidate and isolated test
+        run: |
+          php -l deploy/flutter-heredado/p5-sec01/candidato/p5_strict_auth.php
+          php -l deploy/flutter-heredado/p5-sec01/tests/p5_mysql_isolated_test.php
+      - name: Execute MySQL 8 revocation matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_mysql_isolated_test.php
+      - name: Verify scope versus immutable base
+        run: |
+          base=ff86571cc5822fa10e8f74dcbec08f3b14c3d178
+          git cat-file -e "$base^{commit}"
+          changed="$(git diff --name-only "$base" HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^(backend/|frontend/|database/)'; then
+            echo "Unexpected live app modification"
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Ev '^(deploy/flutter-heredado/p5-sec01/|\.github/workflows/p5-sec01-mysql.yml$)'; then
+            echo "Out-of-scope changes"
+            exit 1
+          fi
+          echo 'P5_MYSQL_SCOPE=PASS'
