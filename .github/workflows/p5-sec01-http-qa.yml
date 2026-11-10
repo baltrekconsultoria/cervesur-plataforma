@@ -1,0 +1,49 @@
+name: P5-SEC01 HTTP integration isolated
+
+on:
+  push:
+    branches:
+      - ci/cervesur-p5-sec01-http
+
+permissions:
+  contents: read
+
+jobs:
+  p5-sec01-http:
+    name: PHP strict auth HTTP test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install isolated PHP with PDO SQLite
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y php8.3-cli php8.3-sqlite3
+          php -m | grep -i '^pdo_sqlite$'
+      - name: PHP syntax
+        run: |
+          for file in deploy/flutter-heredado/p5-sec01/candidato/*.php deploy/flutter-heredado/p5-sec01/tests/*.php; do
+            php -l "$file"
+          done
+      - name: Strict JWT matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
+      - name: Authorization header adapter matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_adapter_contract_test.php
+      - name: HTTP 200-401-403-404 loopback matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_http_integration_test.php
+      - name: Scope check against pinned base
+        run: |
+          base=ff86571cc5822fa10e8f74dcbec08f3b14c3d178
+          git cat-file -e "$base^{commit}"
+          changed="$(git diff --name-only "$base" HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^(backend/|frontend/|database/)' ; then
+            echo "Unexpected application changes"; exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Ev '^(deploy/flutter-heredado/p5-sec01/|\.github/workflows/p5-sec01-http-qa.yml$)' ; then
+            echo "Unexpected files outside isolated P5-SEC01 scope"; exit 1
+          fi
+          echo 'P5_SEC01_SCOPE=PASS'
