@@ -84,3 +84,29 @@ Se solicita habilitar (i) creación y edición de Usuarios y (ii) cambio de role
 **P5-A1: auditoría estática inicial completada, CON HALLAZGOS; P5 sigue NO-GO**. El código candidato incorpora reglas relevantes de seguridad; resta cerrar paridad con producción, UI de contraseña, privilegios mínimos y pruebas adversariales.
 
 **P5-A2 propuesta:** comparar **solo huellas Git blob SHA-1** de archivos de autorización y Usuarios instalados en el administrador 8443 y en el legado `/var/www/cervesur/backend`, sin abrir `.env`, leer tokens, contraseñas ni imprimir archivos PHP. Reportar únicamente `COINCIDE_REFERENCIA` / `DIFIERE` / `AUSENTE`. Un hash coincidente demuestra igualdad de archivo, no funcionamiento correcto del despliegue completo. No efectuar `PUT`, `POST`, `DELETE`, `GRANT` ni migraciones.
+
+## 7. P5-A2 — Paridad real de archivos del servidor (10/11/2026)
+
+**Fuente:** salida del script de lectura ejecutado por el operador en `presupuestos` (no se accedió al servidor desde el conector). **Sin modificaciones de producción.**
+
+| Archivo | Admin 8443 | Backend heredado Flutter |
+| --- | --- | --- |
+| `lib/admin_escritura.php` | Coincide RC2 Fase 2A | Ausente — esperado por separación de plataformas |
+| `lib/auth_middleware.php` | Coincide repositorio auditado | **Difiere** |
+| `lib/jwt.php` | Coincide repositorio auditado | **Difiere** |
+| `lib/pilot_sesion.php` | Presente, no comparado | Ausente — propio del piloto |
+| `models/UserModel.php` | **Difiere** de referencia RC1c | **Difiere** |
+| `controllers/UserController.php` | **Difiere** de referencia RC1c | **Difiere** |
+| `router/UserRouter.php` | Presente, sin referencia contrastada | Presente, sin referencia |
+| `router/AdminWriteRouter.php` | Coincide repositorio auditado | Ausente — propio del administrador |
+
+**Importante:** el script P5-A2 comparaba `UserModel.php` y `UserController.php` **contra RC1c (Fase 2B)**, no contra la versión RC2 instalada. Por lo tanto, esas dos diferencias **no prueban anomalía**: pueden ser normales para Fase 2A o cambios de servidor. Se consultaron además las referencias Git de Fase 2A: `UserModel.php` blob `97cc4593a57fd449213af62a7b266096b7be4e36`; `UserController.php` blob `8f10ef25603726d06997597feb6ebc4cc56eef0b`. **Aún no se comprobó si los dos archivos productivos del administrador coinciden con ellas.**
+
+El punto de atención crítico para **P5** es el legado: `auth_middleware.php` y `jwt.php` no son idénticos al repositorio candidato, por lo que las garantías de revocación de roles y expiración de tokens del repositorio **no se pueden atribuir al servidor heredado**. Las diferencias podrían ser esperadas, pero requieren evaluación de comportamiento.
+
+**Próximo control P5-A3, exclusivamente solo lectura:**
+1. Comparar contra los **hashes RC2 correctos** de `UserModel.php` y `UserController.php` en Admin 8443.
+2. Inspeccionar **sólo indicadores estructurales** del middleware/JWT heredados: comprobación de identidad, sesión, estado, rol actual en base y expiración. No imprimir archivos, valores de JWT ni `.env`. El resultado de indicadores **no demuestra seguridad efectiva**; confirma qué aspectos exigen contraste técnico.
+3. No ejecutar solicitudes de cambio de rol/contraseña ni pruebas con cuentas productivas.
+
+**Veredicto:** Admin Fase 2A se mantiene operativa; **P5 NO-GO**. Siguiente diseño de permisos y UI puede avanzar en aislado en paralelo, pero el uso productivo requiere cierre de legado.
