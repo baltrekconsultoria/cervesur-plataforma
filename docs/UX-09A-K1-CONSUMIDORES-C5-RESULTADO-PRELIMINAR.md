@@ -75,3 +75,16 @@ El operador ejecutó una segunda lectura de solo lectura sobre los registros acc
 **Hipótesis:** pruebas técnicas con curl, coherentes con la actividad de QA del periodo. **No se considera evidencia suficiente para atribución** sin correlación con la persona/proceso o registro de prueba. No hay evidencia de HTTP 200 para esta ruta en la muestra, pero los `403` podrían emitirse en una capa previa (Apache/React) y la ausencia de eventos recientes en el log heredado impide cerrar la cobertura.
 
 **Decisión:** K1 continúa **NO-GO**. Próximo control: inspección **estática, solo lectura** de `CustomLog` y reglas de `ProxyPass`/`RewriteRule`/`Require`/`<Location>` de los VirtualHosts relevantes, sin cambiar configuración ni emitir solicitudes de prueba. Confirmar dónde se registran los accesos reales al backend heredado antes de aprobar A-L2.
+
+## 6. Mapeo estático Apache y observación de cobertura (10/11/2026)
+
+**Evidencia proporcionada por el operador:** se enumeraron `11` configuraciones de `/etc/apache2/sites-enabled`. Se analizaron bloques `<VirtualHost>` de las diez configuraciones Cervesur identificadas.
+
+- Los bloques inspeccionados **no contienen líneas directas reconocidas** de `ProxyPass`, `RewriteRule` ni `<Location...api>` según las expresiones del script. El bloque `cervesur.conf` sí tiene un `Require all granted`.
+- Esta comprobación **no incluye** directivas de archivos incluidos, `conf-enabled`, contexto global, `.htaccess`, reglas `<Directory>` ni mecanismos de proxy indirectos. Por lo tanto, **no permite atribuir** los 20 HTTP 403 a Apache, React o PHP.
+- Los archivos actuales `cervesur_access.log`, `cervesur-react-admin-access.log` y `cervesur-react-admin-qa-access.log` tienen **0 bytes**. Sus fechas de modificación son, respectivamente, 05/11/2026 y 06/11/2026. Esto puede corresponder a rotación sin nuevas solicitudes o a registro activo por otra ruta; **no acredita cobertura continua hasta el 10/11/2026**.
+- Los archivos rotados contienen tráfico previo y se incluyeron en los 68 archivos analizados. El registro de legado tiene **0 solicitudes API** en la muestra, lo cual obliga a verificar cómo se accede realmente a su backend antes de concluir que no hay consumidores.
+
+**Siguiente acción autorizada:** inspección estática, sin publicar contenido sensible, de directivas de enrutamiento de `.htaccess`, `conf-enabled`, `sites-enabled` y cobertura reciente por VirtualHost. No efectuar pruebas HTTP activas, cambios de permisos, recargas ni modificaciones productivas.
+
+**Veredicto:** K1 continúa **NO-GO**; A-L2 aún pendiente.
