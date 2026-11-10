@@ -36,6 +36,8 @@ jobs:
       - name: Full unit test suite
         run: npm test
       - name: Admin write build
+        env:
+          CERVESUR_ALLOWED_HOSTS: ci.example.invalid
         run: npm run build:admin-write
       - name: Validate admin write build
         run: npm run verify:admin-write
