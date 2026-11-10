@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Prepare PHP SQLite isolated
         run: |
           sudo apt-get update -qq
@@ -32,8 +33,9 @@ jobs:
         run: php deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
       - name: Verify all changed files are isolated
         run: |
-          git fetch --no-tags --depth=1 origin feat/cervesur-ux-09a-cierre-usuarios
-          changed="$(git diff --name-only FETCH_HEAD HEAD)"
+          base=ff86571cc5822fa10e8f74dcbec08f3b14c3d178
+          git cat-file -e "$base^{commit}"
+          changed="$(git diff --name-only "$base" HEAD)"
           printf '%s\n' "$changed"
           if printf '%s\n' "$changed" | grep -E '^(backend/|frontend/|database/)' ; then
             echo "Unexpected live application changes"
