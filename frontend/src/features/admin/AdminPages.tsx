@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
+import { canManageSensitiveUsers, canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
@@ -141,7 +141,7 @@ export function AdminUsersPage() {
             : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
         </ConfirmActionDialog>
       )}
-      {roleChange && (
+      {roleChange && canManageSensitiveUsers(capabilities) && (
         <ConfirmActionDialog
           title="Cambiar rol" labelId="us-role-title" confirmLabel={roleChange.role === 'admin' ? 'Quitar rol de administrador' : 'Hacer administrador'} savingLabel="Guardando…"
           variant={roleChange.role === 'admin' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el rol. Intente nuevamente."
@@ -172,7 +172,7 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
-                  {u.id !== me?.id && !u.loginBlocked && u.active && capabilities.usersSensitive !== false && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
+                  {u.id !== me?.id && !u.loginBlocked && u.active && canManageSensitiveUsers(capabilities) && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
                   {u.id !== me?.id && (u.active
                     ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'off' }); }}>Desactivar</Button></>
                     : <>{' '}<Button variant="secondary" size="sm" aria-label={`Reactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'on' }); }}>Reactivar</Button></>)}
