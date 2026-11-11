@@ -464,6 +464,14 @@ if (preg_match('#^/api/users/(capabilities|\d+)(?:/(access|deactivate|reactivate
             }
         }
 
+        // P5-R: rechazar payloads ampliados. El reset nunca acepta rol, correo,
+        // estado, identificador ni version de sesion enviados por el cliente.
+        if ($routeKey === 'PUT {id}/password' &&
+            (array_keys($input) !== ['password'] || !is_string($input['password']))) {
+            write_respond(['success' => false, 'message' => 'Solo se admite el campo password']);
+            exit;
+        }
+
         switch ($routeKey) {
             case 'GET {id}':
                 $result = $userController->adminGet($targetId);
