@@ -48,6 +48,26 @@ $issues = admin_write_grants_violations($grants, 'cervesur_portalbi',
     ['usuarios' => true, 'passwordReset' => true], true);
 test_p5r('GRANT UPDATE(role) fatal', in_array('UPDATE@user:role-prohibido-P5R', $issues, true));
 
+// P5-R: para declarar reset listo no basta con impedir UPDATE(role).
+// Debe existir una concesion exacta y acotada de UPDATE(password).
+$grantPassword = ["GRANT UPDATE (password) ON {$q}cervesur_portalbi{$q}.{$q}user{$q} TO 'qa'@'127.0.0.1'"];
+$grantUnrelated = ["GRANT UPDATE (last_login) ON {$q}cervesur_portalbi{$q}.{$q}user{$q} TO 'qa'@'127.0.0.1'"];
+$grantFullTable = ["GRANT UPDATE ON {$q}cervesur_portalbi{$q}.{$q}user{$q} TO 'qa'@'127.0.0.1'"];
+$grantWrongDb = ["GRANT UPDATE (password) ON {$q}otra_base{$q}.{$q}user{$q} TO 'qa'@'127.0.0.1'"];
+test_p5r('GRANT password exclusivo reconocido', admin_password_only_grant_present($grantPassword, 'cervesur_portalbi'));
+test_p5r('GRANT last_login no equivale a password', !admin_password_only_grant_present($grantUnrelated, 'cervesur_portalbi'));
+test_p5r('GRANT tabla completa no equivale a minimo', !admin_password_only_grant_present($grantFullTable, 'cervesur_portalbi'));
+test_p5r('GRANT sobre otra base rechazado', !admin_password_only_grant_present($grantWrongDb, 'cervesur_portalbi'));
+$missing = admin_write_grants_violations($grantUnrelated, 'cervesur_portalbi',
+    ['usuarios' => true, 'passwordReset' => true], true);
+test_p5r('reset ON sin UPDATE(password) se bloquea', in_array('P5-R: falta UPDATE(password) por columnas en user', $missing, true));
+$allowed = admin_write_grants_violations($grantPassword, 'cervesur_portalbi',
+    ['usuarios' => true, 'passwordReset' => true], true);
+test_p5r('grant minimo no genera violacion', $allowed === []);
+$tooMuch = admin_write_grants_violations($grantFullTable, 'cervesur_portalbi',
+    ['usuarios' => true, 'passwordReset' => true], true);
+test_p5r('grant de tabla completa se bloquea', in_array('UPDATE@user:tabla completa', $tooMuch, true));
+
 putenv('ADMIN_WRITES_USUARIOS_SENSIBLE=1');
 test_p5r('flag antiguo sensible no habilita password', !admin_write_capability_on('usuarios_password_reset'));
 test_p5r('flag antiguo sensible reporta error', count(admin_write_config_errors([
