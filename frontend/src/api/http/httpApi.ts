@@ -292,9 +292,9 @@ export class HttpApiClient implements ApiClient {
   async deactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/deactivate`, {}); }
   async reactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/reactivate`, {}); }
 
-  async changeUserRole(id: string, role: Role): Promise<void> {
+  changeUserRole(id: string, role: Role): Promise<void> {
     void id; void role;
-    throw new ApiError(403, 'El cambio de rol no forma parte de P5-R.');
+    return Promise.reject(new ApiError(403, 'El cambio de rol no forma parte de P5-R.'));
   }
 
   async resetUserPassword(id: string, password: string): Promise<void> {
