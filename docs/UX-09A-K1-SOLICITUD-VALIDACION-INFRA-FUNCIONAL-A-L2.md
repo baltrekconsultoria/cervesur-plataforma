@@ -59,6 +59,21 @@
 
 **Regla de salida:** sólo se eleva propuesta de autorización A-L2 cuando no existan consumidores sin solución, Infraestructura confirme cobertura/flujo, K2 esté cerrado y existan respaldo, reversión, humo y ventana. Si alguna condición falta, **NO-GO**.
 
+## 4b. Actualización del prerrequisito K2 — evidencia operativa del 10/11/2026
+
+**K2 ya fue desplegado y verificado por el operador**, no está pendiente de instalarse:
+
+- `K2_PREFLIGHT=PASS`, `K2_RESPALDO=PASS`, `K2_CODIGO_PREPARADO=PASS`, `K2_POST_HTTP=200`, `K2_SHA_PRODUCTIVO=PASS`, `K2_DESPLIEGUE=PASS`.
+- Respaldo registrado: `/var/backups/cervesur-legado/lote1-20261110T200521Z`.
+- `backend/router/EmpresaRouter.php` SHA-256 productivo: `0c710e8ef8e5f367dcab54ba57a39083e9e2c997a799359a41062137290177b7`.
+- `backend/lib/empresa_sanitizer.php` SHA-256 productivo: `cf680885963d6d518e09995f9b1f4b2f7e4105a7aa7f0ec64db319c36b59f77e`.
+
+**Consecuencia:** el bloqueo K2 *instalación* se declara **PASS** y no se vuelve a aplicar. INF-05 conserva solo la comprobación de **estabilidad/continuidad y plan de respaldo/reversión K1**; no es solicitud para repetir el despliegue K2.
+
+**Permanecen pendientes y NO deben fingirse aprobados:** INF-01..04 (cadena real de ruta/K1, origen de 403 y cobertura de logs, consumidores), FUN-01..04 (consumidores funcionales y continuidad Power BI), A-L2 firmada y ventana K1. El único HTTP 401 observado posteriormente en Firebase/Flutter no valida consumidores K1 ni es respuesta 410.
+
+**D4 al 10/11/2026:** PASS D4-01..06; pendiente D4-06b (9 literales heredados), FAIL D4-07 (`JWT_EXPIRATION=10800` efectivo vs `86400` anterior), FAIL D4-08 (K1 no aplicado) y FAIL D4-09 (F-10 no instalado). No rotar secretos ni cambiar expiración sin autorización.
+
 ## 5. Textos para solicitar validación (borradores — no enviados)
 
 ### Solicitud a Infraestructura
