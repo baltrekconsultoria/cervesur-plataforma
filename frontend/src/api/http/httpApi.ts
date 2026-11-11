@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import { canManageSensitiveUsers } from '../types';
+import { canResetUserPassword } from '../types';
 import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, Role, UserAccess, UserDetail, UserEdit, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toUserAccess, toUserDetail, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
@@ -75,16 +75,18 @@ export class HttpApiClient implements ApiClient {
     this.capabilities.adminWrites = false;
     this.capabilities.writes = undefined;
     this.capabilities.usersSensitive = false;
+    this.capabilities.usersPasswordReset = false;
     this.capabilities.reactivateAfterHours = undefined;
     try {
       const env = await this.request('GET', '/api/admin/capacidades');
-      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; reactivate_after_hours?: unknown } | undefined;
+      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; users_password_reset?: unknown; reactivate_after_hours?: unknown } | undefined;
       const w = payload?.writes;
       if (!w || typeof w !== 'object') return;
       const writes = { empresas: w.empresas === true, reportes: w.reportes === true, accesos: w.accesos === true, usuarios: w.usuarios === true };
       this.capabilities.writes = writes;
       this.capabilities.adminWrites = writes.empresas || writes.reportes || writes.accesos || writes.usuarios;
-      this.capabilities.usersSensitive = writes.usuarios && payload?.users_sensitive === true;
+      this.capabilities.usersSensitive = false; // P5-R no habilita roles
+      this.capabilities.usersPasswordReset = writes.usuarios && payload?.users_password_reset === true;
       if (typeof payload?.reactivate_after_hours === 'number' && payload.reactivate_after_hours >= 0) this.capabilities.reactivateAfterHours = payload.reactivate_after_hours;
     } catch {
       this.capabilities.adminWrites = false;
@@ -290,14 +292,14 @@ export class HttpApiClient implements ApiClient {
   async deactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/deactivate`, {}); }
   async reactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/reactivate`, {}); }
 
-  async changeUserRole(id: string, role: Role): Promise<void> {
-    if (role !== 'admin' && role !== 'user') throw new ApiError(400, 'Rol no válido.');
-    await this.mutate('PUT', `/api/user/${this.pk(id, 'Usuario no válido.')}/role`, { role });
+  changeUserRole(id: string, role: Role): Promise<void> {
+    void id; void role;
+    return Promise.reject(new ApiError(403, 'El cambio de rol no forma parte de P5-R.'));
   }
 
   async resetUserPassword(id: string, password: string): Promise<void> {
     // Evita transmitir credenciales cuando falta la capacidad P5; el backend vuelve a autorizar.
-    if (!canManageSensitiveUsers(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
+    if (!canResetUserPassword(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
     await this.mutate('PUT', `/api/users/${this.pk(id, 'Usuario no válido.')}/password`, { password });
   }
 

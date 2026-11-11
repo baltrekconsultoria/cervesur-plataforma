@@ -191,6 +191,8 @@ export interface ApiCapabilities {
   writes?: WriteCapabilities;
   /** UX-08H fase 2B: el servidor permite cambiar rol y contraseña (interruptor aparte). Sin este campo (o en `false`) la interfaz no ofrece «Cambiar rol». */
   usersSensitive?: boolean;
+  /** P5-R: autorizacion EXCLUSIVA para restablecer contrasena, sin habilitar roles. Ausente = false. */
+  usersPasswordReset?: boolean;
   /** UX-08I (P4a): en el modo `admin_escritura` el servidor no permite cambiar el correo de un usuario (la cuenta de React no tiene UPDATE(email)); el formulario lo muestra solo como referencia. */
   emailReadOnly?: boolean;
   /** UX-08H fase 2B: horas que deben pasar entre desactivar y reactivar a un usuario (protege sesiones antiguas de Flutter). */
@@ -218,6 +220,13 @@ export function canManageSensitiveUsers(capabilities: ApiCapabilities): boolean 
   return capabilities.adminWrites === true
     && capabilities.writes?.usuarios === true
     && capabilities.usersSensitive === true;
+}
+
+/** P5-R: no hereda permisos de roles ni supone true cuando falta la capacidad. */
+export function canResetUserPassword(capabilities: ApiCapabilities): boolean {
+  return capabilities.adminWrites === true
+    && capabilities.writes?.usuarios === true
+    && capabilities.usersPasswordReset === true;
 }
 
 /** Contrato único que implementan el proveedor simulado y el proveedor HTTP. */

@@ -26,7 +26,7 @@ async function setup(enabled = true, sensitive = false) {
   if (sensitive) {
     // Solo este escenario simula una autorizacion P5 explicita del servidor.
     mock.capabilities.writes = { empresas: true, reportes: true, accesos: true, usuarios: true };
-    mock.capabilities.usersSensitive = true;
+    mock.capabilities.usersPasswordReset = true;
   }
   render(
     <MemoryRouter initialEntries={['/login']}>
@@ -93,15 +93,12 @@ describe('UX-08B.3 · Usuarios', () => {
     await waitFor(() => expect(t.mock.listUsersCalls).toBeGreaterThan(before));
   });
 
-  it('cambiar el rol pide confirmación y deja al usuario como administrador', async () => {
+  it('P5-R: permite abrir reset y nunca presenta el botón de cambiar rol', async () => {
     const t = await setup(true, true);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Cambiar rol de María Ríos' })).toBeInTheDocument());
-    await t.user.click(screen.getByRole('button', { name: 'Cambiar rol de María Ríos' }));
-    expect(within(await t.dialog()).getByText(/Convertir a/)).toBeInTheDocument();
-    await t.user.click(within(await t.dialog()).getByRole('button', { name: 'Hacer administrador' }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('ahora es administrador'));
-    const row = screen.getAllByRole('row').find(r => r.textContent?.includes('María Ríos'));
-    expect(row?.textContent).toContain('Administrador');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Asignar nueva contraseña a María Ríos' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /^Cambiar rol de / })).toBeNull();
+    await t.user.click(screen.getByRole('button', { name: 'Asignar nueva contraseña a María Ríos' }));
+    expect(within(await t.dialog()).getByText(/La contraseña anterior no se puede consultar/)).toBeInTheDocument();
   });
 
   it('editar carga el detalle, valida, guarda y avisa; una edición con versión obsoleta da conflicto', async () => {

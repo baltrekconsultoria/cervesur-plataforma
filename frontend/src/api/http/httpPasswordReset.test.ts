@@ -21,13 +21,13 @@ function setup(response = json(200, { success: true })) {
   tokens.set('test-token');
   const api = new HttpApiClient({ baseUrl: 'http://127.0.0.1:9', tokens, fetchImpl: fetchImpl as unknown as typeof fetch });
   const allow = () => Object.assign(api.capabilities, {
-    adminWrites: true, writes: { empresas: true, reportes: true, accesos: true, usuarios: true }, usersSensitive: true
+    adminWrites: true, writes: { empresas: true, reportes: true, accesos: true, usuarios: true }, usersPasswordReset: true
   });
   return { api, calls, fetchImpl, allow };
 }
 
 describe('P5-UI02: reasignación de contraseña por HTTP', () => {
-  it('sin autorización sensible explícita nunca envía la contraseña', async () => {
+  it('sin autorización P5-R explícita nunca envía la contraseña', async () => {
     const { api, calls } = setup();
     await expect(api.resetUserPassword('2', 'una-contrasena-segura')).rejects.toMatchObject({ status: 403 });
     expect(calls).toEqual([]);

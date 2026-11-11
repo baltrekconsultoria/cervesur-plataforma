@@ -20,7 +20,7 @@ const ADMIN_WRITE_CAPABILITIES = ['empresas', 'reportes', 'accesos', 'usuarios']
  * Flutter toma el rol del JWT y acepta tokens antiguos sin session_version, así que ni un cambio de rol ni uno de contraseña invalidan esas sesiones.
  * Sin este interruptor, la fase 2B solo ofrece: alta, edición de datos personales, desactivar y reactivar (con espera, ver admin_user_reactivate_hours).
  */
-const ADMIN_WRITE_GATES = ['empresas', 'reportes', 'accesos', 'usuarios', 'usuarios_sensible'];
+const ADMIN_WRITE_GATES = ['empresas', 'reportes', 'accesos', 'usuarios', 'usuarios_sensible', 'usuarios_password_reset'];
 /** Horas mínimas entre desactivar y reactivar a un usuario (por defecto 24 = vida de un token de Flutter). Evita que reactivar reviva sesiones antiguas. */
 function admin_user_reactivate_hours() {
     $v = getenv('ADMIN_USER_REACTIVATE_HOURS');
@@ -50,11 +50,16 @@ function admin_is_production_db() {
 
 /** ¿Capacidad de escritura encendida en el servidor? Solo el valor exacto «1»; se lee del entorno en cada petición. */
 function admin_write_capability_on($capability) {
-    if (($capability === 'usuarios' || $capability === 'usuarios_sensible') && admin_users_locked()) {
+    if (in_array($capability, ['usuarios', 'usuarios_sensible', 'usuarios_password_reset'], true) && admin_users_locked()) {
         return false; // fase 2B bloqueada sobre la base productiva
     }
-    if ($capability === 'usuarios_sensible' && getenv('ADMIN_WRITES_USUARIOS') !== '1') {
-        return false; // lo sensible nunca funciona sin el interruptor de usuarios
+    // P5-R: no existe autorizacion para cambiar roles.
+    if ($capability === 'usuarios_sensible') { return false; }
+    if ($capability === 'usuarios_password_reset') {
+        return getenv('ADMIN_WRITES_USUARIOS') === '1'
+            && getenv('ADMIN_WRITES_USUARIOS_PASSWORD_RESET') === '1'
+            && getenv('ADMIN_P5R_FLUTTER_401_VERIFIED') === '1'
+            && getenv('ADMIN_WRITES_USUARIOS_SENSIBLE') !== '1';
     }
     return getenv('ADMIN_WRITES_' . strtoupper((string)$capability)) === '1';
 }
@@ -87,8 +92,16 @@ function admin_write_config_errors(array $env) {
             $errors[] = 'ADMIN_WRITES_' . strtoupper($c) . ' debe estar sin definir, 0 o 1';
         }
     }
-    if ((string)($env['ADMIN_WRITES_USUARIOS_SENSIBLE'] ?? '') === '1' && (string)($env['ADMIN_WRITES_USUARIOS'] ?? '') !== '1') {
-        $errors[] = 'ADMIN_WRITES_USUARIOS_SENSIBLE=1 exige ADMIN_WRITES_USUARIOS=1';
+    if ((string)($env['ADMIN_WRITES_USUARIOS_SENSIBLE'] ?? '') === '1') {
+        $errors[] = 'P5-R prohibe ADMIN_WRITES_USUARIOS_SENSIBLE=1';
+    }
+    $reset = (string)($env['ADMIN_WRITES_USUARIOS_PASSWORD_RESET'] ?? '');
+    $legacyQa = (string)($env['ADMIN_P5R_FLUTTER_401_VERIFIED'] ?? '');
+    if (!in_array($legacyQa, ['', '0', '1'], true)) {
+        $errors[] = 'ADMIN_P5R_FLUTTER_401_VERIFIED debe ser 0, 1 o no definido';
+    }
+    if ($reset === '1' && ((string)($env['ADMIN_WRITES_USUARIOS'] ?? '') !== '1' || $legacyQa !== '1')) {
+        $errors[] = 'P5-R requiere Usuarios ON y QA Flutter 401 antes del reset';
     }
     $h = (string)($env['ADMIN_USER_REACTIVATE_HOURS'] ?? '');
     if ($h !== '' && (!ctype_digit($h) || (int)$h > 720)) {
@@ -121,7 +134,7 @@ function admin_write_routes() {
         ['POST', '~^/api/empresa-reporte-usuario$~D', 'accesos'], ['PUT', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['DELETE', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['POST', "~^/api/empresa-reporte-usuario/$id/reactivate\$~D", 'accesos'],
         // usuarios (capacidad INDEPENDIENTE; fase 2B)
         ['POST', '~^/api/register$~D', 'usuarios'], ['PUT', "~^/api/users/$id\$~D", 'usuarios'], ['POST', "~^/api/users/$id/(deactivate|reactivate)\$~D", 'usuarios'],
-        ['PUT', "~^/api/users/$id/password\$~D", 'usuarios_sensible'], ['PUT', "~^/api/user/$id/role\$~D", 'usuarios_sensible'],
+        ['PUT', "~^/api/users/$id/password\$~D", 'usuarios_password_reset'], // NO incluye cambio de rol
     ];
 }
 
@@ -133,7 +146,7 @@ function app_mode_write_gate($method, $uri) {
     }
     foreach (admin_write_routes() as [$m, $pattern, $capability]) {
         if ($m === $method && preg_match($pattern, $uri)) {
-            if (($capability === 'usuarios' || $capability === 'usuarios_sensible') && admin_users_locked()) {
+            if (in_array($capability, ['usuarios', 'usuarios_sensible', 'usuarios_password_reset'], true) && admin_users_locked()) {
                 return ['status' => 403, 'code' => 'fase_2b_bloqueada', 'message' => 'La administración de usuarios no está disponible en esta versión'];
             }
             if ($capability !== null && !admin_write_capability_on($capability)) {
@@ -158,7 +171,7 @@ function admin_write_grants_violations(array $grants, $db, $flags = null, $toler
     $violations = [];
     $db = strtolower((string)$db);
     if ($flags === null) { // null = entorno actual; false = sin cruce (bases desechables de prueba)
-        $flags = ['usuarios' => getenv('ADMIN_WRITES_USUARIOS') === '1', 'sensible' => admin_write_capability_on('usuarios_sensible')];
+        $flags = ['usuarios' => getenv('ADMIN_WRITES_USUARIOS') === '1', 'passwordReset' => admin_write_capability_on('usuarios_password_reset')];
     }
     foreach ($grants as $line) {
         $line = trim((string)$line);
@@ -189,15 +202,37 @@ function admin_write_grants_violations(array $grants, $db, $flags = null, $toler
                 // `email` NO es escribible por la cuenta de React (UX-08I): cambiarlo podría facilitar la recuperación de una cuenta ajena en Flutter
                 $previstas = ['first_name', 'last_name', 'phone', 'is_active', 'session_version', 'updated_at', 'last_login', 'password', 'role'];
                 if (array_diff($columns, $previstas)) { $violations[] = "$priv@user:columnas no previstas"; continue; }
+                if ($priv === 'UPDATE' && in_array('role', $columns, true)) { $violations[] = 'UPDATE@user:role-prohibido-P5R'; continue; }
                 // Escalonado (UX-08I, ensayo P4a): las plantillas se aplican ANTES de encender el interruptor. Con el interruptor apagado esas concesiones no cambian lo que se puede hacer
                 // (la puerta de rutas y el guardia de SQL siguen cerrados), así que no deben tumbar Empresas, Informes ni Accesos con un 503.
                 if ($tolerateStaged) { continue; }
                 if (!$flags['usuarios']) { $violations[] = "$priv@user:sin ADMIN_WRITES_USUARIOS"; continue; }
-                if (array_intersect($columns, ['password', 'role']) && $priv === 'UPDATE' && !$flags['sensible']) { $violations[] = 'UPDATE@user:role/password sin ADMIN_WRITES_USUARIOS_SENSIBLE'; }
+                if (in_array('password', $columns, true) && $priv === 'UPDATE' && !($flags['passwordReset'] ?? false)) { $violations[] = 'UPDATE@user:password sin permiso P5-R'; }
             }
         }
     }
+    // P5-R: además de no conceder roles, la capacidad de reset requiere la
+    // concesión mínima efectiva. Sin ella no anunciamos reset listo: 503 fail-closed.
+    if ($flags !== false && !empty($flags['passwordReset']) &&
+        !admin_password_only_grant_present($grants, $db)) {
+        $violations[] = 'P5-R: falta UPDATE(password) por columnas en user';
+    }
     return array_values(array_unique($violations));
+}
+
+/** Exige UPDATE(password) exclusivamente por columnas en la tabla user, no por tabla completa. */
+function admin_password_only_grant_present(array $grants, $db) {
+    $wanted = strtolower((string)$db) . '.user';
+    foreach ($grants as $line) {
+        if (!preg_match('/^GRANT\\s+(.+?)\\s+ON\\s+(.+?)\\s+TO\\s+/is', trim((string)$line), $match)) {
+            continue;
+        }
+        $object = strtolower(str_replace('`', '', trim($match[2])));
+        if ($object !== $wanted) { continue; }
+        $updates = admin_grant_columns($match[1])['UPDATE'] ?? null;
+        if (is_array($updates) && in_array('password', $updates, true)) { return true; }
+    }
+    return false;
 }
 
 /**
@@ -269,10 +304,15 @@ function app_sql_write_guard($sql) {
         $t = strtolower($m[1]);
         if (!in_array($t, ADMIN_WRITE_TABLES, true) || $t === 'audit_log') { $reject('tabla no permitida para UPDATE: ' . $m[1]); }
         if ($t === 'user' && admin_users_locked()) { $reject('fase 2B bloqueada: no se escribe `user` sobre la base productiva'); }
-        if ($t === 'user' && !admin_write_capability_on('usuarios_sensible')) {
-            // Lo sensible (rol y contraseña) exige su propio interruptor: se mira solo la lista de asignaciones, que va antes del WHERE.
+        if ($t === 'user') {
             $set = preg_split('/\sWHERE\s/i', $n, 2)[0];
-            if (preg_match('/(?:^|[\s,`])(password|role)`?\s*=/i', $set)) { $reject('fase 2B: `role` y `password` exigen ADMIN_WRITES_USUARIOS_SENSIBLE=1'); }
+            if (preg_match('/(?:^|[\s,`])role`?\s*=/i', $set)) { $reject('P5-R: cambio de rol prohibido'); }
+            if (preg_match('/(?:^|[\s,`])password`?\s*=/i', $set)) {
+                if (!admin_write_capability_on('usuarios_password_reset')) { $reject('P5-R: reset deshabilitado'); }
+                if ($n !== 'UPDATE user SET password = :p, session_version = session_version + 1, updated_at = NOW() WHERE id = :id') {
+                    $reject('P5-R: forma de UPDATE password no permitida');
+                }
+            }
         }
         if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
         return;

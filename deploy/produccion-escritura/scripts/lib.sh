@@ -364,7 +364,11 @@ capacidades_leer() {
     v=$(sed -n "s/.*\"$m\":\(true\|false\).*/\1/p" <<<"$writes"); [ -n "$v" ] || return 1
     printf -v "CAP_$m" '%s' "$v"
   done
-  CAP_SENSIBLE=$(sed -n 's/.*"users_sensitive":\(true\|false\).*/\1/p' <<<"$API_CUERPO"); [ -n "$CAP_SENSIBLE" ]
+  CAP_SENSIBLE=$(sed -n 's/.*"users_sensitive":\(true\|false\).*/\1/p' <<<"$API_CUERPO"); [ -n "$CAP_SENSIBLE" ] || return 1
+  # P5-R: si la API antigua no declara permiso separado, se interpreta OFF.
+  CAP_RESET=$(sed -n 's/.*"users_password_reset":\(true\|false\).*/\1/p' <<<"$API_CUERPO")
+  CAP_RESET=${CAP_RESET:-false}
+  [ "$CAP_RESET" = true ] || [ "$CAP_RESET" = false ]
 }
 # ¿Las capacidades son EXACTAMENTE las esperadas? (lista de módulos encendidos; usuarios y lo sensible siempre apagados)
 capacidades_son() { # modulo...
@@ -375,7 +379,7 @@ capacidades_son() { # modulo...
     v="CAP_$m"; actual=${!v}
     [ "$actual" = "$esperado" ] || return 1
   done
-  [ "$CAP_usuarios" = false ] && [ "$CAP_SENSIBLE" = false ]
+  [ "$CAP_usuarios" = false ] && [ "$CAP_SENSIBLE" = false ] && [ "${CAP_RESET:-false}" = false ]
 }
 # Sondas de escritura INOFENSIVAS: id 999999999 (inexistente) y cuerpo vacío «{}». Si una puerta fallara, el controlador rechazaría por validación o «no existe»: no pueden escribir.
 RUTAS_ESCRITURA_EMPRESAS=("POST /api/empresas" "PUT /api/empresas/999999999" "DELETE /api/empresas/999999999" "POST /api/empresas/999999999/reactivate")

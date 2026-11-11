@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { canManageSensitiveUsers, canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
+import { canResetUserPassword, canWrite, type ApiCapabilities, type Assignment, type Company, type Report, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Page } from '../../app/layout';
 import { assignmentStatus } from '../../domain/access';
@@ -116,7 +116,6 @@ export function AdminUsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [viewing, setViewing] = useState<User | null>(null);
   const [toggling, setToggling] = useState<{ user: User; to: 'off' | 'on' } | null>(null);
-  const [roleChange, setRoleChange] = useState<User | null>(null);
   const [passwordReset, setPasswordReset] = useState<User | null>(null);
   const [notice, setNotice] = useState('');
   // UX-08B.3: los botones de edición, estado y rol solo aparecen si el SERVIDOR tiene habilitada la administración de usuarios.
@@ -143,7 +142,7 @@ export function AdminUsersPage() {
             : <><p>¿Reactivar a <strong>{toggling.user.displayName}</strong>?</p><p className="form-note">Podrá ingresar de nuevo con su contraseña; deberá iniciar sesión otra vez. Sus accesos que sigan activos recuperarán su efecto.</p></>}
         </ConfirmActionDialog>
       )}
-      {passwordReset && canManageSensitiveUsers(capabilities) && (
+      {passwordReset && canResetUserPassword(capabilities) && (
         <ResetPasswordDialog
           user={passwordReset}
           onClose={() => setPasswordReset(null)}
@@ -153,17 +152,6 @@ export function AdminUsersPage() {
             bump();
           }}
         />
-      )}
-      {roleChange && canManageSensitiveUsers(capabilities) && (
-        <ConfirmActionDialog
-          title="Cambiar rol" labelId="us-role-title" confirmLabel={roleChange.role === 'admin' ? 'Quitar rol de administrador' : 'Hacer administrador'} savingLabel="Guardando…"
-          variant={roleChange.role === 'admin' ? 'danger' : 'primary'} fallbackError="No se pudo cambiar el rol. Intente nuevamente."
-          run={() => api.changeUserRole(roleChange.id, roleChange.role === 'admin' ? 'user' : 'admin')}
-          onClose={() => setRoleChange(null)} onStale={bump}
-          onDone={() => { setNotice(`Rol de «${roleChange.displayName}» actualizado: ahora es ${roleChange.role === 'admin' ? 'usuario' : 'administrador'}.`); setRoleChange(null); bump(); }}>
-          <p>{roleChange.role === 'admin' ? <>¿Quitar el rol de administrador a <strong>{roleChange.displayName}</strong>?</> : <>¿Convertir a <strong>{roleChange.displayName}</strong> en administrador?</>}</p>
-          <p className="form-note">Se cerrarán sus sesiones y deberá iniciar sesión de nuevo. No se puede cambiar el propio rol ni quitárselo al último administrador activo. Las sesiones de Flutter ya iniciadas conservan el rol anterior hasta que caduquen.</p>
-        </ConfirmActionDialog>
       )}
     </>}>
       {({ users, companies, assignments, reports }) => {
@@ -185,8 +173,7 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
-                  {me?.role === 'admin' && u.id !== me.id && !u.loginBlocked && u.active && canManageSensitiveUsers(capabilities) && <>
-                    {' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button>
+                  {me?.role === 'admin' && u.id !== me.id && !u.loginBlocked && u.active && canResetUserPassword(capabilities) && <>
                     {' '}<Button variant="secondary" size="sm" aria-label={`Asignar nueva contraseña a ${u.displayName}`} onClick={() => { setNotice(''); setPasswordReset(u); }}>Asignar contraseña</Button>
                   </>}
                   {u.id !== me?.id && (u.active

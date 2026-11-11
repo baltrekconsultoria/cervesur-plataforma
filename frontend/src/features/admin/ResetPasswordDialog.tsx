@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { isApiError } from '../../api/errors';
-import { canManageSensitiveUsers, type User } from '../../api/types';
+import { canResetUserPassword, type User } from '../../api/types';
 import { useApp } from '../../app/AppProvider';
 import { Dialog, DialogFooter } from '../../components/Dialog';
 
@@ -31,8 +31,8 @@ export function ResetPasswordDialog({ user, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
 
-  // No se confía en el botón: incluso el diálogo exige capacidad sensible explícita.
-  const allowed = canManageSensitiveUsers(capabilities)
+  // No se confía en el botón: el diálogo exige permiso P5-R específico; permiso de roles no sirve.
+  const allowed = canResetUserPassword(capabilities)
     && actor?.role === 'admin'
     && actor.id !== user.id
     && user.active
