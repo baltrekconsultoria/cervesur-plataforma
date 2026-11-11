@@ -1,7 +1,7 @@
 import { assignmentStatus } from '../../domain/access';
 import { ApiError } from '../errors';
 import { classifyPowerBiLink } from '../../domain/powerbiLink';
-import { canManageSensitiveUsers } from '../types';
+import { canResetUserPassword } from '../types';
 import type { Role, UserAccess, UserDetail, UserEdit, AuditEntry, AuditPage, AuditQuery, ApiCapabilities, ApiClient, AuthResponse, Assignment, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, LoginRequest, NewUser, ProfileUpdate, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { createSeed, type Seed } from './seed';
 
