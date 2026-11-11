@@ -1,0 +1,38 @@
+name: Cervesur P5-SEC03 middleware integration QA
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/flutter-heredado/p5-sec01/**'
+      - '.github/workflows/cervesur-p5-sec03.yml'
+  push:
+    branches:
+      - 'feat/cervesur-p5-sec03-legacy-patch'
+
+permissions:
+  contents: read
+
+jobs:
+  source-patch-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax
+        run: python -m py_compile deploy/flutter-heredado/p5-sec01/scripts/build_p5_sec03_candidate.py
+      - name: Patch builder tests, no product source in repo
+        run: python -m unittest discover -s deploy/flutter-heredado/p5-sec01/tests -p 'test_p5_sec03_builder.py' -v
+      - name: PHP syntax and SQLite preflight
+        run: |
+          php -l deploy/flutter-heredado/p5-sec01/candidato/p5_strict_auth.php
+          php -l deploy/flutter-heredado/p5-sec01/candidato/p5_legacy_adapter.php
+          php -l deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
+          php -r 'if (!extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PDO_SQLITE_MISSING\n"); exit(2); }'
+      - name: Core strict JWT and 10800-second lifetime matrix
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_strict_auth_test.php
+      - name: Adapter header contract
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_adapter_contract_test.php
+      - name: Loopback HTTP integration, synthetic SQLite only
+        run: php deploy/flutter-heredado/p5-sec01/tests/p5_http_integration_test.php
