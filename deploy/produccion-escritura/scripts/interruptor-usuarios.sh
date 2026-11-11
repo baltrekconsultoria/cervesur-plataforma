@@ -27,7 +27,7 @@ case $ACCION in estado|apagar|encender|sensible) ;; *) echo "Acción desconocida
 [ "$ACCION" = estado ] || requerir_root
 
 valor() { local v; v=$(env_valor_actual "$1"); printf '%s' "${v:-<sin definir>}"; }
-mostrar() { echo "   ADMIN_WRITES_USUARIOS=$(valor ADMIN_WRITES_USUARIOS)   ADMIN_WRITES_USUARIOS_SENSIBLE=$(valor ADMIN_WRITES_USUARIOS_SENSIBLE)   ADMIN_USER_REACTIVATE_HOURS=$(valor ADMIN_USER_REACTIVATE_HOURS)"; }
+mostrar() { echo "   ADMIN_WRITES_USUARIOS=$(valor ADMIN_WRITES_USUARIOS)   ADMIN_WRITES_USUARIOS_SENSIBLE=$(valor ADMIN_WRITES_USUARIOS_SENSIBLE)   ADMIN_WRITES_USUARIOS_PASSWORD_RESET=$(valor ADMIN_WRITES_USUARIOS_PASSWORD_RESET)   ADMIN_USER_REACTIVATE_HOURS=$(valor ADMIN_USER_REACTIVATE_HOURS)"; }
 
 # shellcheck disable=SC2154  # CAP_* los asigna capacidades_leer (lib.sh) con printf -v
 verificar_capacidades() { # esperado de usuarios: true|false (sensible SIEMPRE false)
@@ -35,14 +35,14 @@ verificar_capacidades() { # esperado de usuarios: true|false (sensible SIEMPRE f
   if inyectar capacidades; then return 1; fi   # solo ensayo: simula que las capacidades NO son las esperadas
   credenciales_presentes && api_login || return 2
   capacidades_leer || return 1
-  [ "$CAP_usuarios" = "$1" ] && [ "$CAP_SENSIBLE" = false ] && [ "$CAP_empresas" = true ] && [ "$CAP_reportes" = true ] && [ "$CAP_accesos" = true ]
+  [ "$CAP_usuarios" = "$1" ] && [ "$CAP_SENSIBLE" = false ] && [ "${CAP_RESET:-false}" = false ] && [ "$CAP_empresas" = true ] && [ "$CAP_reportes" = true ] && [ "$CAP_accesos" = true ]
 }
 
 apagar() {
   local previo; env_respaldar "antes-apagar-usuarios" || { fallo "no se pudo respaldar el .env: no se modifica nada"; return 1; }; previo=$ENV_RESPALDO_RUTA
   # Apagar = ELIMINAR las claves (sin definir = bloqueado). Escribir «=0» las dejaría presentes y el verificador de la fase 2A las trata como prohibidas.
-  env_aplicar "" "ADMIN_WRITES_USUARIOS ADMIN_WRITES_USUARIOS_SENSIBLE" || { fallo "no se pudo editar el .env (respaldo: $previo)"; return 1; }
-  ok "Usuarios APAGADO: claves ADMIN_WRITES_USUARIOS* eliminadas del .env (respaldo previo: $previo)"
+  env_aplicar "" "ADMIN_WRITES_USUARIOS ADMIN_WRITES_USUARIOS_SENSIBLE ADMIN_WRITES_USUARIOS_PASSWORD_RESET ADMIN_P5R_FLUTTER_401_VERIFIED" || { fallo "no se pudo editar el .env (respaldo: $previo)"; return 1; }
+  ok "Usuarios APAGADO: flags U-BASIC y P5-R retirados del .env (respaldo previo: $previo)"
   verificar_capacidades false; local rc=$?
   case $rc in 0) ok "capacidades verificadas: usuarios=false, sensible=false, empresas/reportes/accesos intactos" ;;
     2) aviso "sin credenciales: no se pudo comprobar por la API (el .env quedó apagado)" ;;
