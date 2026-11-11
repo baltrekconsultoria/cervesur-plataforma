@@ -9,7 +9,7 @@ const ctx = vi.hoisted(() => ({
   caps: {
     adminWrites: true,
     writes: { empresas: true, reportes: true, accesos: true, usuarios: true },
-    usersSensitive: true
+    usersPasswordReset: true
   },
   actorId: '1',
   actorRole: 'admin'
@@ -32,7 +32,7 @@ beforeEach(() => {
   ctx.reset.mockResolvedValue(undefined);
   ctx.caps.adminWrites = true;
   ctx.caps.writes.usuarios = true;
-  ctx.caps.usersSensitive = true;
+  ctx.caps.usersPasswordReset = true;
   ctx.actorId = '1';
   ctx.actorRole = 'admin';
 });
@@ -60,10 +60,10 @@ describe('P5-UI02: diálogo de cambio de contraseña', () => {
   it('sin capacidad sensible o con autoedición no presenta formulario', () => {
     const { rerender } = render(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Asignar nueva contraseña')).toBeInTheDocument();
-    ctx.caps.usersSensitive = false;
+    ctx.caps.usersPasswordReset = false;
     rerender(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
-    ctx.caps.usersSensitive = true;
+    ctx.caps.usersPasswordReset = true;
     ctx.actorId = '2';
     rerender(<ResetPasswordDialog user={target} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText('Asignar nueva contraseña')).not.toBeInTheDocument();
