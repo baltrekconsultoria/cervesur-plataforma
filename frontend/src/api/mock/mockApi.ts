@@ -329,9 +329,9 @@ export class MockApi implements ApiClient {
     this.record('user.reactivate', 'user', id, { is_active: 0 }, { is_active: 1 });
   }
 
-  async changeUserRole(id: string, role: Role): Promise<void> {
+  changeUserRole(id: string, role: Role): Promise<void> {
     void id; void role;
-    throw new ApiError(403, 'El cambio de rol no forma parte de P5-R.');
+    return Promise.reject(new ApiError(403, 'El cambio de rol no forma parte de P5-R.'));
   }
 
   async resetUserPassword(id: string, password: string): Promise<void> {
