@@ -134,7 +134,7 @@ function admin_write_routes() {
         ['POST', '~^/api/empresa-reporte-usuario$~D', 'accesos'], ['PUT', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['DELETE', "~^/api/empresa-reporte-usuario/$id\$~D", 'accesos'], ['POST', "~^/api/empresa-reporte-usuario/$id/reactivate\$~D", 'accesos'],
         // usuarios (capacidad INDEPENDIENTE; fase 2B)
         ['POST', '~^/api/register$~D', 'usuarios'], ['PUT', "~^/api/users/$id\$~D", 'usuarios'], ['POST', "~^/api/users/$id/(deactivate|reactivate)\$~D", 'usuarios'],
-        ['PUT', "~^/api/users/$id\$~D", 'usuarios_password_reset'], // NO incluye cambio de rol
+        ['PUT', "~^/api/users/$id/password\$~D", 'usuarios_password_reset'], // NO incluye cambio de rol
     ];
 }
 
