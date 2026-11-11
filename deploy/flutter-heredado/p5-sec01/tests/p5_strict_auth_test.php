@@ -104,6 +104,24 @@ p5_check('alg HS512', p5_strict_authenticate_jwt(p5_sign($base, $secret, ['typ' 
 p5_check('payload no objeto', p5_strict_authenticate_jwt(p5_sign(123, $secret), $secret, $pdo, $now) === false);
 p5_check('token de usuario inexistente', p5_verify(array_merge($base, ['user_id' => 999]), $secret, $pdo, $now) === false);
 
+// P5-SEC03: la sesión real 10800 s no se amplía por el helper aislado (86400).
+$ttlUser = array_merge($base, ['exp' => $now + 10800]);
+p5_check('TTL real 10800 acepta token vigente', p5_strict_authenticate_jwt(
+    p5_sign($ttlUser, $secret), $secret, $pdo, $now, 10800) !== false);
+p5_check('TTL real 10800 admite tolerancia 60 s', p5_strict_authenticate_jwt(
+    p5_sign(array_merge($base, ['exp' => $now + 10860]), $secret),
+    $secret, $pdo, $now, 10800) !== false);
+p5_check('TTL real 10800 rechaza 10861', p5_strict_authenticate_jwt(
+    p5_sign(array_merge($base, ['exp' => $now + 10861]), $secret),
+    $secret, $pdo, $now, 10800) === false);
+p5_check('TTL real 10800 rechaza token con 24h restantes', p5_strict_authenticate_jwt(
+    p5_sign(array_merge($base, ['exp' => $now + 86400]), $secret),
+    $secret, $pdo, $now, 10800) === false);
+p5_check('TTL nulo o no entero no se permite en ruta estricta', p5_strict_authenticate_jwt(
+    p5_sign($ttlUser, $secret), $secret, $pdo, $now, '10800') === false);
+p5_check('TTL mayor a 24h prohibido', p5_strict_authenticate_jwt(
+    p5_sign($ttlUser, $secret), $secret, $pdo, $now, 172800) === false);
+
 $pdo->exec("UPDATE user SET role='otro' WHERE id=2");
 p5_check('rol desconocido denegado', p5_verify($base, $secret, $pdo, $now) === false);
 $pdo->exec("UPDATE user SET role='user' WHERE id=2");
