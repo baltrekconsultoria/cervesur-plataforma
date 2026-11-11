@@ -41,10 +41,10 @@ function p5_legacy_extract_bearer(array $headers) {
  * @param array<string,mixed> $headers
  * @return array{user_id:int,username:string,email:string,role:string}|false
  */
-function p5_legacy_authenticate_headers(array $headers, $jwtSecret, PDO $pdo, $clock = null) {
+function p5_legacy_authenticate_headers(array $headers, $jwtSecret, PDO $pdo, $clock = null, $maxRemainingSeconds = null) {
     $token = p5_legacy_extract_bearer($headers);
     if ($token === false) {
         return false;
     }
-    return p5_strict_authenticate_jwt($token, $jwtSecret, $pdo, $clock);
+    return p5_strict_authenticate_jwt($token, $jwtSecret, $pdo, $clock, $maxRemainingSeconds);
 }
