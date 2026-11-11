@@ -330,21 +330,13 @@ export class MockApi implements ApiClient {
   }
 
   async changeUserRole(id: string, role: Role): Promise<void> {
-    const me = this.requireUserAdmin();
-    const user = this.seed.users.find(u => u.id === id);
-    if (!user) throw new ApiError(404, 'Usuario no encontrado');
-    if (user.id === me.id) throw new ApiError(409, 'No puede cambiar su propio rol');
-    if (user.role === role) throw new ApiError(409, 'El usuario ya tiene ese rol');
-    if (user.role === 'admin' && user.active && this.otherActiveAdmins(id) === 0) throw new ApiError(409, 'No se puede degradar al último administrador activo');
-    const before = user.role;
-    user.role = role;
-    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
-    this.record('user.role', 'user', id, { role: before }, { role });
+    void id; void role;
+    throw new ApiError(403, 'El cambio de rol no forma parte de P5-R.');
   }
 
   async resetUserPassword(id: string, password: string): Promise<void> {
     const me = this.requireUserAdmin();
-    if (!canManageSensitiveUsers(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
+    if (!canResetUserPassword(this.capabilities)) throw new ApiError(403, 'La gestión de contraseñas no está habilitada.');
     const target = this.seed.users.find(u => u.id === id);
     if (!target) throw new ApiError(404, 'Usuario no encontrado');
     if (target.id === me.id) throw new ApiError(409, 'No puede cambiar su propia contraseña desde este panel');
