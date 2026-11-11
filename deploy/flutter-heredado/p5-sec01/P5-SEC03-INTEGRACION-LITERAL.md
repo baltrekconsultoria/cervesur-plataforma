@@ -36,7 +36,7 @@ Si Python 3 no está disponible, no ejecutar cambios alternativos en servidor: u
 ## Pruebas y puertas pendientes
 
 1. Constructor sobre original aportado: SHA256 exacto PASS, anclas PASS, candidato PHP `php -l` PASS en entorno aislado de revisión; **no se publica el original**.
-2. CI del PR: Python unit test de constructor, PHP sintaxis + núcleo JWT (incluye TTL 10800), adapter y HTTP loopback SQLite sintético; registrar resultados por commit.
+2. **CI PASS (11/11/2026):** [GitHub Actions #43062810665](https://github.com/baltrekconsultoria/cervesur-plataforma/actions/runs/43062810665) en el PR #20: Python constructor **6/6**, PHP JWT **38/38**, adaptador **10/10**, HTTP loopback SQLite **22/22**, total **76/76 PASS**, sintaxis PHP PASS. No incluye el original PHP en GitHub ni prueba E2E de Flutter productivo.
 3. Repetir prueba integral **solo si cambia el código** de integración: PHP/MySQL aislado y regresión Flutter con el candidato literal; conservar evidencias previas 20/20 y 24/24.
 4. **T-EXP**: sesión QA Flutter expirada, petición GET 401 y reacción visual comprensible, después relogin 200, sin tokens/HAR ni datos personales.
 5. C-5 distribución de roles reales agregada, tipo `user_id` / `session_version` del JWT actual y privilegio SELECT sobre tabla `user`, D4 secretos y expiración, K1/K2/F-10, permisos DBA y gates U-BASIC/P5-R.
