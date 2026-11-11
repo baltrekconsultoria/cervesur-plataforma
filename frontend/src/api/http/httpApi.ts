@@ -1,5 +1,5 @@
 import { ApiError } from '../errors';
-import { canManageSensitiveUsers } from '../types';
+import { canResetUserPassword } from '../types';
 import type { ApiCapabilities, ApiClient, Assignment, AuditPage, AuditQuery, Role, UserAccess, UserDetail, UserEdit, AuthResponse, Company, CompanyDetail, CompanyInput, GrantRequest, GrantResult, LinkRequest, ListScope, LoginRequest, NewUser, Report, ReportDetail, ReportInput, ReportLink, TokenStore, User, ViewerConfig } from '../types';
 import { companyBody, composeReportCatalog, numericId, reportBody, toActive, toAssignment, toAuditEntry, toUserAccess, toUserDetail, toCompany, toCompanyDetail, toDirectoryUser, toReport, toReportDetail, toReportLink, toUser, toViewerConfig, type AccessDto, type AssignmentDto, type CompanyDto, type CompanyFormDto, type CompanyLinkDto, type ReportDto, type ReportFormDto, type UserDto } from './adapters';
 
