@@ -15,7 +15,7 @@
 
 ## 2. Condiciones de la prueba T-EXP real
 
-1. Disponer de una **cuenta QA ya autorizada** (nunca desactivar usuarios reales), con sesión en un navegador desde hace más de 24 horas. No cerrar sesión antes de capturar el comportamiento. El caso no es ejecutable inmediatamente si no existe una sesión QA caducada.
+1. Disponer de una **cuenta QA ya autorizada** (nunca desactivar usuarios reales), con sesión en un navegador desde hace más de **3 horas** cuando D4 confirme que el TTL efectivo sigue siendo **10800 s**; si cambia, usar el TTL atestado. No cerrar sesión antes de capturar el comportamiento. El caso no es ejecutable inmediatamente si no existe una sesión QA caducada.
 2. Utilizar exclusivamente la URL de Flutter actualmente autorizada por el usuario / Infraestructura. No usar puertos internos o entornos de producción alternativos improvisados.
 3. Tener permiso funcional para abrir una pantalla de solo lectura, p. ej. listado de empresas o reportes. No editar, guardar, eliminar o asignar datos.
 4. En Chrome / Edge: F12 → **Network** → **Fetch/XHR**; activar **Preserve log** y limpiar el panel. No grabar HAR, no compartir pestaña Headers ni Request Payload, no pegar tokens/cookies.
@@ -28,7 +28,7 @@
 
 | Caso | Evidencia mínima | Resultado |
 | --- | --- | --- |
-| TEXP-01: sesión QA caducada | >24 horas desde login de QA, sin reautenticación | PASS / INCONCLUSO |
+| TEXP-01: sesión QA caducada | Mayor que TTL efectivo atestado (actualmente 3 h), sin reautenticación | PASS / INCONCLUSO |
 | TEXP-02: petición protegida | HTTP 401 documentado en petición **GET** | PASS / INCONCLUSO |
 | TEXP-03: reacción UI | Login automático, aviso claro, «Observación», listas vacías u otra | OBSERVADO / INCONCLUSO |
 | TEXP-04: recuperación | Tras login QA, pantalla GET vuelve a funcionar con HTTP 200 | PASS / FAIL / INCONCLUSO |
@@ -39,7 +39,7 @@
 ## 4. Precondiciones adicionales de compatibilidad
 
 - **D3/JWT tipado:** `user_id` y `session_version` deben salir como números enteros en el token generado por el login legado. Confirmar mediante QA aislado con **fuente exacta** de `controllers/AuthController.php` y `lib/db.php` o informe de tipos **no sensible** emitido por Infraestructura (`user_id_int=PASS`, `session_version_int=PASS`), nunca copiando token. El repositorio React no prueba que esas fuentes sean idénticas al servidor legacy.
-- **D4:** atestación sin exponer `JWT_SECRET` y `JWT_EXPIRATION = 86400`. No alterar secretos ni expiraciones para forzar la prueba.
+- **D4:** atestación sin exponer `JWT_SECRET`. Valor efectivo observado previamente `JWT_EXPIRATION=10800` (3 horas), diferente del valor propuesto `86400` (24 horas). No cambiar secretos ni expiraciones para forzar la prueba; documentar decisión de política antes de liberar.
 - **C-5:** distribución de roles reales sin datos individuales. `admin` / `user` / `usuario` son los únicos aceptados por el helper P5.
 - Mantener bloqueos K1/K2/F-10/P4b y planificación de rollback hasta cierre.
 
@@ -48,7 +48,7 @@
 ```text
 TEXP_FECHA=AAAA-MM-DD
 TEXP_CUENTA=QA (sin nombre ni correo)
-TEXP_SESION_MAYOR_24H=SI|NO|DESCONOCIDO
+TEXP_SESION_SUPERA_TTL_ATESTADO=SI|NO|DESCONOCIDO
 TEXP_GET_PROTEGIDO_HTTP=401|OTRO|NO_OBSERVADO
 TEXP_UI=LOGIN|AVISO|OBSERVACION|VACIO|OTRO|NO_OBSERVADO
 TEXP_RECUPERACION_POSTLOGIN=200|FALLO|NO_EJECUTADA

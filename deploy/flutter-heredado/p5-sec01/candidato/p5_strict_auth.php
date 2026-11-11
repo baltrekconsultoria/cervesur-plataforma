@@ -45,9 +45,13 @@ function p5_strict_db_role($raw) {
  * @param string $secret JWT_SECRET real — nunca loguearlo ni pasarlo por CLI.
  * @param PDO $pdo Conexión ya existente del backend PHP (solo SELECT).
  * @param ?int $now Reloj inyectable solo para pruebas aisladas.
+ * @param ?int $maxRemainingSeconds Limite de expiracion RESTANTE. NULL conserva el contrato aislado previo (86400),
+ *                                   la integracion real exige valor de JWT_EXPIRATION del servidor.
  * @return array{user_id:int,username:string,email:string,role:string}|false
  */
-function p5_strict_authenticate_jwt($token, $secret, PDO $pdo, $now = null) {
+function p5_strict_authenticate_jwt($token, $secret, PDO $pdo, $now = null, $maxRemainingSeconds = null) {
+    if ($maxRemainingSeconds === null) { $maxRemainingSeconds = 86400; } // compatibilidad con QA del PR #15
+    if (!is_int($maxRemainingSeconds) || $maxRemainingSeconds < 1 || $maxRemainingSeconds > 86400) { return false; }
     if (!is_string($token) || strlen($token) < 20 || strlen($token) > 8192 ||
         !is_string($secret) || $secret === '') {
         return false;
@@ -93,10 +97,11 @@ function p5_strict_authenticate_jwt($token, $secret, PDO $pdo, $now = null) {
         return false;
     }
 
-    // D4 mantiene JWT_EXPIRATION=86400. Un token firmado con expiración
-    // excepcionalmente lejana no se acepta aunque su firma sea correcta.
-    // Se admite una tolerancia de 60 s por desfase de reloj.
-    if ($payload['exp'] > $clock + 86400 + 60) {
+    // P5-SEC03: no aumentar el TTL real de Flutter. El llamador productivo
+    // proporciona JWT_EXPIRATION estrictamente validado (hoy 10800 segundos).
+    // Sin iat, esto acota el tiempo RESTANTE, no la edad total del JWT.
+    // Se admite tolerancia de 60 s por desfase de reloj.
+    if ($payload['exp'] > $clock + $maxRemainingSeconds + 60) {
         return false;
     }
 
