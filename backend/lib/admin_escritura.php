@@ -211,7 +211,28 @@ function admin_write_grants_violations(array $grants, $db, $flags = null, $toler
             }
         }
     }
+    // P5-R: además de no conceder roles, la capacidad de reset requiere la
+    // concesión mínima efectiva. Sin ella no anunciamos reset listo: 503 fail-closed.
+    if ($flags !== false && !empty($flags['passwordReset']) &&
+        !admin_password_only_grant_present($grants, $db)) {
+        $violations[] = 'P5-R: falta UPDATE(password) por columnas en user';
+    }
     return array_values(array_unique($violations));
+}
+
+/** Exige UPDATE(password) exclusivamente por columnas en la tabla user, no por tabla completa. */
+function admin_password_only_grant_present(array $grants, $db) {
+    $wanted = strtolower((string)$db) . '.user';
+    foreach ($grants as $line) {
+        if (!preg_match('/^GRANT\\s+(.+?)\\s+ON\\s+(.+?)\\s+TO\\s+/is', trim((string)$line), $match)) {
+            continue;
+        }
+        $object = strtolower(str_replace('`', '', trim($match[2])));
+        if ($object !== $wanted) { continue; }
+        $updates = admin_grant_columns($match[1])['UPDATE'] ?? null;
+        if (is_array($updates) && in_array('password', $updates, true)) { return true; }
+    }
+    return false;
 }
 
 /**
