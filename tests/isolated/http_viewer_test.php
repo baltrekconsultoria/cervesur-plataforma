@@ -48,7 +48,12 @@ $pdo->exec('ALTER TABLE reporte MODIFY grupo_id VARCHAR(36) NOT NULL');
 $pdo->exec('ALTER TABLE reporte MODIFY enlace VARCHAR(255) NULL');
 $before = (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte');
 [$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Sin migrar', 'enlace' => $PUBLIC], $admin);
-expectCase(($d['success'] ?? true) === false && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $before && !preg_match('/SQLSTATE|grupo_id|Column|PDO/i', $GLOBALS['lastResponse']), 'before the migration a link-only report is refused without leaking database detail');
+$probeId = (int)($d['data']['id'] ?? 0);
+$probe = $probeId ? row($pdo, 'SELECT grupo_id, reporte_id FROM reporte WHERE id = ?', [$probeId]) : [];
+expectCase(($d['success'] ?? false) === true && $probeId > 0 && preg_match($UUID_RE, (string)($probe['grupo_id'] ?? '')) === 1
+    && $probe['grupo_id'] === $probe['reporte_id'], 'UX-08B4: public link uses a unique internal UUID as grupo_id on NOT NULL schema without DDL');
+$pdo->prepare('DELETE FROM reporte WHERE id = ?')->execute([$probeId]);
+expectCase((int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $before, 'UX-08B4: fixture removed before existing UX-07C migration tests');
 $longToken = str_repeat('A', 400);
 [$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Enlace largo', 'enlace' => "https://app.powerbi.com/view?r=$longToken"], $admin);
 expectCase(($d['success'] ?? true) === false && stripos($d['message'] ?? '', 'supera el máximo') !== false && str_contains($d['message'] ?? '', '255') && stripos($d['message'] ?? '', 'UX-07C') === false, 'before the migration a link longer than the column is refused and states the real column length (no longer recommends the UX-07C migration)');
