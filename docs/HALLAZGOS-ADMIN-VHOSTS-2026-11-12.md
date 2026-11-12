@@ -110,3 +110,29 @@ El operador ejecuto un lector de directivas de dos vhosts. El resultado extraido
 4. Solo con el backend efectivo confirmado, ejecutar el loader `env.php` en modo lectura y reportar exclusivamente `DB_TARGET=PRODUCCION/OTRA/INDETERMINADA`, nunca `DB_PASS`, `DB_USER`, valores de `.env` ni acceso de usuarios.
 
 Estado: **sin cambios en Apache ni MySQL**, usuarios productivos 190 total / 176 activos / 14 inactivos, 114 activados aun sin credenciales inicializadas. PR #23 sigue borrador.
+
+## 10. PuTTY: comparacion de valores literales de Define y loaders en 443/8443
+
+Salida validada del operador (sin emitir valores privados):
+
+```text
+FRONT=DIFERENTES
+BACKEND=DIFERENTES
+SESSIONS=DIFERENTES
+ADMIN_BACKEND_LOADER=FOUND
+ADMIN_BACKEND_LOADER_READABLE=YES
+ARCHIVO=cervesur-react-admin
+DIRECTIVE=AliasMatch
+DIRECTIVE=DocumentRoot
+ARCHIVO=cervesur-react-usuarios
+DIRECTIVE=AliasMatch
+DIRECTIVE=DocumentRoot
+```
+
+**Alcance confirmado:** los valores LITERALES de los tres Define en cada archivo de VirtualHost difieren; el backend señalado por el Define de 8443 contiene `lib/env.php` legible por `www-data`; cada archivo Include presenta `AliasMatch` y `DocumentRoot` (solo se imprimieron los nombres de directivas). Sigue sin probarse que las rutas EFECTIVAS del Apache vhost sean distintas por la semántica GLOBAL de `Define` y el orden de parseo; no se debe asumir aislamiento efectivo de procesos, DB ni cookies hasta verificar.
+
+**Siguiente comprobación segura:** con `www-data`, localizar el Define BACKEND del archivo 8443, exigir que sea ruta absoluta y que exista `lib/env.php`, cargarlo en PHP CLI sin imprimir contenido ni variables privadas, borrando primero DB_NAME/DB_HOST/DB_USER/DB_PASS heredados del entorno; mostrar unicamente la clasificación `ADMIN_DB_TARGET=PRODUCCION/OTRA/INDETERMINADA` segun `getenv('DB_NAME') === 'cervesur_portalbi'`. Repetir para 443 si conviene comparar. No consultar ni copiar emails, hashes, tokens o contraseñas; no modificar Apache ni bases.
+
+**Precaución:** este test determina el DB_NAME del loader en la RUTA DECLARADA de 8443, pero por los Define globales NO basta para demostrar que Apache haya montado efectivamente esa misma ruta. Correlacionar luego AliasMatch, vhost y respuesta HTTP con autenticacion controlada/TLS validado. Solo tras confirmacion de DB real habilitar funciones para los 190 usuarios y el onboarding individual.
+
+Estado productivo inalterado: 190 usuarios, 176 activos, 14 inactivos; 114 migrados activos pero sin credenciales inicializadas.
