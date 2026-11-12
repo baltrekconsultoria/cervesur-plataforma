@@ -7,7 +7,9 @@ if [ "$(id -u)" -ne 0 ]; then echo "P5R_ROOT=REQUIERE_SUDO"; exit 2; fi
 BE=/opt/cervesur-react-admin/backend
 PUB=/var/www/cervesur-react-admin/public
 ENV_FILE="$BE/.env"
-CERT=/etc/apache2/cervesur-react-admin/tls/servidor.crt
+# El VHost corporativo usa certificado IP, firmado por CA interna (no el autofirmado localhost).
+CERT=/etc/apache2/cervesur-react-admin/tls-corp/servidor.crt
+CA_FILE="${CERVESUR_P5R_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}"
 RESULT=PASS
 check() { # etiqueta resultado
   echo "$1=$2"
@@ -18,6 +20,7 @@ read_flag() {
   awk -F= -v key="$1" '$1==key { sub(/^[^=]*=/, ""); x=$0 } END { print x }' "$ENV_FILE" | tr -d '\r'
 }
 [ -f "$ENV_FILE" ] && [ -d "$PUB" ] && [ -f "$CERT" ] && [ -d "$BE" ] && check P5R_ARCHIVOS PASS || check P5R_ARCHIVOS NO_GO
+[ -r "$CA_FILE" ] && check P5R_CA_DISPONIBLE PASS || check P5R_CA_DISPONIBLE NO_GO
 [ "$(read_flag CERVESUR_MODE)" = admin_escritura ] && [ "$(read_flag CERVESUR_REQUIRED_MODE)" = admin_escritura ] && check P5R_MODO PASS || check P5R_MODO NO_GO
 [ "$(read_flag ADMIN_WRITES_USUARIOS)" = 1 ] && check P5R_U_BASIC_ON PASS || check P5R_U_BASIC_ON NO_GO
 [ "$(read_flag ADMIN_WRITES_USUARIOS_SENSIBLE)" != 1 ] && [ "$(read_flag ADMIN_WRITES_USUARIOS_PASSWORD_RESET)" != 1 ] && check P5R_P5_SENSIBLE_OFF PASS || check P5R_P5_SENSIBLE_OFF NO_GO
@@ -42,7 +45,9 @@ else
 fi
 if command -v apache2ctl >/dev/null 2>&1 && apache2ctl configtest >/dev/null 2>&1; then check P5R_APACHE PASS
 else check P5R_APACHE NO_GO; fi
-if curl -fsS -m 10 --cacert "$CERT" --resolve 'localhost:8443:192.168.200.12' https://localhost:8443/api/ping >/dev/null 2>&1; then check P5R_8443 PASS
+# Se verifica la identidad IP del certificado PRESENTADO y su cadena de confianza;
+# nunca -k, ni --resolve a localhost, ni CA autofirmada del antiguo piloto.
+if curl --noproxy '*' -fsS -m 10 --cacert "$CA_FILE" https://192.168.200.12:8443/api/ping >/dev/null 2>&1; then check P5R_8443 PASS
 else check P5R_8443 NO_GO_TLS_O_HTTP; fi
 if command -v mysql >/dev/null 2>&1; then
   grants=$(mysql -N -B -e "SHOW GRANTS FOR 'cervesur_escritura_adm'@'127.0.0.1'" 2>/dev/null) || grants=""
