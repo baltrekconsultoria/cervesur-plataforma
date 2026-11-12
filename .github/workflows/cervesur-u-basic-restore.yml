@@ -1,0 +1,59 @@
+name: Cervesur U-BASIC P2 isolated restoration QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-u-basic-restore.yml"
+  push:
+    branches:
+      - "feat/cervesur-u-basic-p2-restore-isolated-20261112"
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-u-basic-restore.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  restore-unit:
+    name: Static/isolated test of no-production-write restoration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile Python sources
+        run: |
+          python3 -m py_compile ops/u-basic/backup_u_basic.py
+          python3 -m py_compile ops/u-basic/restore_verify.py
+          python3 -m py_compile ops/u-basic/test_restore_verify.py
+      - name: Run offline restoration tests
+        run: python3 -m unittest discover -s ops/u-basic -p "test_restore_verify.py" -v
+      - name: Mark no real data accessed
+        run: |
+          echo "RESTORE_QA_OFFLINE=PASS"
+          echo "MYSQL_PRODUCTIVO_CONTACTADO=NO"
+          echo "ACTIVACION_U_BASIC=NO_REALIZADA"
+
+  restore-mysql8-integration:
+    name: Real MySQL8 synthetic backup restore (air-gapped)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pull official MySQL8 test image
+        run: docker pull mysql:8.0
+      - name: Restore seven synthetic tables, audit triggers and admin state
+        env:
+          CERVESUR_RESTORE_INTEGRATION: "1"
+        run: python3 -m unittest discover -s ops/u-basic -p "test_restore_mysql8_integration.py" -v
+      - name: Mark production untouched
+        run: |
+          echo "SYNTHETIC_RESTORE=PASS"
+          echo "DOCKER_NETWORK=none"
+          echo "MYSQL_PRODUCTIVO_CONTACTADO=NO"
