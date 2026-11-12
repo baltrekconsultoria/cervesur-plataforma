@@ -244,3 +244,23 @@ MISMA_CUENTA_MYSQL=NO
 **Precisión de mínimo privilegio:** el AuthController del código de GitHub hace `SELECT * FROM user` y luego `UPDATE user SET last_login=NOW()`; un ajuste estrictamente de columnas requiere además revisar todos los SELECT a user y eventualmente modificar el código para no usar `SELECT *`, ensayar en QA y autorizar el despliegue. Un GRANT sobre toda la tabla concede lectura de hashes y demás columnas y debe evaluarse explícitamente, nunca aplicarlo de manera automática.
 
 Postura de seguridad: el repositorio GitHub es público; no publicar identificadores reales `CURRENT_USER()`, `@@server_uuid`, rutas `.env`, nombres de cuentas SQL, secretos ni GRANT completos. Mantener 443 y 8443 independientes; no sustituir cuentas ni ampliar a `*.*`.
+
+## 16. QA visual del portal administrativo HTTPS 8443 (12/11/2026) — DIRECTORIO PASS
+
+El operador accedió al portal corporativo administrativo y compartió una captura de `/admin/usuarios`. La captura mostraba el encabezado `ADMINISTRACIÓN · Datos reales de Cervesur`, menú lateral con `Usuarios`, `Empresas`, `Reportes`, `Informes por empresa`, `Accesos y asignaciones`, `Historial` y `Mi perfil`, y filtros de búsqueda, rol y estado. Con Estado=`Activos` se lee literalmente `Mostrando 176 de 190 usuarios`. El operador confirmó además que el filtro de inactivos muestra 14.
+
+| Control | Evidencia | Resultado |
+|---|---|---|
+| Admin React visible en navegador | Ruta `Administración > Usuarios`, página operativa con datos reales | PASS visual |
+| Activos | Captura: `Mostrando 176 de 190 usuarios`, Estado=`Activos` | PASS visual |
+| Inactivos | Confirmación explícita del operador: 14 | PASS manual declarado |
+| Total | 190 en interfaz y conteos de PDO admin | PASS |
+| Coherencia | 176 + 14 = 190, igual a postflight de migración | PASS |
+
+**No se subió la captura al repositorio público** porque contiene nombres y correos de usuarios. Esta nota conserva exclusivamente métricas y estructura funcional sin PII.
+
+**Nuevos matices:** el portal ADMIN corporativo muestra una interfaz más completa que el módulo React genérico revisado previamente en `frontend/src/features/admin/AdminPages.tsx`. La captura demuestra que el portal instalado tiene navegación para empresas/reportes/asignaciones/historial, pero no prueba aún que todas las escrituras estén habilitadas ni que su código coincida con la rama. No asumir funcionalidad de editar, alta, baja, reset o import masivo sin pruebas de capacidades. La captura muestra `0` informes en filas visibles; no inferir que todos los 190 tengan 0 o que no existan informes generales.
+
+**Pendientes de habilitación real:** 114 migrados activos continúan sin contraseña individual inicializada. El backend declarado del portal de USUARIOS 443 conserva error SQL `PERMISO_SELECT` sobre `user`, pese a compartir servidor con ADMIN; resolver con privilegio mínimo tras auditar GRANTS y código desplegado. Hasta resolver 443, no distribuir accesos ni ejecutar onboarding masivo.
+
+**Siguiente paso aconsejado:** QA de SOLO LECTURA en `Empresas`, `Reportes`, `Informes por empresa`, `Accesos y asignaciones` (contar entidades/relaciones sin copiar nombres, enlaces o PII). Paralelamente auditar grants de cuenta del portal 443 para identificar permiso SQL mínimo `SELECT` al autenticar y quizá `UPDATE last_login`. No modificar MySQL, Apache, frontend ni producción sin aprobación de cambio.
