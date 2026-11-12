@@ -43,6 +43,31 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aaaaaaa. D3-08 — JSON final de router/controller/model/K2, QA integrado 4/4 (12/11)
+
+El operador ejecutó en VPS el kit `d3_k2_router_sandbox.py` + `d3_k2_router_fixture.php` previamente validado y descargado con SHA de blob. Se recibieron estos resultados:
+```text
+D3_KIT_INTEGRIDAD=PASS
+PHP_LINT=PASS
+D3_K2_ROUTER_SELFTEST=PASS
+D3_K2_ROUTER_SELFTEST_PRODUCCION_CONTACTADA=NO
+D3_K2_ROUTER_FUENTES=PASS_3_PINNED_Y_ROUTER_COPIADO
+D3_K2_ROUTER_GETALL=PASS_JSON_SIN_SECRETO_SINTETICO
+D3_K2_ROUTER_GETBYID=PASS_JSON_SIN_SECRETO_SINTETICO
+D3_K2_ROUTER_SEARCH=PASS_JSON_SIN_SECRETO_SINTETICO
+D3_K2_ROUTER_GETBYCITY=PASS_JSON_SIN_SECRETO_SINTETICO
+D3_K2_ROUTER_GLOBAL=PASS_ACOTADO_JSON_4_DE_4
+D3_K2_AUTH=SIMULADA_NO_ES_PRUEBA_DE_ROLE_403
+D3_K2_HTTP_REAL=NO_PROBADO
+MYSQL_PRODUCTIVO_CONTACTADO_POR_HARNESS=NO
+DATOS_PERSONALES_LEIDOS=NO
+U_BASIC_ACTIVADO=NO
+```
+
+**Interpretación:** se acreditó el encadenamiento *en copia aislada* de la ruta instalada de empresa con controlador, modelo y sanitizador K2 y la salida JSON sin valor/clave sensible para las cuatro rutas GET con un marcador ficticio. La exposición de secreto sintético en el modelo (4/4) **no se propagó al JSON del flujo integrado**. Por tanto, `K2_GET_JSON_AISLADO=PASS_4_DE_4`; no hay evidencia de fuga HTTP real. No declarar `D3-08 GLOBAL=PASS`: queda pendiente ensayar HTTP/roles reales (o prueba dinámica aislada equivalente), rutas alternativas, POST/PUT K2 y firma A-L1; el router fue copiado sin hash histórico de referencia y la identidad fue simulada. El PASS de K2 GET no cierra D3-03/05/06/07.
+
+**Decisión de control:** conservar `P4b=NO-GO`, `writes.usuarios=false` y `users_sensitive=false`; el bloqueo ya no es la falta de una prueba del filtro K2 GET, sino la cobertura y aprobaciones de D3 restante, escritura K2 y procedimiento de alta F10.
+
 ## 4aaaaaa. D3-08 — K2 instalado y funciona en los cuatro formatos (12/11)
 
 Evidencia posterior recibida en PuTTY: `K2_SHA=PASS`, `K2_ROUTER_GETALL/GETBYID/SEARCH/GETBYCITY=REFERENCIA_K2_DETECTADA`, `K2_SANITIZADOR_GETALL/GETBYID/SEARCH/GETBYCITY=PASS`, `K2_QA_SINTETICO=PASS_4_DE_4`. Sin consultas MySQL, uso de secretos reales ni cambios productivos.
