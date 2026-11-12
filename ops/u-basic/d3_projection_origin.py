@@ -78,9 +78,8 @@ def helper_status(body: str | None) -> str:
     for call in re.finditer(r"\b([A-Za-z_]\w*)\s*\(", unquoted):
         if call.group(1) not in {"app_mode", "app_mode_is_read_only", "strtolower"}:
             return "REVISAR_FUNCION"
-    if re.search(r"\breturn\b", unquoted, re.I):
-        return "INDICIO_LITERALES_SIN_SECRETO"
-    return "REVISAR_AMBIGUO"
+    # The pattern above captured expressions after "return", not the keyword.
+    return "INDICIO_LITERALES_SIN_SECRETO"
 
 
 def audit(src: str) -> dict[str, str]:
@@ -106,8 +105,9 @@ def audit(src: str) -> dict[str, str]:
         detected_helpers = set()
         for fragment in fragments:
             detected_helpers.update(DYNAMIC_HELPER.findall(fragment))
-        unquoted = [QUOTED.sub("''", fragment) for fragment in fragments]
-        if any(re.search(r"\$this\s*->\s*\w+\s*\(", x) for x in unquoted):
+        # A PHP concatenation may sit between quoted string fragments.
+        # Stripping quote-pairs can accidentally remove the helper itself.
+        if detected_helpers:
             if len(detected_helpers) == 1:
                 name_of_helper = next(iter(detected_helpers))
                 status = helper_status(bodies.get(name_of_helper))
@@ -118,6 +118,8 @@ def audit(src: str) -> dict[str, str]:
                 )
             else:
                 output[f"LECTURA_{name.upper()}"] = "REVISAR_MULTIPLES_HELPERS"
+        elif any("$" in fragment for fragment in fragments):
+            output[f"LECTURA_{name.upper()}"] = "REVISAR_FRAGMENTO_VARIABLE"
         else:
             output[f"LECTURA_{name.upper()}"] = "INDICIO_SELECT_LITERAL_SIN_SECRETO"
     output["HELPER_POWERBI_COLUMNS"] = (
