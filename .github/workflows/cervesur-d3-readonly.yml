@@ -13,6 +13,8 @@ on:
       - "ops/u-basic/test_d3_projection_origin.py"
       - "ops/u-basic/d3_empresa_sandbox.py"
       - "ops/u-basic/d3_empresa_fixture.php"
+      - "ops/u-basic/d3_k2_router_fixture.php"
+      - "ops/u-basic/d3_k2_router_sandbox.py"
       - "ops/u-basic/test_d3_readonly_gate.py"
       - "ops/u-basic/D3-READONLY-GATE.md"
       - ".github/workflows/cervesur-d3-readonly.yml"
@@ -31,6 +33,8 @@ on:
       - "ops/u-basic/test_d3_projection_origin.py"
       - "ops/u-basic/d3_empresa_sandbox.py"
       - "ops/u-basic/d3_empresa_fixture.php"
+      - "ops/u-basic/d3_k2_router_fixture.php"
+      - "ops/u-basic/d3_k2_router_sandbox.py"
       - "ops/u-basic/test_d3_readonly_gate.py"
       - ".github/workflows/cervesur-d3-readonly.yml"
 permissions:
@@ -44,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Python syntax check
-        run: python3 -m py_compile ops/u-basic/d3_readonly_gate.py ops/u-basic/test_d3_readonly_gate.py ops/u-basic/d3_source_indicators.py ops/u-basic/test_d3_source_indicators.py ops/u-basic/d3_secret_read_triage.py ops/u-basic/test_d3_secret_read_triage.py ops/u-basic/d3_projection_origin.py ops/u-basic/test_d3_projection_origin.py ops/u-basic/d3_empresa_sandbox.py
+        run: python3 -m py_compile ops/u-basic/d3_readonly_gate.py ops/u-basic/test_d3_readonly_gate.py ops/u-basic/d3_source_indicators.py ops/u-basic/test_d3_source_indicators.py ops/u-basic/d3_secret_read_triage.py ops/u-basic/test_d3_secret_read_triage.py ops/u-basic/d3_projection_origin.py ops/u-basic/test_d3_projection_origin.py ops/u-basic/d3_empresa_sandbox.py ops/u-basic/d3_k2_router_sandbox.py
       - name: Security fixtures (offline only)
         run: cd ops/u-basic && python3 -m unittest -v test_d3_readonly_gate test_d3_source_indicators test_d3_secret_read_triage test_d3_projection_origin
       - name: D3 synthetic PHP syntax and read-only safeguards
@@ -52,6 +56,8 @@ jobs:
           php -l ops/u-basic/d3_auth_synthetic.php
           php -l ops/u-basic/d3_auth_no_sqlite.php
           php -l ops/u-basic/d3_empresa_fixture.php
+          php -l ops/u-basic/d3_k2_router_fixture.php
+          python3 ops/u-basic/d3_k2_router_sandbox.py --self-test
           python3 ops/u-basic/d3_empresa_sandbox.py --self-test
           php ops/u-basic/d3_auth_no_sqlite.php --fixture-test
           python3 - <<'PY'
