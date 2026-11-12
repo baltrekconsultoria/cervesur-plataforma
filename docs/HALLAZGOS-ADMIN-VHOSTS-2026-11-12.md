@@ -159,3 +159,28 @@ Con ruta BACKEND de admin declarada y `www-data`, usar su `lib/env.php` para abr
 Finalmente correlacionar con los Aliases efectivos y un login admin por navegador de confianza y certificado TLS validado. Sin certificar esas puertas, NO realizar deploy/merge ni proclamar habilitada administracion React sobre los 190 usuarios.
 
 Esta fase no modifica Apache, Flutter, produccion ni cuentas.
+
+## 12. PuTTY: consulta PDO agregada admin PASS; usuarios ERROR (12/11/2026)
+
+Se intentó con PHP CLI bajo `www-data` ejecutar `lib/env.php`, conectar PDO y hacer una transacción READ ONLY con SELECT agregado de la tabla `user` de cada BACKEND **declarado** por su Define en los vhosts corporativos. No hubo escrituras.
+
+Salida aportada:
+
+```text
+=== CERVESUR: VALIDACION MYSQL REAL ===
+PORTAL=admin
+TOTAL=190
+ACTIVOS=176
+INACTIVOS=14
+DB_COUNTS=PASS
+PORTAL=usuarios
+DB_READ=ERROR
+```
+
+**Conclusión precisa:** el backend DECLARADO de admin 8443 pudo conectarse por PDO a una base `cervesur_portalbi` cuyos conteos coinciden con el POSTFLIGHT independiente de la migración y activación de 114 usuarios (190/176/14). Esto es evidencia fuerte a favor de conexión del backend admin declarado con los datos productivos; aún falta verificar la asignación EFECTIVA de Apache y probar UI autenticada.
+
+En contraste, el backend DECLARADO de usuarios 443 declaró `DB_NAME=cervesur_portalbi` al cargar `env.php`, pero la consulta agregada devolvió `DB_READ=ERROR` sin categoría interna. NO se sabe todavía si el fallo es permiso de lectura del loader, variables incompletas, conexión MySQL, transacción READ ONLY o SELECT sin permisos. **No asumir** problema de red, caída del portal, ausencia de registros o necesidad de cambiar permisos. `/api/ping` respondió 200 para el portal 443, pero no demuestra conectividad PDO. La prueba tuvo salida genérica intencionada para evitar filtrar secretos.
+
+**Siguiente puerta de diagnóstico (solo 443, SOLO LECTURA):** repetir una prueba PHP CLI segregada por etapas (`LOADER`, `CONFIG`, `PDO_CONNECT`, `READ_ONLY`, `SELECT`, `COUNTS`), sin imprimir excepción, DSN, DB_HOST, DB_USER, DB_PASS, .env, usuarios, hashes ni PII. Al fallar, devolver únicamente la etapa `ERROR_STAGE=...`. Si conecta pero cuentas difieren, mostrar solo agregados y `COUNTS=STOP`. No modificar `GRANT`, `.env`, Apache, frontend ni DB.
+
+**Siguiente incremento tras aislar 443:** validar rutas Apache efectivas y autorización TLS/JWT del portal admin 8443; luego gestión de usuarios e inicialización individual de las 114 contraseñas, con aprobación de cambios por separado. PR #23 continúa en borrador.
