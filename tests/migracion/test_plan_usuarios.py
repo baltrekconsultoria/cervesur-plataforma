@@ -75,6 +75,14 @@ class UsuariosTests(unittest.TestCase):
             with self.assertRaisesRegex(PlanError, "ESQUEMA_O_ORIGEN"):
                 leer(new, "legado")
 
+    def test_colision_de_login_entre_email_y_username(self):
+        old = [user(1, "nuevo@test.example", "existing@test.example")]
+        new = [user(4, "existing@test.example", "actual")]
+        plan = construir(old, new)
+        self.assertEqual(plan["resumen"]["candidatos_inactivos"], 0)
+        self.assertEqual(plan["revisiones_privadas"][0]["motivo"],
+                         "COLISION_CREDENCIAL_CRUZADA")
+
     def test_origen_duplicado_detiene(self):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / "usuarios-legado.json"
