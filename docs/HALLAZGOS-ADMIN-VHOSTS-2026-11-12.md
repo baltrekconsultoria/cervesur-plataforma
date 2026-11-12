@@ -291,3 +291,26 @@ El operador aportó tres capturas de su sesion ADMIN 8443 de las pantallas `Empr
 5. Mantener como bloqueos para usuarios finales el privilegio SQL SELECT denegado en backend declarado 443 y la inicialización individual segura de credenciales de 114 cuentas activadas. Resolver con QA y autorización previa.
 
 Las etiquetas y botones de la UI por sí solos no prueban que los permisos administrativos de escritura estén activados o que cada acción se audite: solo se ha evaluado lectura.
+
+## 18. QA Informes por empresa y baja lógica de empresa ficticia (12/11/2026)
+
+El operador aportó capturas del portal administrativo 8443 `Informes por empresa` para 5 empresas corporativas en modo visual/lectura. Capturas NO anexadas a GitHub por motivos de confidencialidad operativa.
+
+| Empresa | Informes asociados | Informes disponibles | Total de informes únicos considerado por selector |
+|---|---:|---:|---:|
+| Alprosa | 8 | 74 | 82 |
+| Creditex | 55 | 27 | 82 |
+| Proagro | 3 | 79 | 82 |
+| Texgroup | 5 | 77 | 82 |
+| Transaltisa | 13 | 69 | 82 |
+| **Suma de vínculos** | **84** | — | **82 informes activos únicos en catálogo** |
+
+**Conciliación de 84 vs 82 aclarada visualmente**: en la lista de Texgroup hay dos entradas con la insignia `Compartido con 1 más` (informes de catálogo `DASHBOARD_PRESUPUESTAL_CERVESUR_023` y `DASHBOARD_PRESUPUESTAL_CERVESUR_010`). El menú de informes disponibles indica relaciones previas con otras empresas. Dos informes compartidos, cada uno con una segunda relación, explican que 82 informes activos únicos generen 84 asociaciones empresa-informe. Esta evidencia concilia los indicadores y **no requiere corregir reportes por la diferencia de conteos**. La conciliación es visual; un agregado SQL de solo lectura podría verificar las dos relaciones en caso de exigencia formal.
+
+**Cambio real realizado por el OPERADOR (no por el asistente)**: desactivó desde 8443 la empresa ficticia `Test SAC` tras observar en el listado anterior `0 informes activos` y `0 usuarios`. La captura posterior muestra el mensaje `Empresa «Test SAC» desactivada correctamente` y filtro `Activas`: `Mostrando 5 de 26 empresas` (antes 6/26). Se trata aparentemente de baja lógica porque el sistema anuncia bajas reversibles y el total sigue 26. Esto es confirmación visual de operación de desactivación ejecutada por usuario; **todavía no se verificó historial/audit_log de esa acción**.
+
+**Estado posterior esperado por vistas**: 26 empresas totales, 5 activas, 21 inactivas; 82 reportes activos de 95 totales; 84 vínculos activos empresa-informe entre las 5 empresas; 91 asignaciones vigentes de 103 totales; 190 usuarios (176 activos, 14 inactivos). De los informes disponibles en cada empresa, nunca inferir URLs Power BI válidas ni estado de publicación.
+
+**Hallazgo de UX**: algunas tarjetas en las dos columnas del selector de informes disponibles presentan nombres muy largos visualmente solapados/desbordados en las capturas. Es un defecto de presentación potencial para backlog, no un indicio de corrupción de datos; verificar en responsive antes de intervención.
+
+**Próximos controles**: 1) En `Historial`, confirmar la desactivación de Test SAC y su autor/fecha (sin publicar datos personales). 2) Construir conciliación del inventario completo de dashboards Power BI optimizados vs 95 registros de reportes (82 activos), distinguiendo nombres, empresa, URL, usuarios y relaciones actuales. 3) NO crear, vincular, desvincular ni sobreescribir enlaces a ciegas. 4) Resolver permisos SELECT de backend 443 y después onboarding individual de 114 usuarios sin contraseñas conocidas; no repetir migración ni aplicar GRANT no autorizado.
