@@ -26,6 +26,29 @@ python3 /opt/cervesur-u-basic-kit/d3_readonly_gate.py http --base-url http://127
 
 **No introducir un token personal en chat.** El script hace 2 GET anónimos antes de pedir JWT. El operador debe ejecutar directamente por terminal TTY privada (no `sudo -S`, no tuberías de tokens) y solo comunicar códigos de resultado. Cualquier 200 para usuario normal en listado o perfil ajeno es **NO-GO**. Las rutas de otros módulos y las pruebas negativas de escritura requieren una matriz específica posterior; no se envían peticiones que puedan escribir.
 
+## VirtualHost corporativo sin editar Apache (caso diagnostico 404)
+
+En Apache con varios sitios en puerto 80, `http://127.0.0.1/api/user` puede ir al `000-default.conf` y devolver 404 aunque el backend legacy siga operativo. Primero verificar (solo GET) con el Host del VirtualHost corporativo:
+
+```bash
+for ruta in /api/ping /api/user /api/users; do
+  curl -sS -m 8 -H "Host: IP_VHOST_CORP" -o /dev/null -w "$ruta HTTP_%{http_code}\\n" "http://127.0.0.1$ruta"
+done
+```
+
+Esperado: 200, 401, 401. Sustituir `IP_VHOST_CORP` por la IPv4 privada mostrada por `apache2ctl -S`. **No registrar esa dirección en GitHub**. No cambiar `/etc/hosts`, puertos, certificado, Apache ni la base de datos.
+
+El subcomando HTTP admite `--vhost IP_VHOST_CORP` con validación estricta de IPv4 privada; la conexión sigue a localhost y la cabecera `Host` selecciona el vhost. Esta opción se admite solo con URL local HTTP, no con HTTPS, sin redirecciones y sin cargar JWT en argumentos:
+
+```bash
+sudo python3 /opt/cervesur-u-basic-kit/d3_readonly_gate.py http \\
+  --base-url http://127.0.0.1 \\
+  --vhost IP_VHOST_CORP \\
+  --id-ajeno ID_ADMIN_QA
+```
+
+El ID ajeno debe pertenecer a una cuenta controlada distinta de la NOR-T. Si los GET anónimos fallan, detener: la herramienta no solicita tokens ni efectúa operaciones adicionales. Antes de ejecutar con JWT comprobar que las cuentas QA están autorizadas para pruebas y que los tokens son de ese backend.
+
 ## Regla de decisión
 
 - `D3_FUENTES_VALIDAS=8/8` significa **inventario+lint PASS**, no D3 funcional PASS.
