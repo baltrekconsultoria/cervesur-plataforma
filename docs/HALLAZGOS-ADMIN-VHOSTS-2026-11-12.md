@@ -201,3 +201,20 @@ El backend ADMIN 8443 permanece PASS (190 total/176 activos/14 inactivos) en la 
 **Siguiente comprobación, 443 SOLO LECTURA:** usar el mismo loader/backend bajo `www-data`, ejecutar SELECT 1, SELECT DATABASE(), SELECT COUNT(*) FROM `user`, SELECT COUNT(*) FROM `user` WHERE is_active=1, por separado y terminar en primer fallo; imprimir exclusivamente etapa y clasificacion del código numérico de MySQL: 1142/1143=>PERMISO_SELECT, 1146=>TABLA_NO_EXISTE, 1054=>COLUMNA_NO_EXISTE, 1044=>PERMISO_BASE, 1356=>VISTA_INVALIDA, otros=>NO_CLASIFICADO. Nunca mostrar mensaje de excepción, DB_HOST/USER/PASS, emails, hashes, documentos ni direcciones internas. En ausencia de fallo, mostrar solo conteos agregados y validar 190/176/14. Este diagnóstico no necesita reiniciar Apache ni afectar 8443.
 
 **Después:** si causa confirmada es privilegio SQL, verificar los GRANT efectivos de la cuenta de servicio (sin imprimir cuenta/host) y diseñar el mínimo SELECT necesario en una ventana autorizada; si instancia o tabla diferente, corregir topología y no permisos a ciegas. Mantener seguridad y QA funcional de 8443 como ruta independiente.
+
+## 14. PuTTY 443: ERROR_TABLA_USER_PERMISO_SELECT (12/11/2026)
+
+Salida literal del diagnóstico de consulta por etapas:
+
+```text
+=== CERVESUR: CAUSA SELECT PORTAL 443 ===
+DIAGNOSTICO=ERROR_TABLA_USER_PERMISO_SELECT
+```
+
+**Hallazgo confirmado:** el backend DECLARADO del portal corporativo de usuarios (443) carga la configuración y conecta a MySQL, pero MySQL deniega `SELECT COUNT(*) FROM user` con código 1142/1143, clasificado `PERMISO_SELECT` por el script. El primer fallo fue al consultar tabla `user`. Esta es una denegación de privilegios SQL para la cuenta de servicio de 443, no un error de conectividad de PDO. El portal de admin 8443 sigue en PASS para SELECT agregado (190 total/176 activos/14 inactivos). No se ejecutó ninguna modificación.
+
+**No confundir** el `403 application/json` en la API `/api/users?status=all` del portal 443 sin credenciales con la denegación SQL: el 403 HTTP puede ser una restricción deliberada a administradores y no demuestra que MySQL funcione. Una cuenta de servicio sin SELECT de `user` podría además afectar rutas de login/perfil que necesitan leer `user`; requiere prueba funcional específica con TLS validado y sin revelar credenciales.
+
+**Pendiente antes de cualquier GRANT:** verificar si 443 utiliza la misma instancia real MySQL que 8443 (por ejemplo comparar internamente `@@server_uuid` sin imprimirlo), si ambos usan distintas identidades de servicio (`CURRENT_USER()` comparado internamente, no impreso), y comprobar permisos efectivos de cuenta de 443 con `SHOW GRANTS FOR CURRENT_USER()` en memoria, clasificando sin mostrar usuario/host ni grants. No conceder privilegios globales `*.*`, no reutilizar credenciales de admin y no asumir que SELECT a tabla user debe habilitarse sin revisar qué consultas demanda el portal.
+
+**Ruta propuesta:** auditoría solo lectura de permisos/identidad y prueba funcional de login del portal 443. Si se confirma que el aplicativo necesita consultar `user` para autenticación, proponer privilegio SQL mínimo restringido a tabla/columnas requeridas, tras autorización de cambio y respaldo de GRANT; QA de 401/403, permisos, acceso limitado a empresas e informes y rollback. En paralelo, admin 8443 puede continuar con la verificación de ruta Apache efectiva y UI de 190 usuarios sin cambiar DB.
