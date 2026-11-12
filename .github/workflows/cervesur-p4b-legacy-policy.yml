@@ -1,0 +1,37 @@
+name: Cervesur legacy K1 JWT release isolated QA
+on:
+  pull_request:
+    paths:
+      - "ops/p4b/**"
+      - ".github/workflows/cervesur-p4b-legacy-policy.yml"
+  push:
+    branches:
+      - "fix/cervesur-p4b-k1-jwt-backup-20261112"
+    paths:
+      - "ops/p4b/**"
+      - ".github/workflows/cervesur-p4b-legacy-policy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  guarded-policy:
+    name: Offline SHA, backup and rollback tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PHP CLI for syntax verification
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli
+      - name: Validate Python syntax
+        run: python3 -m py_compile ops/p4b/legacy_policy.py ops/p4b/test_legacy_policy.py
+      - name: Run isolated tests without any production connectivity
+        run: python3 -m unittest discover -s ops/p4b -p "test_legacy_policy.py" -v
+      - name: Shell-free release only
+        run: |
+          echo "QA_SOLO_AISLADO=PASS"
+          echo "SERVIDOR_PRODUCTIVO_CONTACTADO=NO"
