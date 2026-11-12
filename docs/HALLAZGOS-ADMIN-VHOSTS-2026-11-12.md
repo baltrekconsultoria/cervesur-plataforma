@@ -314,3 +314,13 @@ El operador aportó capturas del portal administrativo 8443 `Informes por empres
 **Hallazgo de UX**: algunas tarjetas en las dos columnas del selector de informes disponibles presentan nombres muy largos visualmente solapados/desbordados en las capturas. Es un defecto de presentación potencial para backlog, no un indicio de corrupción de datos; verificar en responsive antes de intervención.
 
 **Próximos controles**: 1) En `Historial`, confirmar la desactivación de Test SAC y su autor/fecha (sin publicar datos personales). 2) Construir conciliación del inventario completo de dashboards Power BI optimizados vs 95 registros de reportes (82 activos), distinguiendo nombres, empresa, URL, usuarios y relaciones actuales. 3) NO crear, vincular, desvincular ni sobreescribir enlaces a ciegas. 4) Resolver permisos SELECT de backend 443 y después onboarding individual de 114 usuarios sin contraseñas conocidas; no repetir migración ni aplicar GRANT no autorizado.
+
+## 19. QA Historial: filtro Accesos, auditoria de empresa aun NO verificada (12/11/2026)
+
+El operador aporto captura del portal 8443 `Administración > Historial`. El selector `Ver` estaba configurado como **`Accesos y asignaciones`**, no `Empresas`. Con ese filtro se mostraron **2 operaciones** sobre un mismo registro de asignacion (ID interno `#114`) en fecha **2026-11-05**, una de acceso concedido y otra de acceso retirado (cambio estado activo -> inactivo). No se publica el nombre del autor presente en la captura por ser repositorio publico.
+
+**Conclusion precisa:** la pagina de Historial funciona y hay dos movimientos de accesos visibles para ese filtro. **NO permite confirmar** la anotacion de desactivacion de la empresa ficticia Test SAC, efectuada visualmente por el operador el 12/11/2026. No afirmar `AUDIT_EMPRESA=PASS` sin cambiar el filtro a `Empresas` y observar el evento correspondiente.
+
+**Proxima accion sin escrituras:** en `Historial > Ver`, seleccionar `Empresas` y revisar que exista el evento de desactivacion de Test SAC, con fecha/operacion/registro/responsable. De la captura resultante almacenar en el repo publico solo tipo de evento, fecha (sin informacion privada), estado de QA y, si procede, ID de registro no sensible; NO subir capturas con PII. Si no aparece, clasificar `AUDIT_EMPRESA=PENDIENTE` y revisar log de forma protegida antes de cerrar el gate.
+
+Los conteos ya observados siguen siendo 5 de 26 empresas activas y 190 usuarios (176 activos/14 inactivos). Sin cambios por parte del asistente.
