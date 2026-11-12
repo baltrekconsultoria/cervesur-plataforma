@@ -32,6 +32,8 @@ jobs:
       - name: Check deployment script syntax and JS module syntax
         run: |
           bash -n deploy/produccion-escritura/scripts/privilegios-usuarios.sh
+          bash -n deploy/produccion-escritura/scripts/instalar-codigo-p5r.sh
+          bash -n ops/p5r/preflight-vps-solo-lectura.sh
           bash -n deploy/produccion-escritura/scripts/interruptor-usuarios.sh
           bash -n deploy/produccion-escritura/scripts/interruptor-p5r.sh
           node --check deploy/produccion-escritura/lib-empaquetado.mjs
