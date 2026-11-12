@@ -1,0 +1,52 @@
+name: K1 F10 v2 - HTTP synthetic QA
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'deploy/flutter-heredado/k1-f10-v2-qa/**'
+      - 'tests/isolated/test_k1_f10_v2_http.py'
+      - '.github/workflows/k1-f10-v2-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k1-f10-v2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa-http-synthetic:
+    name: Verify SHA256, strict patches, PHP syntax and local HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify PHP and patch are available
+        run: |
+          set -euo pipefail
+          php -v
+          patch --version | head -n 1
+          python3 --version
+
+      - name: Run isolated HTTP QA against synthetic fixtures
+        run: |
+          set -euo pipefail
+          python3 tests/isolated/test_k1_f10_v2_http.py
+
+      - name: Validate optional legacy-routers QA harness (syntax only)
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/isolated/test_k1_f10_v2_legacy_http.py
+          python3 tests/isolated/test_k1_f10_v2_legacy_http.py --help
+          python3 tests/isolated/test_k1_f10_v2_legacy_http.py --self-test-http
+
+      - name: Explain coverage boundary
+        run: |
+          echo "Only synthetic PHP fixture HTTP tests. Legacy backend E2E and production deployment remain NO-GO."

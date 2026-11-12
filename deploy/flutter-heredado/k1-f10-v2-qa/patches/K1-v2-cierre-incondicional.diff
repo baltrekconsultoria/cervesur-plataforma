@@ -1,0 +1,21 @@
+--- a/backend/router/PowerBIRouter.php
++++ b/backend/router/PowerBIRouter.php
+@@ -6,6 +6,18 @@
+  */
+ 
+ // require_once __DIR__ . '/../lib/auth_middleware.php';
++if (!defined('POWERBI_AUTH_MODE')) {
++    define('POWERBI_AUTH_MODE', 'retirar');
++}
++
++require_once __DIR__ . '/../lib/powerbi_authz.php';
++
++// K1: retiro incondicional, incluso si existe otro modo configurado.
++if ($method === 'GET' && preg_match('/^\/api\/powerbi\/tokens\/(\d+)$/', $uri, $matches)) {
++    powerbi_registrar('retirado_forzado', (int)$matches[1]);
++    powerbi_denegar(410, 'Recurso retirado');
++}
++
+ require_once __DIR__ . '/../controllers/PowerBIController.php';
+ 
+ // GET /api/powerbi/tokens/{id} - Obtener tokens de Power BI para empresa-reporte

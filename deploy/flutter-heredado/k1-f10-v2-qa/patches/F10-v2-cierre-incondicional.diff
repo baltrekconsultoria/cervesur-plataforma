@@ -1,0 +1,19 @@
+--- a/backend/router/auth.php
++++ b/backend/router/auth.php
+@@ -59,6 +59,16 @@
+ }
+ 
+ // Endpoint de registro
++// F-10: registro publico cerrado sin excepciones de configuracion.
++if ($method === 'POST' && $uri === '/api/register') {
++    http_response_code(403);
++    echo json_encode([
++        'success' => false,
++        'message' => 'El registro de usuarios esta deshabilitado. Solicite el alta a un administrador.'
++    ]);
++    exit;
++}
++
+ if ($method === 'POST' && $uri === '/api/register') {
+     require_once __DIR__ . '/../controllers/RegisterController.php';
+ 
