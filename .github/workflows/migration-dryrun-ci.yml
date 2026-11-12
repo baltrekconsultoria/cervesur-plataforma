@@ -70,6 +70,8 @@ jobs:
           test "$result" = 'CERVESUR_USUARIOS_SCHEMA=ERROR_BASE_INCORRECTA'
       - name: QA PHP offline de importacion controlada
         run: php tests/migracion/test_usuarios_import_guard.php
+      - name: Regresion CLI --backup-sha256 sin acceso a DB
+        run: bash tests/migracion/test_usuarios_import_args.sh
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py ops/migracion/plan_usuarios.py tests/migracion/test_plan_usuarios.py ops/migracion/diagnostico_validacion_usuarios.py tests/migracion/test_diagnostico_validacion_usuarios.py
       - name: Pruebas sinteticas sin datos personales
