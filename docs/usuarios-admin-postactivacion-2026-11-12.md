@@ -95,3 +95,7 @@ PuTTY admin 8443: SELECT agregado mediante backend PHP declarado de admin con `D
 PuTTY usuarios 443: consulta equivalente devolvió `DB_READ=ERROR` sin fase de fallo. `DB_NAME=PRODUCCION` del loader por sí solo NO garantiza conexión. Siguiente diagnóstico en etapas del loader PHP del portal 443, sin mostrar errores completos ni secretos, NO cambiar privilegios ni configuración.
 
 Para ver resultados y puertas pendientes consultar [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Diagnóstico de SELECT en backend 443 (12/11/2026)
+
+Nuevo resultado PuTTY: `USUARIOS_DB_STAGE=ERROR_SELECT`. Loader, CONFIG, PDO_CONNECT, READ_ONLY y BEGIN fueron superados, pero falló el SELECT agregado de tabla `user` por causa todavía no clasificada. **No** diagnosticarlo automáticamente como falta de GRANT. Backend admin 8443 conserva evidencia de lectura PASS con 190/176/14. Próxima prueba 443 clasifica código de error MySQL sin revelar excepción ni datos personales. Ver detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
