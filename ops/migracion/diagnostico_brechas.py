@@ -143,8 +143,9 @@ def main():
     try:
         legacy = leer_snapshot(args.legado, "legado")
         react = leer_snapshot(args.react, "react")
+        result = diagnosticar(legacy, react)
         print("CERVESUR_BRECHAS=PASS")
-        print(json.dumps(diagnosticar(legacy, react), indent=2, sort_keys=True,
+        print(json.dumps(result, indent=2, sort_keys=True,
                          ensure_ascii=False))
     except (PreflightError, KeyError, TypeError, ValueError, OSError) as error:
         code = str(error) if isinstance(error, PreflightError) else type(error).__name__
