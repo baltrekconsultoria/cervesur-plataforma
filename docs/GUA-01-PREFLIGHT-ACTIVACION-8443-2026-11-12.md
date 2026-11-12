@@ -155,3 +155,28 @@ D4_EXIT_CODE=1
 **Resultado:** `P4A_NO_SENSIBLES=PASS_REAL`, `K1_RUTA_RETIRADA_HTTP=PASS`, `D4_FINAL=FAIL`, `P4B=NO_GO`; `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Usuario quiere habilitación prioritaria; no son necesarios más chequeos de catálogos, empresas ni reportes, solo resolver estas puertas reales y A1/A2/K2/A3.
 
 **Siguiente paso agrupado (única ejecución SOLO LECTURA):** repetir el script D4 oficial con el mismo `--expiracion-prevista 86400` y devolver SOLO las líneas con motivo de `D4-06b`, `D4-07`, `D4-08`, `D4-08b`, `D4-09` (el comando anterior imprimió solo estado, ocultando las razones). Su salida está diseñada para no contener secretos; filtrar estrictamente esas líneas, sin imprimir contenido de `.env`, hash ni nombres privados. Con los motivos exactos se prepara la intervención K1/F-10/JWT correspondiente, con firmas de DBA/Infra y rollback antes de cualquier escritura productiva.
+
+## D4 causas detalladas verificadas (12/11/2026) — plan de corrección, no activación
+
+El operador ejecutó nuevamente el verificador D4 autenticado por huella oficial y publicó **solo los motivos despersonalizados**:
+
+```text
+KIT_D4=PASS
+PENDIENTE  D4-06b 9 rutas del backend aun traen un literal por defecto
+FAIL       D4-07  JWT_EXPIRATION=10800 s; previsto=86400 s
+FAIL       D4-08  el modo 'retirar' NO es el unico valor definido (valores: observar retirar )
+PENDIENTE  D4-08b prueba funcional GET /api/powerbi/tokens/0 sin Authorization (ya fue 410 en la prueba HTTP del operador)
+FAIL       D4-09  F-10 NO instalado en router/auth.php: POST /api/register sigue abierto al publico
+```
+
+**Diagnóstico y decisión propuesta (no aplicar automáticamente):**
+
+1. **D4-07** es una discrepancia real: el backend heredado configura sesiones JWT de **10800 segundos (3 horas)** mientras que `UX-09B-DECISION-JWT-Y-RIESGO-RESIDUAL.md` documenta aprobación de **86400 segundos (24 horas)**. El TTL menor NO prueba por sí mismo un defecto de seguridad, pero no cumple lo decidido. No cambiarlo sin una ventana y QA Flutter que pruebe login, expiración 401 y recuperación de sesión. Alternativa formal: decisión del funcional de aceptar 3h con justificación y actualizar el criterio de D4; no modificar parámetros de ejecución del verificador para simular PASS.
+2. **D4-08** refleja los dos valores estáticos `observar` y `retirar`, mientras la prueba HTTP específica `GET /api/powerbi/tokens/0` del vhost corporativo devolvió **410**. Esto es una discrepancia entre análisis estático de definiciones (posible fallback `observar`) y comportamiento observado para esa entrada; NO concluir que el endpoint comprobado sigue emitiendo tokens, pero tampoco declarar K1 seguro en todas las entradas. Corregir/eliminar fallback inseguro o atestar alcance según release y todas las rutas efectivas; comprobar consumidores legítimos/acta A-L2.
+3. **D4-09 es el bloqueo prioritario**: el backend legado no contiene el marcador F-10 de cierre en `router/auth.php`. Según el procedimiento ya versionado `UX-09A-F10-REGISTRO-PUBLICO.md`, la API de registro heredada Flutter no envía Authorization y cerrarla elimina también el alta administrativa de Flutter. Requiere antes **puente de altas temporal** firmado/ensayado por DBA y negocio; sin ello se rompe continuidad operativa. La propuesta existente indica F-10 junto al **Lote 4 A2**, más compensaciones de A1/K2, respaldos y reversión. Una prueba con POST real sin datos no debe improvisarse por riesgo de DML; ya existe evidencia de código/rutas.
+4. **D4-06b**: 9 rutas con fallback literal de JWT. D4-02..06 indican que la clave efectiva actual es fuerte y distinta de los defaults, pero los defaults siguen siendo riesgo si deja de cargarse. Planear correctivo fail-closed (usar secreto obligatorio, no literal); no sustituir `JWT_SECRET` ni rotarlo sin plan de sesiones/Flutter.
+5. **Parche F-10 no materializado en la rama inspeccionada**: se consultó `feat/cervesur-ux-09a-cierre-usuarios` y la ruta referida `deploy/flutter-heredado/lote4-a2/F-10-registro-cerrado.diff` devolvió 404. Existe diseño `docs/UX-09A-F10-REGISTRO-PUBLICO.md` y procedimiento de alta temporal `docs/UX-09A-PROCEDIMIENTO-ALTA-TEMPORAL.md` (23/23 local reportado, firma y ensayo DBA pendientes). **No inventar un parche ni aplicarlo en producción**: recuperar el artefacto fuente confiable o generarlo contra el `router/auth.php` heredado exacto, en rama aislada con pruebas, hash y rollback.
+
+**Puertas finales antes de P4b:** K2 lote1 y firma A-L1; K1 config efectiva y A-L2; A2 lote4 + A3/F-10 procedimiento de altas + firma A-L4; A1 lote3 + firma A-L3; D3 legado real, D4 sin bloqueos, respaldos P2 y autorizaciones D/E. P4a ya PASS REAL; no repetir. `GESTION_USUARIOS=OFF` y `GESTION_SENSIBLE=OFF` se mantienen; no ejecutar interruptor.
+
+**Siguiente trabajo concreto:** en GitHub, recuperar/implementar en una rama correctiva controlada el parche F-10 sobre la versión efectiva del archivo, con guía de instalación/rollback y QA. Paralelamente obtener firma/ensayo del procedimiento puente para no paralizar altas de Flutter; corregir la configuración K1 y acordar la política JWT 3h vs 24h. Solo al cerrar esas puertas se activa U-BASIC. Nada de cambios de rol/contraseña ni activación masiva de 114 usuarios.
