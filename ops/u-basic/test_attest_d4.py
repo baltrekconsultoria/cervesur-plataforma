@@ -12,6 +12,7 @@ from unittest import mock
 spec = importlib.util.spec_from_file_location("attest_d4", Path(__file__).with_name("attest_d4.py"))
 d4 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d4)
+ORIGINAL_HTTP_CHECK = d4.k1_http_code
 
 class D4Tests(unittest.TestCase):
     def setUp(self):
@@ -108,7 +109,7 @@ class D4Tests(unittest.TestCase):
 
     def test_url_forgery_denied_before_http(self):
         with self.assertRaisesRegex(d4.AuditFailure, "URL_HTTP_FUERA_DE_ALCANCE"):
-            d4.k1_http_code.__wrapped__("http://attacker.example/api/powerbi/tokens/0") if hasattr(d4.k1_http_code, "__wrapped__") else d4.k1_http_code("http://attacker.example/api/powerbi/tokens/0")
+            ORIGINAL_HTTP_CHECK("http://attacker.example/api/powerbi/tokens/0")
 
     def test_no_output_from_review(self):
         buf = io.StringIO()
