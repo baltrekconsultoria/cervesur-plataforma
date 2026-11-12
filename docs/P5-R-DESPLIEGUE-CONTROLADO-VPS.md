@@ -8,7 +8,7 @@ El alcance es **restablecer contraseñas de usuarios estándar activos** desde R
 - PR #33 DRAFT: https://github.com/baltrekconsultoria/cervesur-plataforma/pull/33
 - Motor MySQL 8 REAL y efímero: GitHub Actions #43272267098 `success` (GRANT, rechazo rol, SELECT password denegado, REVOKE y continuidad U-BASIC).
 - QA PHP, permisos y frontend: `Cervesur P5-R Isolated QA`.
-- Paquete incremental: GitHub Actions #43272490325 `success`, artifact `cervesur-p5r-candidato-8443`. Commit del paquete `2aefe2366579665a0e8b8e63614f1336a1d65a7a`; no sustituir por un ZIP sin manifiesto.
+- Paquete incremental TLS corporativo: [GitHub Actions #43274872106](https://github.com/baltrekconsultoria/cervesur-plataforma/actions/runs/43274872106), artifact `cervesur-p5r-candidato-8443`, commit `8a06e0e655222e891ddce37d2b3457b7ff17a781`. Los artefactos anteriores que apuntaban a localhost están OBSOLETOS. No utilizar un ZIP sin manifiesto.
 - Los scripts no se conectaron a la VPS ni alteraron la base productiva durante estos ensayos.
 
 ## Diagnóstico TLS definitivo y correctivo corporativo — 12/11/2026
@@ -53,15 +53,15 @@ Si cualquier clave es NO_GO, **detener** y conciliar lo instalado con la rama. P
 
 ## Puerta 1: importar paquete (sin instalar)
 
-Desde GitHub Actions run #43272490325, descargar artifact `cervesur-p5r-candidato-8443` (ZIP que contiene `.tar.gz` y `.tar.gz.sha256`). Pasar ambos al VPS por SFTP, por ejemplo a `~/p5r-rc` (el nombre del paquete procede de GitHub).
+Desde GitHub Actions run #43274872106, descargar artifact `cervesur-p5r-candidato-8443` (ZIP que contiene `.tar.gz` y `.tar.gz.sha256`). Pasar ambos al VPS por SFTP, por ejemplo a `~/p5r-rc` (el nombre del paquete procede de GitHub).
 
 En la VPS:
 
 ```bash
 cd ~/p5r-rc
-sha256sum -c cervesur-p5r-rc-2aefe2366579-8443.tar.gz.sha256
+sha256sum -c cervesur-p5r-rc-8a06e0e65522-8443.tar.gz.sha256
 mkdir -p kit
-tar -xzf cervesur-p5r-rc-2aefe2366579-8443.tar.gz -C kit
+tar -xzf cervesur-p5r-rc-8a06e0e65522-8443.tar.gz -C kit
 sudo bash kit/scripts/instalar-codigo-p5r.sh --preflight
 ```
 
