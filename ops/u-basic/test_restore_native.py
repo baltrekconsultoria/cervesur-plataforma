@@ -132,6 +132,14 @@ class NativeRestoreTests(TestCase):
                 with self.assertRaisesRegex(target.NoGo, "MYSQL_AISLADO_NO_INICIO"):
                     target.start_daemon(qa)
                 shutdown.assert_called_once_with(process, qa)
+        with mock.patch.object(target.subprocess, "Popen", return_value=process) as pop:
+            with mock.patch.object(target, "shutdown_daemon"):
+                with self.assertRaises(target.NoGo):
+                    target.start_daemon(qa)
+            kwargs = pop.call_args.kwargs
+            self.assertEqual(kwargs["user"], 100)
+            self.assertEqual(kwargs["group"], 101)
+            self.assertTrue(kwargs["start_new_session"])
 
     def test_restore_failure_always_cleans_qa(self):
         temp = self.base / "cervesur-p2-qa-a"
