@@ -36,6 +36,25 @@ jobs:
           php -l ops/migracion/cron_db_preflight.php
           php -l ops/migracion/cron_hmac_bootstrap.php
           php -l ops/migracion/ubuntu_db_preflight.php
+      - name: Regression - Ubuntu .env denied without leaked warnings
+        shell: bash
+        run: |
+          testdir="$(mktemp -d)"
+          trap 'chmod u+r "$testdir/backend/.env" 2>/dev/null || true; rm -rf "$testdir"' EXIT
+          mkdir -p "$testdir/backend/lib"
+          printf '%s\\n' '<?php // Synthetic loader only' > "$testdir/backend/lib/env.php"
+          printf '%s\\n' 'DB_NAME=synthetic_test_only' > "$testdir/backend/.env"
+          chmod 000 "$testdir/backend/.env"
+          set +e
+          output="$(php ops/migracion/ubuntu_db_preflight.php "--loader=$testdir/backend/lib/env.php" 2>&1)"
+          result=$?
+          set -e
+          test "$result" -eq 2
+          printf '%s\\n' "$output" | grep -qx 'CERVESUR_UBUNTU_DB_PREFLIGHT=ENV_PERMISSION_DENIED'
+          if printf '%s\\n' "$output" | grep -Eqi 'Warning|Fatal error|DB_HOST|DB_PASS'; then
+            echo 'FAIL: diagnostic leaked warnings or environment values' >&2
+            exit 1
+          fi
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py tests/migracion/test_dryrun.py
       - name: Pruebas sinteticas sin datos personales
