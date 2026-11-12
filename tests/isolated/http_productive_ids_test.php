@@ -188,8 +188,22 @@ expectCase(($detail['data']['reporte_id'] ?? null) === $H['reporte_id'] && ($det
 
 echo "== Creación con grupo_id NOT NULL\n";
 $count = (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte');
-[$st, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Nuevo público sintético', 'descripcion' => '', 'enlace' => 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLU5VRVZPLTAwMDE'], $admin);
-expectCase(($d['success'] ?? true) === false && str_contains($d['message'] ?? '', 'ID del grupo') && str_contains($d['message'] ?? '', 'UX-08B3') && !preg_match('/SQLSTATE|grupo_id|Column|PDO/i', $GLOBALS['lastResponse']) && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $count, '«Publicar en web» nuevo: se rechaza con un mensaje claro; no se inventa grupo_id ni se inserta nada');
+// UX-08B4: el marcador es UUID interno de Cervesur, NO es un grupo real de Power BI.
+$publicUrl = 'https://app.powerbi.com/view?r=U0lOVEVUSUNPLU5VRVZPLTAwMDE';
+[$st, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Nuevo público sintético', 'descripcion' => '', 'enlace' => $publicUrl], $admin);
+$publicId = (int)($d['data']['id'] ?? 0);
+$publicRow = $publicId ? row($pdo, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$publicId]) : null;
+expectCase(($d['success'] ?? false) === true && $publicId > 0
+    && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', (string)($publicRow['grupo_id'] ?? '')) === 1
+    && $publicRow['grupo_id'] === $publicRow['reporte_id'] && (int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $count + 1,
+    'UX-08B4: «Publicar en web» se crea en NOT NULL con UUID de grupo interno reutilizado, sin DDL');
+if ($publicId) {
+    [$st, $viewer] = requestApi('GET', "/api/reportes/id/$publicId/visor", null, $admin);
+    expectCase($st === 200 && ($viewer['data']['modo'] ?? '') === 'publico' && ($viewer['data']['url'] ?? '') === $publicUrl,
+        'UX-08B4: el visor distingue enlace publico y no utiliza el UUID como grupo Microsoft');
+    $pdo->prepare('DELETE FROM reporte WHERE id = ?')->execute([$publicId]);
+}
+expectCase((int)scalar($pdo, 'SELECT COUNT(*) FROM reporte') === $count, 'UX-08B4: fixture limpia; conteo de informes historicos conservado');
 $rid = '77777777-8888-4999-8aaa-bbbbbbbbbbbb'; $gid = 'cccccccc-dddd-4eee-8fff-000000000000';
 [$st, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Inserción sintética', 'descripcion' => '', 'enlace' => "https://app.powerbi.com/reportEmbed?reportId=$rid&groupId=$gid&autoAuth=true"], $admin);
 $newId = $d['data']['id'] ?? null; $created = $newId ? row($pdo, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$newId]) : null;
