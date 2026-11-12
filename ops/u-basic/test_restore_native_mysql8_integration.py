@@ -38,7 +38,7 @@ class NativeMySQL8Fixture(unittest.TestCase):
                 except native.NoGo:
                     # CI uses ONLY synthetic data. Show filtered init diagnostics
                     # to identify an OS/AppArmor or MySQL option incompatibility.
-                    f = qa / "error.log"
+                    f = qa / "init-diagnostic.log"
                     if f.is_file():
                         for line in f.read_text(errors="replace").splitlines()[-12:]:
                             if "ERROR" in line or "MY-" in line:
