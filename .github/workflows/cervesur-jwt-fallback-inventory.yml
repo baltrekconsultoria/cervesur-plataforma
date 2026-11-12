@@ -1,0 +1,32 @@
+name: Cervesur JWT fallback read-only inventory QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/inventory_jwt_fallbacks.py"
+      - "ops/u-basic/test_inventory_jwt_fallbacks.py"
+      - ".github/workflows/cervesur-jwt-fallback-inventory.yml"
+  push:
+    branches:
+      - "feat/cervesur-jwt-fallback9-safe-inventory-20261112"
+    paths:
+      - "ops/u-basic/inventory_jwt_fallbacks.py"
+      - "ops/u-basic/test_inventory_jwt_fallbacks.py"
+      - ".github/workflows/cervesur-jwt-fallback-inventory.yml"
+permissions:
+  contents: read
+jobs:
+  inventory-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile Python
+        run: python3 -m py_compile ops/u-basic/inventory_jwt_fallbacks.py ops/u-basic/test_inventory_jwt_fallbacks.py
+      - name: Run synthetic security fixtures
+        run: python3 -m unittest discover -s ops/u-basic -p test_inventory_jwt_fallbacks.py -v
+      - name: Confirm no live access
+        run: |
+          echo "FALLBACK_INVENTARIO_QA=PASS"
+          echo "PRODUCCION_CONTACTADA=NO"
