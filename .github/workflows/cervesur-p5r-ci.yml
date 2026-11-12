@@ -25,6 +25,8 @@ jobs:
           php -l backend/router/AdminWriteRouter.php
           php -l tests/p5r_unit.php
           php tests/p5r_unit.php
+          php tests/admin_write_unit.php
+          php tests/mode_unit.php
       - name: Check deployment script syntax and JS module syntax
         run: |
           bash -n deploy/produccion-escritura/scripts/privilegios-usuarios.sh
@@ -32,6 +34,7 @@ jobs:
           bash -n deploy/produccion-escritura/scripts/interruptor-p5r.sh
           node --check deploy/produccion-escritura/lib-empaquetado.mjs
           node --check deploy/produccion-escritura/empaquetar.mjs
+          node deploy/produccion-escritura/probar-empaquetado.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
