@@ -78,7 +78,7 @@ export class HttpApiClient implements ApiClient {
     this.capabilities.reactivateAfterHours = undefined;
     try {
       const env = await this.request('GET', '/api/admin/capacidades');
-      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; reactivate_after_hours?: unknown } | undefined;
+      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; users_password_reset?: unknown; reactivate_after_hours?: unknown } | undefined;
       const w = payload?.writes;
       if (!w || typeof w !== 'object') return;
       const writes = { empresas: w.empresas === true, reportes: w.reportes === true, accesos: w.accesos === true, usuarios: w.usuarios === true };
