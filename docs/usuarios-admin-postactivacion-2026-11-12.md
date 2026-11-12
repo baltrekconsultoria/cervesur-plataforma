@@ -175,3 +175,9 @@ El operador obtuvo `KIT_OFICIAL=PASS` (blob de `privilegios-usuarios.sh` contra 
 ## K1: ruta antigua de token devuelve 410 (12/11/2026)
 
 El operador informó `K1_HTTP=410` al consultar sin autenticación la ruta corporativa HTTP `/api/powerbi/tokens/0`. El documento del correctivo K1 asocia 410 con modo `retirar`, mientras 400 corresponde a observación/mixto para id cero y 401 a modo exigir. Registrar `K1_RUTA_RETIRADA_HTTP=PASS`, sin confundir la prueba funcional puntual con el cierre de consumidores, uniformidad de entradas y la firma formal A-L2. Quedan pendientes K2/A1/A2/A3-F10/D3/D4 y autorización P4b. La gestión U-BASIC permanece OFF y P5-R sensible OFF. Guía de detalle [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## D4 real (12/11/2026): NO-GO operativo para abrir P4b
+
+El operador ejecutó atestación oficial de seguridad D4: `KIT_D4=PASS`, **6 PASS, 3 FAIL, 2 PENDIENTE**, `D4_EXIT_CODE=1`. `D4-07=FAIL` por expiración JWT distinta de 86400; `D4-08=FAIL` por modo K1 no acreditado por análisis estático (aunque el endpoint HTTP probó `410`); `D4-09=FAIL` por cierre F-10 no acreditado en router heredado. `D4-06b` alerta de literales de fallback aún presentes; `D4-08b` siempre remite a prueba HTTP externa que ya produjo 410 en una entrada. **U-BASIC permanece OFF** y P5 sigue OFF. Se requiere corregir/cotejar seguridad y autorización antes de activar; **no hacer cambios a mano en `.env` ni contraseñas**.
+
+Fuentes y próxima lectura mínima en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md). No repetir QA de catálogos.
