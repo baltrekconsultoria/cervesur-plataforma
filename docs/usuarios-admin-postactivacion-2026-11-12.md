@@ -205,3 +205,9 @@ Pendiente solo para cierre pleno F10: QA con token de usuario `user`/`usuario` c
 Salida PuTTY de solo lectura: `K2_ROUTER=COINCIDE`, `K2_SANITIZADOR=COINCIDE`, `A2_ASIGNACIONES=COINCIDE`, `A2_EMPRESA_USUARIO=COINCIDE`, `A1_ROUTER=MODIFICADO_VERIFICAR`. Los componentes K2 y F-4 de A2 coinciden con sus huellas de referencia, pero el comando de K2 acepta dos variantes (`K2` y `K2+F5a`), y A2 completo incluye F-5a/b/c adicionales. El estado A1 MODIFICADO solo significa distinto de la **huella base** de UserRouter: un parche F-3 correctamente instalado tambien daria MODIFICADO. No inferir fallo ni reinstalar A1.
 
 Proxima comprobacion focalizada en A1: huella actual y guardia perfil ajeno de `GET/PUT /api/user/profile/{id}` sin imprimir código sensible; identificar variante K2 vs K2+F5a en el mismo paso. QA runtime con cuenta normal/administrativa controlada y autorización sigue necesario. P4b U-BASIC OFF y sensible OFF; no reiniciar ni cambiar .env. Documentado en [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — A1 F3 estructura PASS y F5a instalado (sin cambios productivos)
+
+El operador reporto `F5A=VERSION_CON_K2_Y_F5A`, `A1_SHA256=41610318f9bb5cd11ad7daa40cfbcf95f1742e5f14d5c4d4b59e4613a5206709`, `A1_GUARDIA=PASS_ESTRUCTURAL`, `CAMBIOS_PRODUCTIVOS=NO`. El router Empresa coincide con la variante K2+F5a del manifiesto; no reinstalar. El router A1 ya tiene guardia propio/admin/403 después de `require_auth`, pendiente QA HTTP con cuenta de prueba. K2 2/2 huellas; F-4 A2 2/2 huellas; F10 anonimo HTTP401; K1 HTTP410; P4a PASS.
+
+Proximo bloque acotado: identificar F5b/F5c POST/PUT/DELETE con guardias admin antes de cambiar reportes/asignaciones, sin DML. Despues QA focalizado y cierre politica JWT 10800 vs 86400, fallback K1, D3 y firmas. U-BASIC OFF, P5 sensible OFF. Ref: [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
