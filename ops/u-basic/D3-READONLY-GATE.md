@@ -49,6 +49,36 @@ sudo python3 /opt/cervesur-u-basic-kit/d3_readonly_gate.py http \\
 
 El ID ajeno debe pertenecer a una cuenta controlada distinta de la NOR-T. Si los GET anónimos fallan, detener: la herramienta no solicita tokens ni efectúa operaciones adicionales. Antes de ejecutar con JWT comprobar que las cuentas QA están autorizadas para pruebas y que los tokens son de ese backend.
 
+## Observación 12/11: login correcto en React usuarios (443), token opaco
+
+El operador confirmó que un login funcional en **React usuarios (443)** devolvió sesión con rol `user` y un token hexadecimal opaco, **no un JWT** en formato `segmento.segmento.segmento`. No copiar ese token al comprobador D3: esta herramienta solo acepta el esquema JWT del backend **Flutter heredado (80)**. **Nunca adjuntar tokens, respuestas completas de login, correos o datos personales a GitHub.** Por haberse compartido el token, usar cierre y revocación de sesión según los controles disponibles; un simple cierre de interfaz no garantiza revocación de tokens emitidos.
+
+La prueba del puerto 443 acredita que **una cuenta** consiguió iniciar sesión. No prueba por sí misma ni que la cuenta de servicio tenga ahora `SELECT` completo sobre `user` ni que todos los reportes estén disponibles. El diagnóstico SQL 443 de `SELECT` denegado continúa **pendiente de una verificación mínima independiente** antes de declarar resuelto; no inventar una reparación.
+
+### Matriz de observación sin compartir secretos
+
+| Entorno | Cuenta/control | Qué observar | Resultado que sí acredita |
+| --- | --- | --- | --- |
+| 443 React usuarios | Sesión normal de prueba | Iniciar sesión, abrir perfil y reportes asignados; desde Network anotar solo método, ruta **sin query**, y código HTTP | Login y navegación de **esa** cuenta |
+| 8443 React admin | Sesión admin nominal de prueba | Abrir Usuarios, observar listado/detalle y capacidades; no crear ni editar | Lecturas administrativas, **no** U-BASIC |
+| 80 Flutter legado | Sin sesión | GET `/api/user` y `/api/users` con Host corporativo responden 401 | Protección anónima únicamente |
+| 80 Flutter legado | Cuenta normal/admin de prueba | Examinar en el navegador los **códigos HTTP** de las solicitudes ya hechas por la app; no extraer ni pegar JWT | Evidencia parcial de GET según rutas realmente observadas |
+
+No ejecutar JavaScript arbitrario ni copiar un `fetch` desde DevTools. No reutilizar el token de 443 en 80/8443. Las pruebas de no elusión legado que requieran rol normal/admin seguirán pendientes si no hay una sesión del backend legacy autorizada. No elegir cuentas productivas únicamente por su ID.
+
+### Modo seguro de comprobación anónima sin JWT
+
+El kit admite `--solo-anonimos` para comprobar **exclusivamente** los dos GET anónimos del legado. No pide ni interpreta JWT, cookie ni `--id-ajeno`:
+
+```bash
+sudo python3 /opt/cervesur-u-basic-kit/d3_readonly_gate.py http \
+  --base-url http://127.0.0.1 \
+  --vhost IP_VHOST_CORP \
+  --solo-anonimos
+```
+
+Esperado: `D3_HTTP_ANON=PASS_2_DE_2` y `D3_HTTP_ROLES=PENDIENTE_NO_EJECUTADO`. Es **repetición opcional** porque el operador ya obtuvo los dos 401 el 12/11; no constituye D3 global PASS. Debe instalarse un script verificado desde un commit inmutable actualizado de PR #32 antes de usar esta opción.
+
 ## Regla de decisión
 
 - `D3_FUENTES_VALIDAS=8/8` significa **inventario+lint PASS**, no D3 funcional PASS.
@@ -57,7 +87,7 @@ El ID ajeno debe pertenecer a una cuenta controlada distinta de la NOR-T. Si los
 - No ejecutar `interruptor-usuarios.sh encender`, GRANT, migraciones o POST/PUT/DELETE como parte de este PR.
 - `ADMIN_WRITES_USUARIOS_SENSIBLE` debe continuar OFF; P5/contraseñas/roles separado.
 - Garantizar continuidad del alta: F10 del legado protege `/api/register`, mientras Flutter no envía JWT para esa ruta. Verificar procedimiento alternativo firmado y disponible antes de P4b.
-- Riesgo SQL independiente: el servicio del portal de usuarios 443 carece del SELECT necesario en `user`; no concederlo sin procedimiento DBA aprobado.
+- Riesgo SQL independiente: el acceso SQL del portal usuarios 443 tuvo un 1142/1143 histórico; el nuevo login exitoso no demuestra que ese permiso se reparó. Verificarlo de forma focalizada con DBA antes de declararlo resuelto, sin conceder GRANT en este incremento.
 
 ## Secuencia de cierre posterior
 
