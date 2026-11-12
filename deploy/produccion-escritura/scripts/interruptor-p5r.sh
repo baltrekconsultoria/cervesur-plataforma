@@ -10,8 +10,11 @@ source "$PAQ/scripts/lib.sh"
 # Nunca tomar silenciosamente su puerto: podria verificar otro portal.
 P5R_API_PORT="${CERVESUR_P5R_API_PORT:-8443}"
 case "$P5R_API_PORT" in 8443) ;; *) abortar "Puerto de API P5-R no autorizado (solo 8443)";; esac
-URL_ADMIN="https://localhost:$P5R_API_PORT"
-CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:$P5R_API_PORT:192.168.200.12")
+# Certificado corporativo SAN IP 192.168.200.12 firmado por Cervesur CA interna.
+# Exigir cadena de confianza; no utilizar certificado de prueba localhost ni -k.
+P5R_CA_FILE="${CERVESUR_P5R_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}"
+URL_ADMIN="https://192.168.200.12:$P5R_API_PORT"
+CURL_TLS=(--noproxy '*' --cacert "$P5R_CA_FILE")
 trap api_limpiar EXIT
 
 ACCION="${1:-}"; shift || true
@@ -30,6 +33,7 @@ if [ "$ACCION" = estado ]; then
   exit 0
 fi
 requerir_root
+[ -r "$P5R_CA_FILE" ] || abortar "No puede leer la CA confiable de Cervesur para verificar TLS 8443."
 
 # Verifica SOLO capacidades devueltas por el backend admin HTTPS, no usa JWT heredado.
 p5r_capacidades() { # esperado: true | false
