@@ -14,6 +14,18 @@ El administrador React ya pide únicamente **Nombre**, **Descripción** (opciona
 - Cuando una base de ensayo ya admite `NULL`, se conserva el comportamiento previo (compatibilidad con tests de UX-08B3), sin alterar la estructura. **El camino productivo de este incremento es NOT NULL.**
 - La identidad operativa estable de Cervesur sigue siendo `reporte.id` numérico para las asignaciones. La tabla conserva UNIQUE en `reporte_id`, `enlace`, auditoría de alta y permisos.
 
+## Procedimiento seguro de activacion en 8443
+
+Este PR incluye `ops/reportes/desplegar-ux08b4.sh`, acotado EXCLUSIVAMENTE a `/opt/cervesur-react-admin/backend/controllers/ReporteController.php`. No sirve para el backend Flutter original ubicado en `/var/www/cervesur/backend` ni modifica archivos frontend.
+
+1. Verificar **conclusion success** de Backend CI en el HEAD definitivo de PR #35.
+2. Descargar el script desde un **commit exacto** y comprobar su hash de blob Git (`git hash-object`), antes de ejecutarlo; no seguir `main` u otras ramas moviles. El script a su vez descarga el controlador PHP desde commit fijo `cbb4c1860708a9ae9be0305e3f7ffb1947fc50b8` y exige blob nuevo `3a120727252cea924354716e8de125acafbda4c2`.
+3. Ejecutar `sudo bash desplegar-ux08b4.sh --preflight` desde la VPS con acceso confiable a GitHub y CA corporativa. **NO realizar cambios** si falla el hash, PHP lint, flags (reportes, U-BASIC, P5-R), TLS o si el controlador productivo no tiene blob anterior exacto `d51c89361ae5dda52435b224ad8e58f5de0fc82b`.
+4. Con autorización real de despliegue de código y respaldo, ejecutar `sudo bash desplegar-ux08b4.sh --aplicar`. El script pide referencia real de aprobador DBA/funcional y el literal `APLICAR-UX08B4` por `/dev/tty`. Crea copia previa `/var/backups/cervesur-react-admin/ux08b4-controller-*/ReporteController.php`, instala con renombrado atómico preservando propietario/permisos y verifica hash, HTTPS 200, 401 anónimo de `/api/reportes` y flags P5-R. Si alguno falla, restaura automáticamente el PHP original. No reinicia Apache ni modifica MySQL.
+5. El equipo verifica el estado, realiza QA controlado y registra hora, SHA, resultado y backup en PR #35. Si el script devolvió NO-GO, **no reintentar a ciegas ni corregir manualmente .env**. La reversión posterior al PASS requiere verificar el backup exacto, volver a instalar atómicamente y repetir HTTP/TLS; no borrar nuevas filas de reportes sin autorización aparte.
+
+**Datos productivos:** aunque no hay ALTER, la primera alta real de reporte hace un INSERT y una auditoría y puede aparecer en listados Flutter legacy. Primero comprobar U-BASIC/P5-R y luego realizar QA con cuentas/casos autorizados y enlaces que NO expongan información confidencial. El control del portal no privatiza `view?r=`.
+
 ## Riesgos y límites que no se deben ocultar
 
 1. **Semántica del dato:** reutilizar un UUID interno en `grupo_id` satisface el requisito técnico de la columna, pero no crea un grupo real en Power BI. Cualquier flujo que asuma que `grupo_id` siempre es un grupo Microsoft necesitará distinguir enlaces públicos de privados. No usar el marcador interno para autenticar, generar tokens ni llamar a Microsoft.
