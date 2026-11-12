@@ -219,3 +219,9 @@ Operador confirma en legado: `F5B_POST/PUT/DELETE=PASS_ESTRUCTURAL`, `F5C_POST/P
 Estado agregado: K2 PASS huellas, A1 PASS estructural, F4/F5a PASS huellas, F5b/c PASS estructural, F10 POST anónimo 401, K1 HTTP 410 y P4a grants PASS. Siguiente hito ya no es inspeccion por archivos: **GO/NO-GO integral de P4b** con QA negativo admin/user, formalización de K1/K2/A1/A2/A3/D3, diferencia JWT 10800 vs 86400, continuidad altas Flutter, autorizaciones y rollback. Hasta cierre formal, `ADMIN_WRITES_USUARIOS` y `ADMIN_WRITES_USUARIOS_SENSIBLE` OFF (último chequeo). 114 cuentas migradas no tienen credenciales inicializadas, portal 443 SELECT denegado, trabajos posteriores separados.
 
 Detallado en [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md), commit c60176f1dbefa3a5bc106be95bc06d8433c86ce6.
+
+## 12/11/2026 — K1/JWT aplicado en legado con backup verificable; U-BASIC aun OFF
+
+Paquete PR #25 (`c2f01a7942f12427a9267d8325c432554a2c7214`) descargado con `KIT_INTEGRIDAD=PASS`, preflight F10/H1 PASS, respaldo `BACKUP_VERIFICADO=SI`, `APLICADO=SI` y preflight posterior `JWT_ACTUAL_SEG=86400`, `K1_FALLBACK_ACTUAL=retirar`, ambos `CAMBIO=NO`, `K1_HTTP=410`, sin reinicio Apache. Ruta de respaldo root-only: `/home/usr_cervesur/cervesur-p4b-policy-20261112T113010Z-1975881`. Nunca incluir contenido de `.env` en reportes ni GitHub. Evidencia limitada a estado de archivos + HTTP 410 de una entrada, falta QA de emision JWT 24h real con login controlado.
+
+**No se activo U-BASIC ni sensitive/P5.** F10 ya bloquea anonimato, A1/K2/A2 cuentan con evidencia de codigo; subsisten pruebas funcionales de perfiles/roles, cierre D3 y aprobaciones, y continuidad de altas Flutter; portal 443 usuario MySQL sin SELECT sigue otro bloqueo. Se require backup MySQL separado antes de cualquier alta/edicion/desactivacion de cuentas. Detalles GUA-01.
