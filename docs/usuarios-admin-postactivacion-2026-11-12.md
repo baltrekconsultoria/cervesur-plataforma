@@ -87,3 +87,11 @@ PuTTY: al cargar con `www-data` el `lib/env.php` de los backends DECLARADOS de a
 Proxima puerta: PDO SOLO LECTURA desde backend admin declarado, comparar conteos 190/176/14 con DB original de referencia y, si viable, identidad de servidor MySQL. Correlacionar luego mapeo Apache efectivo y funcionamiento de la interfaz admin con TLS validado; NO desplegar ni inicializar passwords antes.
 
 Detalles e historial de VirtualHosts y seguridad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## PDO real, portales 8443/443 (12/11/2026)
+
+PuTTY admin 8443: SELECT agregado mediante backend PHP declarado de admin con `DB_COUNTS=PASS`, `TOTAL=190`, `ACTIVOS=176`, `INACTIVOS=14`. Confirma conteos concordantes con la migración y activación productiva para esa conexión PDO. Todavía falta correlacionar Apache efectivo, TLS validado y acceso admin autenticado.
+
+PuTTY usuarios 443: consulta equivalente devolvió `DB_READ=ERROR` sin fase de fallo. `DB_NAME=PRODUCCION` del loader por sí solo NO garantiza conexión. Siguiente diagnóstico en etapas del loader PHP del portal 443, sin mostrar errores completos ni secretos, NO cambiar privilegios ni configuración.
+
+Para ver resultados y puertas pendientes consultar [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
