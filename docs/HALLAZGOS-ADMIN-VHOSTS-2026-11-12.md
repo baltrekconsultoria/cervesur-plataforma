@@ -184,3 +184,20 @@ En contraste, el backend DECLARADO de usuarios 443 declaró `DB_NAME=cervesur_po
 **Siguiente puerta de diagnóstico (solo 443, SOLO LECTURA):** repetir una prueba PHP CLI segregada por etapas (`LOADER`, `CONFIG`, `PDO_CONNECT`, `READ_ONLY`, `SELECT`, `COUNTS`), sin imprimir excepción, DSN, DB_HOST, DB_USER, DB_PASS, .env, usuarios, hashes ni PII. Al fallar, devolver únicamente la etapa `ERROR_STAGE=...`. Si conecta pero cuentas difieren, mostrar solo agregados y `COUNTS=STOP`. No modificar `GRANT`, `.env`, Apache, frontend ni DB.
 
 **Siguiente incremento tras aislar 443:** validar rutas Apache efectivas y autorización TLS/JWT del portal admin 8443; luego gestión de usuarios e inicialización individual de las 114 contraseñas, con aprobación de cambios por separado. PR #23 continúa en borrador.
+
+## 13. PuTTY 443: diagnóstico por etapas = ERROR_SELECT (12/11/2026)
+
+El operador ejecutó un nuevo diagnóstico CLI bajo `www-data` para el backend PHP declarado en HTTPS 443. La salida literal fue:
+
+```text
+=== CERVESUR: DIAGNOSTICO MYSQL USUARIOS 443 ===
+USUARIOS_DB_STAGE=ERROR_SELECT
+```
+
+**Interpretación demostrada por el código de esa prueba:** etapas LOADER, CONFIG, PDO_CONNECT, READ_ONLY y BEGIN se superaron; la excepción se produjo al ejecutar `SELECT COUNT(*), SUM(is_active=1), SUM(is_active=0) FROM user`. No se muestra la excepción ni SQLSTATE. **No permite concluir por sí solo** permiso SELECT insuficiente: puede ser falta de tabla, columna, vista inválida, permisos SQL, diferente instancia MySQL con el mismo DB_NAME u otro problema de SQL.
+
+El backend ADMIN 8443 permanece PASS (190 total/176 activos/14 inactivos) en la lectura PDO previa. No hay evidencia de que las cuentas hayan cambiado. No realizar GRANT, cambios Apache, .env ni DDL/DML antes del diagnóstico.
+
+**Siguiente comprobación, 443 SOLO LECTURA:** usar el mismo loader/backend bajo `www-data`, ejecutar SELECT 1, SELECT DATABASE(), SELECT COUNT(*) FROM `user`, SELECT COUNT(*) FROM `user` WHERE is_active=1, por separado y terminar en primer fallo; imprimir exclusivamente etapa y clasificacion del código numérico de MySQL: 1142/1143=>PERMISO_SELECT, 1146=>TABLA_NO_EXISTE, 1054=>COLUMNA_NO_EXISTE, 1044=>PERMISO_BASE, 1356=>VISTA_INVALIDA, otros=>NO_CLASIFICADO. Nunca mostrar mensaje de excepción, DB_HOST/USER/PASS, emails, hashes, documentos ni direcciones internas. En ausencia de fallo, mostrar solo conteos agregados y validar 190/176/14. Este diagnóstico no necesita reiniciar Apache ni afectar 8443.
+
+**Después:** si causa confirmada es privilegio SQL, verificar los GRANT efectivos de la cuenta de servicio (sin imprimir cuenta/host) y diseñar el mínimo SELECT necesario en una ventana autorizada; si instancia o tabla diferente, corregir topología y no permisos a ciegas. Mantener seguridad y QA funcional de 8443 como ruta independiente.
