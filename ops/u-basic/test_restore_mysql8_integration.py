@@ -62,9 +62,11 @@ class SyntheticMySQL8Restore(unittest.TestCase):
                             " VALUES (1,'synthetic')")
                     for verb in ("UPDATE", "DELETE"):
                         restore.mysql(name,
-                            "CREATE TRIGGER audit_no_" + verb.lower() +
+                            "CREATE TRIGGER " + backtick + biz + backtick + "." +
+                            backtick + "audit_no_" + verb.lower() + backtick +
                             " BEFORE " + verb + " ON " + backtick + biz +
-                            backtick + ".audit_log FOR EACH ROW SIGNAL SQLSTATE '45000' "
+                            backtick + "." + backtick + "audit_log" + backtick +
+                            " FOR EACH ROW SIGNAL SQLSTATE '45000' "
                             "SET MESSAGE_TEXT='immutable'")
                     restore.mysql(name,
                         "CREATE TABLE " + backtick + state + backtick +
