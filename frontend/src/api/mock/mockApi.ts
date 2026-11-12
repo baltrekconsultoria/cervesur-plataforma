@@ -328,6 +328,16 @@ export class MockApi implements ApiClient {
     this.record('user.reactivate', 'user', id, { is_active: 0 }, { is_active: 1 });
   }
 
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    const admin = this.requireUserAdmin();
+    if (this.capabilities.usersPasswordReset !== true) throw new ApiError(403, 'Restablecimiento bloqueado.');
+    const target = this.seed.users.find(u => u.id === id);
+    if (!target || !target.active || target.role !== 'user' || target.loginBlocked || target.id === admin.id) throw new ApiError(409, 'Solo usuarios estandar activos.');
+    if (password.length < 12 || new TextEncoder().encode(password).length > 72) throw new ApiError(400, 'Contrasena invalida.');
+    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
+    this.record('user.password', 'user', id, null, { password_changed: true, session_revocada: true });
+  }
+
   async changeUserRole(id: string, role: Role): Promise<void> {
     const me = this.requireUserAdmin();
     const user = this.seed.users.find(u => u.id === id);
