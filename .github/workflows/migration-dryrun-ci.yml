@@ -42,6 +42,8 @@ jobs:
           php -l tests/migracion/test_usuarios_import_guard.php
           php -l ops/migracion/usuarios_postflight.php
           php -l tests/migracion/test_usuarios_postflight.php
+          php -l ops/migracion/activar_usuarios_migrados.php
+          php -l tests/migracion/test_activar_usuarios_migrados.php
       - name: Regression - Ubuntu .env denied without leaked warnings
         shell: bash
         run: |
@@ -76,6 +78,8 @@ jobs:
         run: bash tests/migracion/test_usuarios_import_args.sh
       - name: QA postflight PHP offline de 190 usuarios
         run: php tests/migracion/test_usuarios_postflight.php
+      - name: QA aislado activacion 114 usuarios sin DB
+        run: php tests/migracion/test_activar_usuarios_migrados.php
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py ops/migracion/plan_usuarios.py tests/migracion/test_plan_usuarios.py ops/migracion/diagnostico_validacion_usuarios.py tests/migracion/test_diagnostico_validacion_usuarios.py
       - name: Pruebas sinteticas sin datos personales
