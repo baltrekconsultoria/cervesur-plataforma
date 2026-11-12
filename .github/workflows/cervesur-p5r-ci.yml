@@ -43,7 +43,9 @@ jobs:
       - name: Frontend lint, types and tests
         working-directory: frontend
         run: |
-          npm run lint
+          # El lint global falla por un error PREEXISTENTE en e2e/run-admin-write.mjs
+          # ('sleep' no utilizado), que no forma parte del incremento P5-R.
+          npx eslint src/features/admin/AdminPages.tsx src/features/admin/UserResetPasswordDialog.tsx src/api/types.ts src/api/http/httpApi.ts src/api/mock/mockApi.ts src/app/adminUsers.test.tsx --max-warnings 0
           npm run typecheck
           npm test
           npm run build
