@@ -713,3 +713,26 @@ Se agrego `ops/migracion/diagnostico_validacion_usuarios.py`, diagnostico **offl
 **Siguiente paso en PuTTY, despues de CI PASS:** actualizar checkout limpio, copiar archivo a `/usr/local/lib/cervesur-migration/diagnostico_validacion_usuarios.py` como `root:root` 0644, validar `cmp` y sintaxis, comprobar que los tres JSON 0600 son legibles bajo `www-data`. Ejecutar `sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesur-migration/diagnostico_validacion_usuarios.py --legado /var/lib/cervesur-migration/snapshots/usuarios-legado.json --react /var/lib/cervesur-migration/snapshots/usuarios-react.json --plan /var/lib/cervesur-migration/snapshots/plan-usuarios.json`. Compartir exclusivamente JSON agregado. Si falla el diagnostico, STOP. Si PASS, decidir correccion puntual manteniendo las reglas de unicidad/autenticacion y reutilizando los mismos snapshots, sin sobrescribir ni exponer PII.
 
 **Gate:** ningun `backup` ni `apply` hasta confirmar `CERVESUR_IMPORT_USUARIOS=PASS MODO=CHECK` sobre codigo corregido, respaldos verificados y separacion de inicializacion de contrasenas/activacion. El usuario solicita habilitar sesiones posteriormente; no puede hacerse automaticamente a partir de hashes aleatorios desconocidos.
+
+### 12/11/2026 — Diagnostico del primer CHECK: 1 username legado con caracter fuera de regla frontend
+
+El operador instalo y ejecuto `diagnostico_validacion_usuarios.py` contra tres JSON privados. Resultado:
+```text
+DIAGNOSTICO_CODE=PASS
+DIAGNOSTICO_SYNTAX=PASS
+CERVESUR_DIAGNOSTICO_IMPORT=PASS
+fuentes_y_plan_coinciden=true
+total_candidatos=114
+motivos={
+  "username_contiene_caracteres_no_permitidos": 1,
+  "username_fuera_regla_frontend_3_30": 1
+}
+base_modificada=false
+```
+Ambos contadores se refieren a **un mismo candidato**; no hay evidencia de duplicados, longitud <3/>30, campos vacios ni longitud de columnas excedida. El reporte solo da recuentos; **no revela cual es el caracter**, y por tanto no debemos afirmar si es un caracter imprimible, control, espacio o Unicode malformado sin comprobar.
+
+**Decision de compatibilidad: mantener el identificador original** siempre que no tenga caracteres de control y entre en `user.username` (VARCHAR(50)), debido a que `AuthController.php` recibe login como texto y busca coincidencia con `username` o `email`. La regla de `NewUserDialog.tsx` con `[A-Za-z0-9._-]{3,30}` es **para altas nuevas**, no una restriccion inherente a cuentas originales.
+
+**Correctivo acotado GitHub:** `usuarios_import_controlado.php` deja de exigir la regex del formulario y acepta `3..50` caracteres Unicode **imprimibles** sin categorias de control `\p{C}`, comprobados con PHP PCRE `preg_match('/\A[^\p{C}]{3,50}\z/u', ...)`. No relajar unicidad por email/username, colisiones entre alias de login, obligatoriedad de nombres, role user, estado propuesto inactivo ni largo real en columnas. Si el registro contiene un caracter no imprimible, `CHECK` debe seguir bloqueando. Se agregan tests sinteticos de usuario original con puntuacion, rechazo por newline/NUL, largo >50 y colision cruzada; QA sin conexion a MySQL. El archivo original y el plan permanecen intactos.
+
+**Siguiente puerta:** verificar CI PASS; actualizar checkout y sustituir solo copia protegida de `usuarios_import_controlado.php` en `/usr/local/lib/cervesur-migration/`, `cmp`, `php -l`; ejecutar solo `--mode=check` sobre mismos snapshots, **NO`--mode=apply` ni `--mode=backup`** antes de `CERVESUR_IMPORT_USUARIOS=PASS`. Si persiste error, detener y clasificar de forma agregada si contiene Unicode de control, sin imprimir PII. No modificaciones de producción ni credenciales.
