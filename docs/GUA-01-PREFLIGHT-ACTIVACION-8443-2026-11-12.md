@@ -90,3 +90,17 @@ GESTION_SENSIBLE=OFF
 **Puertas antes del comando `encender`:** en dictamen del 11/11 P4a `no-sensibles` se verifico PASS y P3 4/4; faltaba evidencia verificable de K2, K1, A1/A2/A3-F10, D3/D4 y autorizaciones. Ninguna de estas puertas se cierra por el nuevo resultado de banderas. No ejecutar `interruptor-usuarios.sh encender` ni editar `.env` manualmente hasta que esos controles esten GO en la instalacion real.
 
 **Proximo paso acotado:** localizar el kit oficial `privilegios-usuarios.sh` y `interruptor-usuarios.sh` del paquete de produccion (nunca descargar scripts no verificados para ejecutarlos como root), ejecutar solo `interruptor-usuarios.sh estado` y `privilegios-usuarios.sh --etapa no-sensibles --verificar` despues de comprobar el origen/huella del kit, y cotejar la hoja K1/K2/D3/D4 antes de activar. Si ya hay verificacion firmada reciente de las puertas, reutilizarla en vez de repetir auditoria. Con gates aprobados, la activacion puede ser un solo comando oficial mas QA focalizado. Sin SSH directo desde ChatGPT, el operador debe ejecutar los comandos en PuTTY y devolver solo codigos/resultados.
+
+## P4a real verificado con kit oficial, 12/11/2026 — PASS
+
+Operador ejecutó el comando de verificación de huella Git (`git hash-object`) y `privilegios-usuarios.sh --etapa no-sensibles --verificar`, sin aplicar GRANT ni cambiar configuración. Salida literal:
+
+```text
+=== CERVESUR: PUERTA P4A USUARIOS ===
+KIT_OFICIAL=PASS
+PRIVILEGIOS_USUARIOS=PASS
+```
+
+**Conclusión acotada:** se localizó por lo menos una copia del verificador cuyo hash Git coincide con el blob oficial de `feat/cervesur-ux-09a-cierre-usuarios` (`d849a014ff938e67d3a31d88da955be7fc453462`), y **esa copia** completó la validación de privilegios de fase `no-sensibles` con PASS (script de solo lectura). Esto confirma **P4a de permisos mínimos** y evita repetir su comprobación. La salida no demuestra por sí sola la huella del paquete `interruptor-usuarios.sh`, ni K1/K2/A1/A2/A3/D3/D4, ni una autorización P4b; no hay evidencia de que el operador haya encendido gestión.
+
+**Decisión:** mantener `GESTION_USUARIOS=OFF` y `GESTION_SENSIBLE=OFF` hasta verificar las salvaguardas bloqueantes restantes y autorización administrativa/DBA; luego activar exclusivamente U-BASIC con el kit oficial y una cuenta sintética autorizada. No usar `.env` directo ni habilitar `usuarios_sensible` o P5-R para contraseñas de los 114 migrados. Lote de catálogos y Power BI fuera de alcance.
