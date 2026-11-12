@@ -141,3 +141,11 @@ Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md)
 El operador mostró `Administración > Historial` pero con `Ver=Accesos y asignaciones`: aparecieron 2 registros históricos del mismo acceso interno, uno concedido y otro retirado el 05/11/2026. La vista confirma la presencia de movimientos de accesos, pero NO la desactivación de Test SAC. Siguiente paso: seleccionar `Ver=Empresas` y confirmar el evento de desactivación y sus metadatos sin exponer el nombre del autor en GitHub público. La baja lógica sí está visualmente confirmada en el listado de Empresas (5 de 26 activas).
 
 Detalles de continuidad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Cierre QA visual de Historial Empresas/Reportes (12/11/2026)
+
+Con filtro `Empresas` la captura mostró dos eventos, incluido `Empresa desactivada`, registro `#28`, fecha/hora `2026-11-12 10:40:38.761`, detalle activo -> inactivo y responsable presente. El evento coincide temporalmente con la baja lógica de Test SAC del operador (5 de 26 empresas activas), pero la pantalla NO muestra el nombre de empresa: queda pendiente cotejar por SELECT privado ID de Test SAC contra `#28` si se necesita trazabilidad nominal absoluta.
+
+Con filtro `Reportes` la captura mostró `Reporte editado` el `2026-11-05 04:49:22.684`, registro `#133`, descripción cambiada y responsable. Se confirma que se registran tales operaciones, no aún que se audite cualquier actualización de URL Power BI. Se preservan solamente métricas y registros; las capturas, teléfonos y nombres del responsable NO se suben al repositorio público.
+
+`QA_HISTORIAL_EMPRESAS=PASS_VISUAL_EVENTO`, `QA_HISTORIAL_REPORTES=PASS_VISUAL_EVENTO`. Proceder al inventario y conciliación de reportes existentes contra dashboards optimizados antes de modificar URLs/asignaciones. Detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
