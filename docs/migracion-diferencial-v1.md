@@ -510,3 +510,23 @@ umask 077; test -e /home/databalt/cervesur_cron_private/cron-php-probe.txt || { 
 ```
 
 Eliminar el cron de prueba tras generar `cron-php-probe.txt`. Compartir **solo ese archivo de diagnostico** (SAPI, version y estado) y presencia de JSON; **nunca** `usuarios-legado.json`. Si SAPI no es CLI, usar la ruta **absoluta verificada** del PHP CLI disponible en cPanel, no forzar ejecucion HTTP ni cambiar codigo para aceptar CGI.
+
+### Cron cPanel — causa confirmada por probe y ruta CLI documentada (12/11/2026)
+
+El operador remitió `cron-php-probe.txt` del hosting; contenido pertinente:
+
+```text
+Error in argument 1, char 2: option not found r
+Usage: php-cgi [-q] [-h] ...
+PHP_EXIT=1
+```
+
+**Causa confirmada:** el `php` del entorno Cron resuelve al manejador **PHP-CGI**; este no acepta `-r` y el exportador `export_usuarios_privado.php` (CLI-only) termina antes de imprimir nada si `PHP_SAPI !== 'cli'`. No cambiar proteccion `PHP_SAPI` ni ejecutar desde HTTP.
+
+Referencias publicas de cPanel EA4 (2026):
+- `https://docs.cpanel.net/ea4/php/easyapache4-and-the-ea-php-cli-package/` — `/usr/bin/php` ejecuta CGI, `/usr/local/bin/php` CLI.
+- `https://support.cpanel.net/hc/en-us/articles/360053606793-How-to-create-or-edit-cron-jobs-in-the-cPanel-user-interface` — usar ruta PHP CLI completa en Cron Jobs.
+
+**Siguiente puerta puntual:** borrar crons de prueba/export anteriores; si no existe `usuarios-legado.json`, ejecutar una tarea temporal cron con `/usr/local/bin/php -r ...` y salida exclusivamente en archivo privado `cron-php-cli-probe.txt`, protegida contra repeticion. Confirmar `PHP_SAPI=cli` y `PHP_EXIT=0`, eliminar el cron de probe. Solo entonces recrear exportacion de usuarios con ruta **`/usr/local/bin/php`** (no `php`, sin `-q`) y destino existente guardado, sin imprimir PII. Eliminar cron inmediatamente despues del PASS. No sobrescribir un JSON preexistente.
+
+Estado: export users-only legado pendiente; usuario React ya exportado PASS 76/62, sin passwords ni escrituras.
