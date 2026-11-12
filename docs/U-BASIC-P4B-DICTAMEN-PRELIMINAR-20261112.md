@@ -43,9 +43,15 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4b. Incidencia de herramienta y alternativa segura (12/11)
+
+La VPS reportó `PHP_CLI=8.3.6`, `PDO_SQLITE=NO` y `CLI_GETALLHEADERS=NO`. El primer script `d3_auth_synthetic.php` pasó verificación de integridad y `php -l`, pero terminó `D3_AUTH=NO_GO_PHP_EXTENSION_O_HEADER` **antes de ejecutar los nueve escenarios**. Es una limitación del harness, NO una vulnerabilidad y NO un fallo de H1. No se instalará SQLite en la VPS para resolverla.
+
+En PR #32 se preparó `ops/u-basic/d3_auth_no_sqlite.php`: usa un PDO simulado sin DSN ni driver, con allowlist de SELECT y cuatro filas ficticias, y mantiene atestación SHA de H1/jwt.php. Pruebas CI incluyen sintaxis y `--fixture-test` sin producción. **Pendiente** su ejecución en PuTTY contra el backend legacy real; el resultado debe interpretarse solo como comprobación de lógica de autenticación contra fixture, no de SQL real, HTTP por roles ni cierre global D3.
+
 ## 5. Acciones inmediatas propuestas, sin escritura
 
-1. Ejecutar **una vez** `ops/u-basic/d3_auth_synthetic.php` verificado desde SHA inmutable, en PHP CLI con SQLite RAM; no se proporcionan ni usan tokens reales.
+1. Ejecutar **una vez** `ops/u-basic/d3_auth_no_sqlite.php` (sin SQLite), verificado desde SHA inmutable, sobre el código H1 real con PDO simulado; no se proporcionan ni usan tokens reales.
 2. Registrar el resumen y riesgos de H1, sin datos personales.
 3. Completar prueba estructural y funcional restante A1/A2/A3 conforme a matriz, con autorización y ambiente seguro.
 4. Reunir acta formal aprobatoria. **Solo entonces** proponer un cambio a GO y ventana para P4b.
