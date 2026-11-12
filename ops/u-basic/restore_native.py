@@ -125,12 +125,14 @@ def initialize(qa_root: Path) -> None:
     # MySQL recommends only --datadir and --user during --initialize.
     # The mysql-owned parent is private; mysqld creates the datadir itself.
     argv = [
-        "mysqld", "--no-defaults", "--initialize-insecure", "--user=mysql",
+        "mysqld", "--no-defaults", "--initialize-insecure",
         "--datadir=" + str(path),
     ]
+    account = pwd.getpwnam("mysql")
     try:
         run = subprocess.run(argv, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.PIPE, timeout=180, check=False)
+                             stderr=subprocess.PIPE, timeout=180, check=False,
+                             user=account.pw_uid, group=account.pw_gid)
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise NoGo("MYSQL_INICIALIZACION_TIMEOUT_O_BINARIO") from exc
     if run.returncode != 0:
@@ -144,7 +146,7 @@ def initialize(qa_root: Path) -> None:
 
 def daemon_args(qa_root: Path) -> list[str]:
     return [
-        "mysqld", "--no-defaults", "--user=mysql",
+        "mysqld", "--no-defaults",
         "--datadir=" + str(qa_root / "data"),
         "--socket=" + str(qa_root / "mysql.sock"),
         "--pid-file=" + str(qa_root / "mysql.pid"),
@@ -156,10 +158,12 @@ def daemon_args(qa_root: Path) -> list[str]:
     ]
 
 def start_daemon(qa_root: Path) -> subprocess.Popen:
+    account = pwd.getpwnam("mysql")
     with open(os.devnull, "wb") as silent:
         process = subprocess.Popen(
             daemon_args(qa_root), stdin=subprocess.DEVNULL,
             stdout=silent, stderr=silent, start_new_session=True,
+            user=account.pw_uid, group=account.pw_gid,
         )
     socket = qa_root / "mysql.sock"
     try:
