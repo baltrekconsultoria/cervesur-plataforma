@@ -119,3 +119,9 @@ El usuario confirmó visualmente desde el portal ADMIN corporativo que `Estado=A
 La captura original contiene nombres y correos; NO se almacena en este repositorio público. El backend PHP declarado de 443 sigue con SQL `PERMISO_SELECT` sobre `user`; resolver antes de habilitar login/onboarding de los 114 migrados. No repetir importacion/activacion.
 
 Continuidad completa en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Próximo gate: QA lectura de empresas/reportes/vinculos y revisión de privilegios mínimos del portal 443.
+
+## QA visual del catalogo y vinculos administrativos (12/11/2026)
+
+El operador mostro tres pantallas de 8443 sin modificar datos. `Empresas` muestra 6 activas de 26; `Reportes` 82 activos de 95; `Accesos y asignaciones` 91 vigentes de 103. Se observaron botones de alta/edicion/desactivacion/retiro, pero su funcionamiento **NO** se probo. Capturas con PII no publicadas. El agregado de `informes activos` por las 6 empresas visibles suma 84 frente a 82 reportes activos únicos mostrados en el catálogo; diferencias de criterio o duplicidad de relaciones aún no verificadas.
+
+Continuidad detallada y puestas de control en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Proximo QA en lectura: `Informes por empresa`, conciliación de informes únicos vs relaciones, y comparar con checklist de dashboards optimizados, antes de editar enlaces y asignaciones. Portal usuarios 443 sigue limitado por falta SELECT a `user`; 114 migrados sin contraseña utilizable. No conceder permisos ni hacer acciones masivas todavía.
