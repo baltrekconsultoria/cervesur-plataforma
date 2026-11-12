@@ -43,6 +43,14 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aaaaa. D3-08 — Hallazgo reproducido en modelo aislado (12/11)
+
+**Bloqueante confirmado en laboratorio (no se ha demostrado fuga HTTP):** el operador ejecutó el laboratorio `d3_empresa_sandbox.py` / `d3_empresa_fixture.php`, integridad PASS, PHP lint PASS, selftest PASS y `D3_08_REAL_SHA=PASS_2_DE_2`. Los cuatro métodos `getAll`, `getById`, `search`, `getByCity` devolvieron `SECRETO_EN_RESPUESTA_SINTETICA`. Resultado `D3_08_FIXTURE_GLOBAL=NO_GO_EXPOSICION_SINTETICA`. `D3_08_HTTP_REAL=NO_PROBADO`, `MYSQL_PRODUCTIVO_ACCEDIDO=NO`, `DATOS_PERSONALES_ACCEDIDOS=NO`, `U_BASIC_ACTIVADO=NO`.
+
+**Criterio de seguridad:** el campo `powerbi_clientsecret` es parte del resultado del modelo bajo datos sintéticos; el diseño necesita redacción en la capa HTTP y, preferiblemente, exclusión de columnas del SQL en lecturas no privilegiadas. **No se ha establecido si el sanitizador K2 de la capa HTTP del entorno productivo está instalado ni operativo**. El repositorio contiene un paquete K2 preparado que expresa función `empresa_sanitizar_respuesta`, pero ese paquete no constituye evidencia de despliegue. Antes de corregir el modelo a ciegas, verificar wiring real de EmpresaRouter/EmpresaController/`views.php`/`empresa_sanitizer.php` y preparar un QA aislado con datos sintéticos que pruebe el punto exacto de serialización HTTP.
+
+**Dictamen:** `D3_08=NO_GO_EXPOSICION_SINTETICA`, `D3_GLOBAL=NO_GO`, `P4B=NO_GO`. No merge, no activación U-BASIC, no cambio de claves, MySQL, Apache o .env. El correctivo y su ventana tienen autorización separada, respaldos y rollback. La exposición de modelo no permite afirmar que haya ocurrido acceso o fuga real de secretos.
+
 ## 4aaaa. D3-08 — Diagnóstico de comodín y puerta funcional (12/11)
 
 Última ejecución PuTTY: `D3_KIT_INTEGRIDAD=PASS`; `D3_08_ORIGEN_HUELLAS=PASS_2_DE_2`; `D3_08_ORIGEN_GETALL`, `GETBYID`, `SEARCH`, `GETBYCITY` = `REVISAR_SELECT_STAR`. `D3_08_POWERBI_COLUMNS=NO_IDENTIFICADO`; `D3_08_HELPERS_EN_PROYECCION=NO_DETECTADOS`. **No se probaron respuestas HTTP ni valores SQL reales.** La ausencia de filtro y el análisis de comodín son un **riesgo posible** de selección y divulgación de `powerbi_clientsecret`, no fuga confirmada; el analizador es heurístico y puede interpretar otras expresiones como comodines.
