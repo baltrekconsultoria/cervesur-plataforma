@@ -85,10 +85,10 @@ function validatePlan(array $plan, array $snapshot): array {
         requireGate(filter_var($email, FILTER_VALIDATE_EMAIL) !== false
             && $name !== '' && trim((string)($p['first_name'] ?? '')) !== ''
             && trim((string)($p['last_name'] ?? '')) !== ''
-            && !isset($seenEmail[$email], $seenUser[$name])
-            && !isset($destEmails[$email], $destUser[$name])
-            && !isset($destEmails[$name], $destUser[$email])
-            && !isset($seenEmail[$name], $seenUser[$email]), 'COLISION_O_DATOS_INVALIDOS');
+            && !isset($seenEmail[$email]) && !isset($seenUser[$name])
+            && !isset($destEmails[$email]) && !isset($destUser[$name])
+            && !isset($destEmails[$name]) && !isset($destUser[$email])
+            && !isset($seenEmail[$name]) && !isset($seenUser[$email]), 'COLISION_O_DATOS_INVALIDOS');
         $seenEmail[$email] = true;
         $seenUser[$name] = true;
         requireGate(!isset($seenEmail[$name]) || $name === $email, 'CRUCE_ENTRE_CANDIDATOS');
@@ -198,7 +198,7 @@ foreach (array_slice($argv, 1) as $arg) {
     $options[$m[1]] = $m[2];
 }
 $mode = $options['mode'] ?? '';
-requireGate(in_array($mode, ['check', 'backup', 'apply'], true), 'MODO');
+if (!in_array($mode, ['check', 'backup', 'apply'], true)) stopUsers('MODO');
 $allowed = ['mode','loader','database','plan','snapshot','backup','backup-sha256','confirm'];
 foreach (array_keys($options) as $name) if (!in_array($name, $allowed, true)) stopUsers('ARGUMENTOS');
 if (($options['database'] ?? '') !== 'cervesur_portalbi') stopUsers('DB_INCORRECTA');
@@ -213,7 +213,6 @@ try {
     $snapshot = privateFile($options['snapshot']);
     $candidates = validatePlan($plan, $snapshot);
     $pdo = connectUsers($options['loader']);
-    schemaUsers($pdo);
     $cols = schemaUsers($pdo);
     verifyLengths($candidates, $cols);
     if ($mode === 'apply') {
@@ -222,7 +221,7 @@ try {
         $rows = $pdo->query('SELECT * FROM user ORDER BY id FOR UPDATE')->fetchAll();
         baselineUsers($rows, $snapshot);
         readBackup($options['backup'], $options['backup-sha256'], $rows);
-        $sql = 'INSERT INTO user (first_name,last_name,username,email,phone,password,role,is_active,session_version,created_at,updated_at) VALUES (?,?,?,?,?,?,"user",0,1,NOW(),NOW())';
+        $sql = 'INSERT INTO user (first_name,last_name,username,email,phone,password,role,is_active,session_version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,0,1,NOW(),NOW())';
         $stmt = $pdo->prepare($sql);
         $count = 0;
         foreach ($candidates as $c) {
@@ -233,7 +232,7 @@ try {
             $stmt->execute([
                 trim($c['first_name']), trim($c['last_name']),
                 trim($c['username']), trim($c['email']),
-                $c['phone'] ?? null, $hash,
+                $c['phone'] ?? null, $hash, 'user',
             ]);
             $count++;
         }
