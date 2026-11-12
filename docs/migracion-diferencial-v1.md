@@ -86,3 +86,12 @@ El script `ops/migracion/cron_db_preflight.php` esta preparado en GitHub, **no d
 5. Si la ruta no existe o la base configurada no es `databalt_portalbi`, parar. No intentar otro loader de otra aplicacion a ciegas. Investigar la configuracion correcta sin exponer secretos y/o usar exportaciones autorizadas de phpMyAdmin como plan alternativo.
 
 **No-GO permanente:** ningun script de exportacion real ni aplicador de migracion se ejecuta antes de evaluar el resultado de esta prueba, confirmar esquema y obtener autorizacion para la fase correspondiente.
+
+### Puerta siguiente: clave de conciliacion HMAC (preparada, NO ejecutada)
+
+Tras `CERVESUR_DB_PREFLIGHT=PASS` (12/11/2026 a las 08:05:02 UTC; `DB_CONNECTED=PASS`, `DATABASE_MATCH=PASS`, `READ_ONLY_TRANSACTION=PASS`, `REQUIRED_TABLES_PRESENT=6/6`), se puede preparar el paso de identidad seudonimizada.
+
+- GitHub: `ops/migracion/cron_hmac_bootstrap.php` genera **una sola vez** 32 bytes aleatorios (256 bits) y los guarda como 64 caracteres hex en `/home/databalt/cervesur_cron_private/.cervesur-migration-hmac`, modo 0600. **No** sube ni imprime la clave, y **no** conecta a MySQL.
+- Al ejecutarse por Cron Jobs PHP CLI: el resultado permitido es `/home/databalt/cervesur_cron_private/cervesur-hmac-bootstrap-result.txt` (0600). Si la clave ya existe no la sobrescribe. Se debe **eliminar el cron** tras la evidencia, sin repetir el bootstrap.
+- Nunca compartir la clave, el archivo oculto ni snapshots de usuarios en GitHub, issues o chats. Para mantener la misma huella HMAC, transferir el archivo secreto directamente por un canal cifrado autorizado a un directorio privado del servidor nuevo y comprobar 0600; **no generar una segunda clave independiente**.
+- No ejecutar aun `export_snapshot.php` ni pasar a escritura. Primero obtener el PASS del bootstrap, comprobar sintaxis y ruta, y validar permisos y plan de descarga/transferencia de archivos sensibles.
