@@ -21,6 +21,27 @@ El entorno `admin_escritura` revalida sesión opaca, rol admin, estado y `sessio
 
 A solicitud funcional se propone **postergar la ejecución de pruebas adicionales D3 de no elusión A1/A2/A3** únicamente para una ventana de piloto de cuenta admin única, manteniendo TODOS los controles de código actualmente desplegados: middleware H1, F10, K1, K2, bloqueos de roles/correos/contraseñas, RLS y límites de rutas. La excepción es de **evidencia y alcance**, jamás de desactivar protecciones existentes. Se acepta que los controles no probados conservan riesgo residual; ello se registrará como `P4B_PILOTO=GO_CONDICIONADO` **solo si** se satisfacen las condiciones siguientes. El P4b global aprobado en UX-09B v2 continúa NO-GO.
 
+## 3b. Preflight productivo ejecutado por operador (12/11/2026)
+
+Evidencia recibida, sin valores sensibles:
+
+```text
+INTERRUPTOR_RC=0
+ADMIN_WRITES_USUARIOS=<sin definir>
+ADMIN_WRITES_USUARIOS_SENSIBLE=<sin definir>
+ADMIN_USER_REACTIVATE_HOURS=<sin definir> (default funcional 24h, confirmar capacidades)
+RESULTADO-PRIVILEGIOS: PASS no-sensibles
+PRIVILEGIOS_RC=0
+BACKEND_ADMIN=/opt/cervesur-react-admin/backend/lib/admin_escritura.php
+VHOST=192.168.200.12:8443
+CAMBIOS_PRODUCTIVOS=NO
+U_BASIC_ACTIVADO=NO
+```
+
+Se localizó el kit operativo exacto en `/home/usr_cervesur/ux08i-rc1c-candidato/cervesur-react-admin-fase2b-2f88cfbc5098-20261110-181457Z/scripts/`. La auditoría P4a verificó la cuenta `cervesur_escritura_adm@127.0.0.1`, estado no sensible, `v_user_alta` con `WITH CHECK OPTION`, rol `user/usuario`, DEFINER bloqueado, sin `UPDATE(email)` ni permisos excesivos y ambos triggers. No repetir migraciones SQL ni P3.
+
+**Pendientes críticos reducidos:** comprobar con lectura local (sin publicar user_ids) que `usuarios_piloto` contiene exactamente **un** registro activo para el admin designado; autorización explícita y trazable de responsable funcional/DBA para excepción de alcance y responsabilidad de respaldo/rollback; cuenta QA y operación de auditoría posterior. La sentencia permitida `estado_ejecutar($pdoEstado,'lista_blanca_listar',[])` está disponible en PHP **CLI** del backend, ya que `db_usuarios.php` usa `estado_sentencias(PHP_SAPI === 'cli')`. No imprimir filas, IDs, contraseñas, secretos ni SQL. El script `interruptor-usuarios.sh encender` sigue prohibido sin esos checks y autorización real.
+
 ## 4. Condiciones imprescindibles antes de encender (breve preflight)
 
 1. Confirmación nominativa del **responsable funcional y DBA** de que autorizan *esta excepción acotada*, la cuenta única autorizada, el alcance y el plan de retorno. No escribir `CERVESUR_CONFIRMAR_USUARIOS=SI` sin esa autorización real.
