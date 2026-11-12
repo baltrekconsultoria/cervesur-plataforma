@@ -544,3 +544,17 @@ Se confirma que `/usr/local/bin/php` resuelve efectivamente al CLI en el hosting
 El Cron exportador de users-only esta configurado con `/usr/local/bin/php` (sin `-q`) y periodicidad temporal `* * * * *`. File Manager muestra `usuarios-legado-resultado.txt` de **53 bytes**, ya no 0, y **no aparece** `usuarios-legado.json`. Sin contenido del resultado NO afirmar ningun codigo de error concreto ni que la base de datos falle.
 
 **Siguiente gate:** borrar el Cron exportador repetitivo, abrir unicamente `usuarios-legado-resultado.txt` y compartir el codigo cerrado `CERVESUR_USUARIOS_EXPORT=ERROR_...` para diagnostico. No reintentar export ni modificar loader/`.env`, permisos, credenciales o SAPI antes de leer el error; no transferir datos personales. Alcance sigue exclusivo usuarios, MySQL sin DML y React users-only export PASS 76/62.
+
+### Users-only legado — error cerrado por codigo: DIRECTORIO_NO_PRIVADO (12/11/2026)
+
+Archivo `usuarios-legado-resultado(1).txt` entregado por operador contiene exactamente:
+
+```text
+CERVESUR_USUARIOS_EXPORT=ERROR_DIRECTORIO_NO_PRIVADO
+```
+
+La verificacion del exportador `ops/migracion/export_usuarios_privado.php` rechaza el directorio de salida si cae bajo un `public_html/htdocs/...`, bajo `/var/www`, o si presenta algun bit de permisos para 'others': `(fileperms($parent) & 0007) !== 0`. La ruta usada `/home/databalt/cervesur_cron_private/usuarios-legado.json` se encuentra fuera de DocumentRoot por la evidencia previa, por lo que **la hipotesis principal a confirmar** es que la carpeta `cervesur_cron_private` usa 0755 (u otro modo con bits de 'otros').
+
+**Procedimiento sin degradar protecciones:** (1) detener/eliminar Cron de exportacion repetitivo; (2) en cPanel File Manager, inspeccionar permisos de **carpeta** `/home/databalt/cervesur_cron_private` y ajustar a **0700** solo esa carpeta si es de propiedad de la cuenta (no tocar `.env`, public_html, ni permisos de MySQL); (3) comprobar que no existe `usuarios-legado.json`; (4) solo entonces ejecutar una vez export users-only por Cron usando `/usr/local/bin/php`, con salida privada. El codigo `ERROR_DIRECTORIO_NO_PRIVADO` es un bloqueo seguro, no un defecto de PHP-CLI (este ultimo ya fue confirmado `PHP_SAPI=cli PHP_EXIT=0`).
+
+Esperado tras correccion: `CERVESUR_USUARIOS_EXPORT=PASS`, 190 usuarios, 176 activos, `CONTRASENAS_EXPORTADAS=NO`, `BASE_MODIFICADA=NO`. Eliminar tarea cron tras una corrida y transferir PII solo por canal autorizado SFTP; no compartir JSON de usuarios en chat ni GitHub. Si persiste el error pese a 0700, detener y auditar el destino resuelto/symlink sin desactivar el gate.
