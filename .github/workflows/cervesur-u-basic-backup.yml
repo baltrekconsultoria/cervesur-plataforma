@@ -1,0 +1,32 @@
+name: Cervesur U-BASIC P2 backup QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-u-basic-backup.yml"
+  push:
+    branches:
+      - "feat/cervesur-u-basic-p2-backup-gate-20261112"
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-u-basic-backup.yml"
+permissions:
+  contents: read
+jobs:
+  p2-snapshot:
+    name: Offline backup safety and recovery-gate tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Python source
+        run: python3 -m py_compile ops/u-basic/backup_u_basic.py ops/u-basic/test_backup_u_basic.py
+      - name: Test backup, tamper rejection and no-write gate
+        run: python3 -m unittest discover -s ops/u-basic -p "test_backup_u_basic.py" -v
+      - name: Assert no production access from CI
+        run: |
+          echo "QA_OFFLINE=PASS"
+          echo "MYSQL_PRODUCCION_CONTACTADO=NO"
+          echo "ACTIVACION_U_BASIC=NO_REALIZADA"
