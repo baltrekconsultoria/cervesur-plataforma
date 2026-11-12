@@ -88,6 +88,17 @@ def table_counts() -> dict[str, int]:
         counts[name] = int(value)
     return counts
 
+def table_checksums() -> dict[str, int]:
+    checksums = {}
+    q = chr(96)
+    for name in TABLES:
+        output = mysql_query("CHECKSUM TABLE " + q + BUSINESS_DB + q + "." + q + name + q)
+        cells = output.split("\t")
+        if len(cells) != 2 or not cells[1].isdigit():
+            raise Blocked("CHECKSUM_TABLE_NO_DISPONIBLE_" + name)
+        checksums[name] = int(cells[1])
+    return checksums
+
 def preflight() -> dict[str, int]:
     read_public_flags(guarded_file(ENV_FILE))
     if not shutil.which("mysql") or not shutil.which("mysqldump"):
@@ -179,6 +190,7 @@ def verify_backup(folder: Path) -> None:
 
 def make_backup() -> Path:
     before = preflight()
+    before_checksums = table_checksums()
     safe_root()
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     folder = Path(tempfile.mkdtemp(prefix="u-basic-" + stamp + "-", dir=BACKUP_ROOT))
@@ -192,7 +204,8 @@ def make_backup() -> Path:
         dump_gzip(state, dump_cmd(STATE_DB, None))
         verified_archive(state)
         after = table_counts()
-        if before != after:
+        after_checksums = table_checksums()
+        if before != after or before_checksums != after_checksums:
             raise Blocked("TABLAS_CAMBIARON_DURANTE_RESPALDO")
         manifest = {
             "format": "cervesur-u-basic-p2-v1",
@@ -201,6 +214,7 @@ def make_backup() -> Path:
             "state_db": STATE_DB,
             "business_tables": list(TABLES),
             "rows": before,
+            "checksums": before_checksums,
             "archives_sha256": {
                 business.name: sha_file(business),
                 state.name: sha_file(state),
