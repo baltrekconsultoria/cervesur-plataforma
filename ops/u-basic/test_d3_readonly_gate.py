@@ -53,6 +53,45 @@ class TestGate(unittest.TestCase):
         self.assertTrue(all(c.args[-1] == "192.168.10.15" for c in call.call_args_list))
         self.assertIn("D3_HTTP_GET=PASS_7_DE_7", output.getvalue())
 
+    def test_anon_only_does_not_ask_jwt_or_id(self):
+        output = io.StringIO()
+        with (
+            patch("d3_readonly_gate.request_status", side_effect=[401, 401]) as requests,
+            patch("d3_readonly_gate.prompt_token") as prompt,
+            patch("d3_readonly_gate.sys.stdin.isatty", return_value=False),
+            contextlib.redirect_stdout(output),
+        ):
+            status = gate.http_lectura(
+                "http://127.0.0.1",
+                None,
+                vhost="192.168.10.15",
+                solo_anonimos=True,
+            )
+        self.assertEqual(status, 0)
+        self.assertEqual(requests.call_count, 2)
+        prompt.assert_not_called()
+        self.assertIn("D3_HTTP_ANON=PASS_2_DE_2", output.getvalue())
+        self.assertIn("D3_HTTP_ROLES=PENDIENTE_NO_EJECUTADO", output.getvalue())
+
+    def test_anon_only_fails_closed_on_404(self):
+        output = io.StringIO()
+        with (
+            patch("d3_readonly_gate.request_status", side_effect=[404, 404]),
+            patch("d3_readonly_gate.prompt_token") as prompt,
+            contextlib.redirect_stdout(output),
+        ):
+            status = gate.http_lectura(
+                "http://127.0.0.1", None,
+                vhost="192.168.10.15", solo_anonimos=True
+            )
+        self.assertEqual(status, 2)
+        prompt.assert_not_called()
+        self.assertIn("D3_HTTP_GET=NO_GO_ANONIMO", output.getvalue())
+
+    def test_id_necessary_only_for_role_checks(self):
+        with self.assertRaises(ValueError):
+            gate.http_lectura("http://127.0.0.1", None)
+
     def test_source_missing_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             output = io.StringIO()
