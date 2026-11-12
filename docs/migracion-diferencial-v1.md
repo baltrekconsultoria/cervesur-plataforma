@@ -736,3 +736,29 @@ Ambos contadores se refieren a **un mismo candidato**; no hay evidencia de dupli
 **Correctivo acotado GitHub:** `usuarios_import_controlado.php` deja de exigir la regex del formulario y acepta `3..50` caracteres Unicode **imprimibles** sin categorias de control `\p{C}`, comprobados con PHP PCRE `preg_match('/\A[^\p{C}]{3,50}\z/u', ...)`. No relajar unicidad por email/username, colisiones entre alias de login, obligatoriedad de nombres, role user, estado propuesto inactivo ni largo real en columnas. Si el registro contiene un caracter no imprimible, `CHECK` debe seguir bloqueando. Se agregan tests sinteticos de usuario original con puntuacion, rechazo por newline/NUL, largo >50 y colision cruzada; QA sin conexion a MySQL. El archivo original y el plan permanecen intactos.
 
 **Siguiente puerta:** verificar CI PASS; actualizar checkout y sustituir solo copia protegida de `usuarios_import_controlado.php` en `/usr/local/lib/cervesur-migration/`, `cmp`, `php -l`; ejecutar solo `--mode=check` sobre mismos snapshots, **NO`--mode=apply` ni `--mode=backup`** antes de `CERVESUR_IMPORT_USUARIOS=PASS`. Si persiste error, detener y clasificar de forma agregada si contiene Unicode de control, sin imprimir PII. No modificaciones de producción ni credenciales.
+
+### 12/11/2026 — CHECK privado de importador PASO FINAL (usuarios) = PASS
+
+Operador en PuTTY:
+```text
+git pull --ff-only 9d86d7b..3b0bf44 PASS
+IMPORT_CODE=PASS
+No syntax errors detected in usuarios_import_controlado.php
+CERVESUR_IMPORT_USUARIOS=PASS
+MODO=CHECK
+NUEVOS_PROPUESTOS_INACTIVOS=114
+EXISTENTES_CONSERVADOS=76
+CONFLICTOS=0
+MYSQL_MODIFICADO=NO
+```
+
+Verificados ambos workflows de HEAD `3b0bf44a`: `Migracion diferencial CI` y `Backend CI` concluyeron `SUCCESS`.
+
+**Autorizacion funcional previa:** usuario solicito completar migracion de usuarios y luego habilitar gestion/sesiones. Preparar respaldo antes de ejecutar DML.
+
+**Puerta inmediata BACKUP (no DML):**
+- Definir respaldo fijo de una unica ejecucion bajo `/var/lib/cervesur-migration/snapshots/usuarios-react-backup-preimport-20261112.json`; no sobrescribir.
+- `sudo -u www-data -- php /usr/local/lib/cervesur-migration/usuarios_import_controlado.php --mode=backup --loader=/var/www/cervesur/backend/lib/env.php --database=cervesur_portalbi --plan=/var/lib/cervesur-migration/snapshots/plan-usuarios.json --snapshot=/var/lib/cervesur-migration/snapshots/usuarios-react.json --backup=/var/lib/cervesur-migration/snapshots/usuarios-react-backup-preimport-20261112.json`.
+- Esperar `CERVESUR_IMPORT_USUARIOS=PASS`, `MODO=BACKUP`, `FILAS_RESPALDADAS=76`, SHA256 no vacio, archivo regular privado `www-data` 0600, `sha256sum` identico, y archivo utilizable antes de APPLY.
+- Este respaldo contiene **hashes de contrasena, nombres/correos/telefonos**; nunca copiarlo al chat/GitHub ni dejarlo bajo `/var/www`, protegerlo segun politicas de retencion y restauracion. El hash SHA256 es verificador de integridad, no secreto.
+- Solo una vez verificado PASS+SHA, habilitar el siguiente gate de `--mode=apply` (DML 114 INSERT inactivos con rollback transaccional en error), seguido de postflight estadistico y QA. No crear sesiones activas ni copiar passwords origen automaticamente.
