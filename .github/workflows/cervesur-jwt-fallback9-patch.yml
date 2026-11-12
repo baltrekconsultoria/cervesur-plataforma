@@ -1,0 +1,41 @@
+name: Cervesur Fallback9 fail-closed patch QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/patch_jwt_fallback9.py"
+      - "ops/u-basic/test_patch_jwt_fallback9.py"
+      - "ops/u-basic/FALLBACK9-ROLLOUT.md"
+      - ".github/workflows/cervesur-jwt-fallback9-patch.yml"
+  push:
+    branches:
+      - "fix/cervesur-jwt-fallback9-failclosed-20261112"
+    paths:
+      - "ops/u-basic/patch_jwt_fallback9.py"
+      - "ops/u-basic/test_patch_jwt_fallback9.py"
+      - "ops/u-basic/FALLBACK9-ROLLOUT.md"
+      - ".github/workflows/cervesur-jwt-fallback9-patch.yml"
+permissions:
+  contents: read
+
+jobs:
+  fallback9-offline:
+    name: SHA-pinned 8+1 router patch, private backup and rollback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PHP CLI for real lint and isolated fail-closed behavior
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq php-cli
+      - name: Validate Python
+        run: python3 -m py_compile ops/u-basic/patch_jwt_fallback9.py ops/u-basic/test_patch_jwt_fallback9.py
+      - name: Run targeted synthetic tests without production access
+        run: python3 -m unittest discover -s ops/u-basic -p "test_patch_jwt_fallback9.py" -v
+      - name: Mark no production access or deployment
+        run: |
+          echo "FALLBACK9_QA_OFFLINE=PASS"
+          echo "SERVIDOR_PRODUCTIVO_CONTACTADO=NO"
+          echo "U_BASIC_ACTIVADO=NO"
