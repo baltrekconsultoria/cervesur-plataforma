@@ -304,3 +304,31 @@ Se necesita que el **mismo archivo de clave HMAC de 256 bits** creado en el cPan
 5. Solo despues transferir el snapshot legado **directamente por SFTP** a ubicacion privada y ejecutar `compare_snapshots.py` en el propio Ubuntu, copia de codigo protegida, con ambos JSON y clave coincidente. Compartir unicamente `resultado-agregado.json` (solo conteos, sin hashes ni PII), no los snapshots.
 
 **NO-GO:** migracion real de usuarios, roles, passwords, grants, cambios de estados o enlaces, merge y despliegue productivo sin el dry-run comparado, revision humana, respaldo/rollback y autorizacion especifica.
+
+### Incidencia WinSCP: nombre del archivo HMAC en staging (12/11/2026)
+
+El operador mostro transferencia SFTP a `/home/usr_cervesur/cervesur_migracion_privada/entrada/` de dos archivos: el snapshot legado y un fichero con nombre visible `cervesur-migration-hmac`, **sin punto inicial**. El primer bloque de instalacion busco `.cervesur-migration-hmac` y devolvio `STAGING=FAIL`, **sin instalar aun la clave en `/var/lib/cervesur-migration`**.
+
+**Causa probable, por comprobar con salida de shell:** discordancia del nombre visible en WinSCP respecto de la ruta buscada. No interpretar como error de conexion, de bytes HMAC ni como problema de MySQL. No volver a generar la clave.
+
+**Correccion propuesta (sin leer ni imprimir el secreto):**
+
+```sh
+DIR=/home/usr_cervesur/cervesur_migracion_privada/entrada
+SRC="$DIR/cervesur-migration-hmac"
+STAGE="$DIR/.cervesur-migration-hmac"
+if [ -f "$SRC" ] && [ ! -L "$SRC" ] && [ ! -e "$STAGE" ]; then
+    mv -- "$SRC" "$STAGE"
+fi
+if [ -f "$STAGE" ] && [ ! -L "$STAGE" ]; then
+    chmod 600 "$STAGE"
+    echo "STAGING=PASS"
+    echo "KEY_BYTES=$(wc -c < "$STAGE")"
+else
+    echo "STAGING=FAIL"
+fi
+```
+
+**Puerta antes de copiar a destino privilegiado:** `STAGING=PASS` y `KEY_BYTES=65` (64 caracteres hex mas salto de linea). Verificar *sin mostrar clave* que no existe ya `/var/lib/cervesur-migration/.cervesur-migration-hmac` antes de instalar. Solo despues copiar bajo `www-data:www-data`, 0600, comparar via `sudo cmp -s` y confirmar lectura `sudo -u www-data test -r`. Nunca adjuntar el archivo secreto o el snapshot a chats ni GitHub.
+
+Estado: paso de staging **aun no validado tras correccion**. Base nueva no modificada y exportacion destino pendiente.
