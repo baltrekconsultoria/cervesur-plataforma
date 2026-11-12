@@ -90,10 +90,17 @@ def analyze(sources: dict[str, str]) -> dict[str, str]:
         r"unset\s*\(\s*\$empresa\s*\[\s*['\"]powerbi_clientsecret['\"]\s*\]\s*\)",
         company
     ))
-    secret_read_paths = all(re.search(
-        r"function\s+" + name + r"\s*\([^)]*\).*?withoutSecrets\s*\(",
-        company, re.DOTALL
-    ) for name in ("getAll", "getById", "search", "getByCity"))
+    # Delimitar por metodo: no atribuir el filtro de un metodo posterior.
+    def method_has_secret_filter(name: str) -> bool:
+        segment = re.search(
+            r"function\s+" + name + r"\s*\([^)]*\)\s*\{(?P<body>.*?)"
+            r"(?=\n\s*(?:public|protected|private)\s+function|\Z)",
+            company, re.DOTALL
+        )
+        return bool(segment and re.search(r"withoutSecrets\s*\(", segment["body"]))
+    secret_read_paths = all(method_has_secret_filter(name) for name in (
+        "getAll", "getById", "search", "getByCity"
+    ))
     controller_has_model = "EmpresaModel.php" in company_controller
     stats_guard = all(x in stats for x in ("require_auth(", "get_jwt_secret_or_fail("))
     wiki_get_only_structural = "if ($method === 'GET')" in wiki and "/api/wiki" in wiki
@@ -134,7 +141,7 @@ def main() -> int:
     print("D3_07_ALIAS_RUNTIME=PENDIENTE")
     print("D3_08_SECRET_RUNTIME=PENDIENTE")
     print("D3_GLOBAL=PENDIENTE_PRUEBAS_DINAMICAS_Y_FIRMAS")
-    print("DATOS_PERSONALES_LEIDOS=NO")
+    print("DATOS_DE_BD_LEIDOS=NO")
     print("MYSQL_PRODUCTIVO_MODIFICADO=NO")
     print("U_BASIC_ACTIVADO=NO")
     return 0
