@@ -677,3 +677,16 @@ sudo -u www-data -- php "$DST" --loader=/var/www/cervesur/backend/lib/env.php --
 ```
 
 **STOP** si checkout sucio, `SCHEMA_CODE` no PASS, `php -l` falla o `puerta_para_importacion=BLOQUEADA`. Compartir solo salida de metadatos. El importador CHECK/BACKUP/APPLY no debe ejecutarse hasta revisar la puerta real de esquema, pruebas y estado de respaldo. **Produccion, UI y datos permanecen sin modificaciones tras este registro.**
+
+### 12/11/2026 — Puerta de esquema user validada en Ubuntu: CANDIDATA
+
+Resultado del operador (datos agregados, sin PII):
+- Copia protegida `usuarios_schema_gate.php` instalada: `SCHEMA_CODE=PASS`, `php -l` PASS.
+- `CERVESUR_USUARIOS_SCHEMA=PASS` desde `www-data` usando `cervesur_portalbi`; `modo=SOLO_LECTURA`, `mysql_modificado=false`.
+- Tabla `user` InnoDB, 76 filas / 62 activas, 0 triggers, 0 columnas obligatorias faltantes.
+- Indices unicos separados en `id`, `email`, `username` confirmados; `id` int unsigned auto_increment, `password` varchar(255), `role` varchar(30), `session_version` int unsigned NOT NULL. Campos name 50, username 50, email 100, phone 20; timestamps tienen default.
+- `puerta_para_importacion=CANDIDATA` **solo habilita la etapa de check y respaldo**; no equivale a la importacion real ni asegura acceso de usuarios.
+
+**Puerta siguiente:** actualizar el checkout de PR #23 y ejecutar `usuarios_import_controlado.php --mode=check` desde copia `root:root` 0644 como `www-data`. Este modo valida el plan con datos reales pero solo ejecuta SELECT, no INSERT. Requiere CHECK PASS de 114 nuevos inactivos, 76 existentes intactos, 0 conflictos, `MYSQL_MODIFICADO=NO` antes de autorizar copia de seguridad. `Migracion diferencial CI` y `Backend CI` del commit `8d8f273d` finalizaron `SUCCESS`.
+
+**Nota funcional:** la administracion de usuarios `/admin/usuarios` y JWT ya existen en el repo, pero las 114 cuentas importadas no podran iniciar sesion hasta aplicar flujo seguro de contrasena individual y activacion autorizada. La UI actual no implementa por si sola ese flujo y no debe confundir creacion inactiva con login habilitado.
