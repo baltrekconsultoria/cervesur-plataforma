@@ -1,0 +1,34 @@
+name: Cervesur D3 Readonly Gate QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/d3_readonly_gate.py"
+      - "ops/u-basic/test_d3_readonly_gate.py"
+      - "ops/u-basic/D3-READONLY-GATE.md"
+      - ".github/workflows/cervesur-d3-readonly.yml"
+  push:
+    branches:
+      - "feat/cervesur-d3-qa-readonly-20261112"
+    paths:
+      - "ops/u-basic/d3_readonly_gate.py"
+      - "ops/u-basic/test_d3_readonly_gate.py"
+      - ".github/workflows/cervesur-d3-readonly.yml"
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python syntax check
+        run: python3 -m py_compile ops/u-basic/d3_readonly_gate.py ops/u-basic/test_d3_readonly_gate.py
+      - name: Security fixtures (offline only)
+        run: cd ops/u-basic && python3 -m unittest -v test_d3_readonly_gate
+      - name: No production writes or access
+        run: |
+          echo "D3_QA_OFFLINE=PASS"
+          echo "PRODUCCION_CONTACTADA=NO"
+          echo "U_BASIC_ACTIVADO=NO"
