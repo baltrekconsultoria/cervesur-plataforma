@@ -50,3 +50,20 @@ No extraer .env, tokens, usuarios, hashes o nombres personales a salida de termi
 5. Pruebas con una cuenta controlada, revisión de rollback y despliegue segregado; no usar las 114 cuentas de clientes para pruebas.
 
 La importación y activación productivas están terminadas; habilitación React/credenciales NO realizada todavía.
+
+## PuTTY: inventario de portales realizado el 12/11/2026
+
+- FRONT_PRESENT para Flutter /var/www/cervesur/frontend/index.html.
+- FRONT_PRESENT para React QA /var/www/cervesur-react-prueba/public/index.html (8088).
+- FRONT_PRESENT para React compatibilidad /var/www/cervesur-react-compat/public/index.html (8089).
+- API_PING_PORT_80 = 404 text/html (no demuestra que Flutter este caido).
+- API_PING_PORT_8088 y API_PING_PORT_8089 = 200 application/json.
+- API_USERS_ANON_PORT_8088 y API_USERS_ANON_PORT_8089 = 401 application/json.
+
+Interpretacion: las dos API QA responden y protegen /api/users ante solicitudes anonimas. No se ha demostrado que React vea 190 usuarios productivos. Según documentación, React 8088 y 8089 son entornos aislados con bases sintéticas.
+
+### Proxima puerta: vhosts y rutas de API, solo lectura
+
+Verificar Apache vhosts asociados a 80/443/8088/8089/8443, puertos en escucha y codigo HTTP anonimo de /api/users en puerto 80. No imprimir cuerpos HTTP ni archivos .env. Un 200 JSON en /api/users anonimo requiere STOP. Las solicitudes a 127.0.0.1 pueden seleccionar el vhost por defecto, no el vhost corporativo; interpretar con cautela.
+
+No alterar la configuracion Apache ni redirigir los React QA a MySQL productivo. El objetivo posterior es un portal administrativo productivo separado y seguro, con listado real de 190 usuarios, 176 activos y 14 inactivos, mas invitaciones de credenciales individuales; sus 114 cuentas nuevas siguen sin contrasenas utilizables.
