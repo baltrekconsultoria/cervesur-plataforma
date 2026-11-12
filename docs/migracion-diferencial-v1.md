@@ -690,3 +690,26 @@ Resultado del operador (datos agregados, sin PII):
 **Puerta siguiente:** actualizar el checkout de PR #23 y ejecutar `usuarios_import_controlado.php --mode=check` desde copia `root:root` 0644 como `www-data`. Este modo valida el plan con datos reales pero solo ejecuta SELECT, no INSERT. Requiere CHECK PASS de 114 nuevos inactivos, 76 existentes intactos, 0 conflictos, `MYSQL_MODIFICADO=NO` antes de autorizar copia de seguridad. `Migracion diferencial CI` y `Backend CI` del commit `8d8f273d` finalizaron `SUCCESS`.
 
 **Nota funcional:** la administracion de usuarios `/admin/usuarios` y JWT ya existen en el repo, pero las 114 cuentas importadas no podran iniciar sesion hasta aplicar flujo seguro de contrasena individual y activacion autorizada. La UI actual no implementa por si sola ese flujo y no debe confundir creacion inactiva con login habilitado.
+
+### 12/11/2026 — CHECK importacion real BLOQUEADO por validacion adicional; NO DML
+
+Evidencia del operador:
+```text
+git pull --ff-only: 8d8f273..0fb3e72 (fast-forward)
+IMPORT_CODE=PASS
+php -l: No syntax errors detected
+CERVESUR_IMPORT_USUARIOS=ERROR_COLISION_O_DATOS_INVALIDOS
+```
+
+Este codigo sale del bucle de `validatePlan()` **antes de `connectUsers()` y antes de abrir la transaccion**, por lo que **el ejecutable no realizo INSERT/UPDATE/DELETE ni cambios de MySQL**. La salida no identifica que registro ni que subcondicion fallo.
+
+**Inconsistencia de validacion demostrada en GitHub:**
+- `plan_usuarios.py` clasifica como preparable cualquier `username` no vacio (mas deduplicacion); no exige el regex frontend.
+- `usuarios_import_controlado.php` impone `/^[a-z0-9._-]{3,30}$/D` y cruces entre email y username, en adicion a campos obligatorios, emails validos y ausencia de duplicados.
+- No atribuir la causa exacta a la longitud ni relajar el importador sin conocer el desglose real.
+
+Se agrego `ops/migracion/diagnostico_validacion_usuarios.py`, diagnostico **offline sin DB ni SQL**; revalida que `plan-usuarios.json` coincide con los JSON privados de legado/destino, y solo reporta **conteos de motivos**: longitud/caracteres de username, campos vacios, excesos de longitud MySQL, duplicidades y colisiones cruzadas de identificadores. No publica nombres, emails, IDs ni secretos, no crea archivos. Pruebas sinteticas en `tests/migracion/test_diagnostico_validacion_usuarios.py` y compilacion CI agregadas.
+
+**Siguiente paso en PuTTY, despues de CI PASS:** actualizar checkout limpio, copiar archivo a `/usr/local/lib/cervesur-migration/diagnostico_validacion_usuarios.py` como `root:root` 0644, validar `cmp` y sintaxis, comprobar que los tres JSON 0600 son legibles bajo `www-data`. Ejecutar `sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesur-migration/diagnostico_validacion_usuarios.py --legado /var/lib/cervesur-migration/snapshots/usuarios-legado.json --react /var/lib/cervesur-migration/snapshots/usuarios-react.json --plan /var/lib/cervesur-migration/snapshots/plan-usuarios.json`. Compartir exclusivamente JSON agregado. Si falla el diagnostico, STOP. Si PASS, decidir correccion puntual manteniendo las reglas de unicidad/autenticacion y reutilizando los mismos snapshots, sin sobrescribir ni exponer PII.
+
+**Gate:** ningun `backup` ni `apply` hasta confirmar `CERVESUR_IMPORT_USUARIOS=PASS MODO=CHECK` sobre codigo corregido, respaldos verificados y separacion de inicializacion de contrasenas/activacion. El usuario solicita habilitar sesiones posteriormente; no puede hacerse automaticamente a partir de hashes aleatorios desconocidos.
