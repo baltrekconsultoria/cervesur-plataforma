@@ -38,6 +38,8 @@ jobs:
           php -l ops/migracion/ubuntu_db_preflight.php
           php -l ops/migracion/export_usuarios_privado.php
           php -l ops/migracion/usuarios_schema_gate.php
+          php -l ops/migracion/usuarios_import_controlado.php
+          php -l tests/migracion/test_usuarios_import_guard.php
       - name: Regression - Ubuntu .env denied without leaked warnings
         shell: bash
         run: |
@@ -66,6 +68,8 @@ jobs:
           set -e
           test "$status" -eq 2
           test "$result" = 'CERVESUR_USUARIOS_SCHEMA=ERROR_BASE_INCORRECTA'
+      - name: QA PHP offline de importacion controlada
+        run: php tests/migracion/test_usuarios_import_guard.php
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py ops/migracion/plan_usuarios.py tests/migracion/test_plan_usuarios.py
       - name: Pruebas sinteticas sin datos personales
