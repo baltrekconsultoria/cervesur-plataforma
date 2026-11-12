@@ -42,6 +42,7 @@ class BackupTests(TestCase):
         self.root = self.base / "backups"
         self.root.mkdir()
         self.ps = [
+            mock.patch.object(mod, "safe_root", side_effect=self.create_fixture_root),
             mock.patch.object(mod, "ENV_FILE", self.env),
             mock.patch.object(mod, "BACKUP_ROOT", self.root / "u-basic"),
             mock.patch.object(mod, "mysql_query", side_effect=stub_query),
@@ -51,6 +52,10 @@ class BackupTests(TestCase):
         for p in self.ps:
             p.start()
             self.addCleanup(p.stop)
+
+    def create_fixture_root(self):
+        self.root.joinpath("u-basic").mkdir(mode=0o700, exist_ok=True)
+        self.root.joinpath("u-basic").chmod(0o700)
 
     def test_flags_off(self):
         value = mod.read_public_flags(self.env.read_bytes())
