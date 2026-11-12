@@ -148,18 +148,27 @@ def start_daemon(qa_root: Path) -> subprocess.Popen:
             stdout=silent, stderr=silent, start_new_session=True,
         )
     socket = qa_root / "mysql.sock"
-    deadline = time.monotonic() + 90
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            raise NoGo("MYSQL_AISLADO_NO_INICIO")
-        if socket.exists():
-            try:
-                if client(socket, "SELECT 1", timeout=5) == "1":
-                    return process
-            except NoGo:
-                pass
-        time.sleep(1)
-    raise NoGo("MYSQL_AISLADO_TIEMPO_ESPERA")
+    try:
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise NoGo("MYSQL_AISLADO_NO_INICIO")
+            if socket.exists():
+                try:
+                    if client(socket, "SELECT 1", timeout=5) == "1":
+                        return process
+                except NoGo:
+                    pass
+            time.sleep(1)
+        raise NoGo("MYSQL_AISLADO_TIEMPO_ESPERA")
+    except BaseException:
+        # Caller does not own process until this function returns. Never
+        # discard a live child and remove its datadir during startup failure.
+        try:
+            shutdown_daemon(process, qa_root)
+        except BaseException as exc:
+            raise NoGo("MYSQL_AISLADO_ARRANQUE_NO_PUDO_DETENERSE") from exc
+        raise
 
 def import_dump(socket: Path, archive: Path, target_database: str | None) -> None:
     cmd = ["mysql", "--no-defaults", "--protocol=socket",
