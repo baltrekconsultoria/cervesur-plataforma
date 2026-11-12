@@ -762,3 +762,35 @@ Verificados ambos workflows de HEAD `3b0bf44a`: `Migracion diferencial CI` y `Ba
 - Esperar `CERVESUR_IMPORT_USUARIOS=PASS`, `MODO=BACKUP`, `FILAS_RESPALDADAS=76`, SHA256 no vacio, archivo regular privado `www-data` 0600, `sha256sum` identico, y archivo utilizable antes de APPLY.
 - Este respaldo contiene **hashes de contrasena, nombres/correos/telefonos**; nunca copiarlo al chat/GitHub ni dejarlo bajo `/var/www`, protegerlo segun politicas de retencion y restauracion. El hash SHA256 es verificador de integridad, no secreto.
 - Solo una vez verificado PASS+SHA, habilitar el siguiente gate de `--mode=apply` (DML 114 INSERT inactivos con rollback transaccional en error), seguido de postflight estadistico y QA. No crear sesiones activas ni copiar passwords origen automaticamente.
+
+### 12/11/2026 — Respaldo verificado, puerta APPLY habilitable
+
+El operador ejecuto `usuarios_import_controlado.php --mode=backup`. Evidencia:
+```text
+CERVESUR_IMPORT_USUARIOS=PASS
+MODO=BACKUP
+FILAS_RESPALDADAS=76
+BACKUP_INCLUYE_HASHES_PRIVADOS=SI
+BACKUP_FILE=PASS
+BACKUP_OWNER=www-data:www-data
+BACKUP_MODE=600
+BACKUP_BYTES=28484
+```
+El SHA256 reportado por el importador coincidió exactamente con la verificacion posterior `sudo -u www-data -- sha256sum` del archivo `/var/lib/cervesur-migration/snapshots/usuarios-react-backup-preimport-20261112.json`: `791b7c99bdbc0bc362d50395d2675a8c3336b9913262923460490fbd997fd86b`.
+
+Validacion de codigo del importador en HEAD: (1) `validatePlan` exige 114 candidatos user inactivos y 76 existentes del snapshot; (2) `baselineUsers` dentro de transaccion `FOR UPDATE` preserva email/username/rol/estado/id 76; (3) `readBackup` compara SHA256 contra el esperado **y** bytes JSON contra filas reales exactas pre-carga; (4) 114 inserts de user inactivo con password_hash de aleatorio por cuenta; (5) postcondicion `count=114`, `total=190`, `active=62` antes de COMMIT; rollback en exception; (6) NO modificar empresa/reporte/asignaciones ni crear admins.
+
+`Migracion diferencial CI` y `Backend CI` de revision `3b0bf44a` concluyeron SUCCESS. No se publico el backup: contiene PII y hashes de contrasena; mantenerlo solo en el almacenamiento privado 0600 y custodiarlo para restauracion.
+
+**Siguiente ejecucion de operador, aprobada previamente para SOLO USUARIOS:** `--mode=apply` usando exclusivamente el backup y SHA mencionados y `--confirm=IMPORTAR_114_USUARIOS_INACTIVOS`, sin actualizar el archivo php instalado ni el plan. **No duplicar el comando**: es de una sola corrida, sujeto a postflight. Si aparece `ERROR_BACKUP_NO_COINCIDE_CON_DB`, por ejemplo si hubo un ultimo login entre backup y apply, detener sin forzar y revisar el backup de referencia. No activar usuarios ni intentar iniciar sus sesiones antes de la inicializacion segura de credenciales.
+
+Postcondicion esperada:
+```text
+CERVESUR_IMPORT_USUARIOS=PASS
+MODO=APPLY
+NUEVOS_INACTIVOS=114
+EXISTENTES_MODIFICADOS=0
+TOTAL_FINAL=190
+ACTIVOS_FINAL=62
+CONTRASENAS_PUBLICADAS=NO
+```
