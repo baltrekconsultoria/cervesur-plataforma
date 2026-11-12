@@ -794,3 +794,13 @@ TOTAL_FINAL=190
 ACTIVOS_FINAL=62
 CONTRASENAS_PUBLICADAS=NO
 ```
+
+### 12/11/2026 — ERROR_ARGUMENTOS en APPLY: bug CLI localizado; sin escrituras
+
+PuTTY del operador confirmo `BACKUP_PRE_APPLY=PASS` y respaldo privado existente de 76 usuarios, 0600, hash SHA256 coincidente. Al invocar `--mode=apply` con `--backup-sha256=791b7c99bdbc0bc362d50395d2675a8c3336b9913262923460490fbd997fd86b`, el script devolvio `CERVESUR_IMPORT_USUARIOS=ERROR_ARGUMENTOS`.
+
+**Causa demostrada en el código:** el parser original `preg_match('/^--([a-z-]+)=(.+)$/D', $arg, $m)` solo acepta letras y guiones, pero el argumento declarado y requerido para APPLY es `backup-sha256`, que contiene digitos. Error ocurre antes de cargar plan/snapshot o abrir DB y por tanto no hubo DML; el respaldo original sigue valido.
+
+**Correccion minima en PR borrador #23:** parser `preg_match('/^--([a-z0-9-]+)=(.+)$/D', $arg, $m)`. Se mantienen whitelist de argumentos, obligatoriedad de `--confirm=IMPORTAR_114_USUARIOS_INACTIVOS`, backup SHA, validaciones de 76 cuentas, transaction/rollback y 114 usuarios nuevos inactivos. Se agrego `tests/migracion/test_usuarios_import_args.sh` con 4 casos aislados, sin DB ni PII real: acepta flag `--backup-sha256` llegando hasta un STOP por archivos de prueba inexistentes (en lugar de ERROR_ARGUMENTOS), rechaza flag duplicado, rechaza usar hash en modo check y rechaza flags desconocidos. CI incorpora prueba shell.
+
+**Pasos siguientes:** solo si CI de Migracion diferencial PASS, actualizar checkout limpio y reinstalar `usuarios_import_controlado.php` desde GitHub en `/usr/local/lib/cervesur-migration` como root 0644; comparar `cmp` + `php -l`. Verificar que la copia de 76 usuarios de 28,484 bytes siga 0600 y que SHA coincida. Repetir exactamente una vez `--mode=apply` con parametros y SHA originales. Ante cualquier error nuevo detener y diagnosticar, no repetir ciegamente. Resultado esperado `MODO=APPLY NUEVOS_INACTIVOS=114 EXISTENTES_MODIFICADOS=0 TOTAL_FINAL=190 ACTIVOS_FINAL=62`. Respetar restriccion de no activar sesiones ni dar acceso a informes/empresas en este paso.
