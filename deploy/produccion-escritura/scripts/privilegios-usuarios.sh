@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
     *) echo "Argumento desconocido: $1 (use --ayuda)" >&2; exit 2 ;;
   esac
 done
-case $ETAPA in no-sensibles|sensibles|fase2a) ;; *) echo "--etapa debe ser no-sensibles, sensibles o fase2a." >&2; exit 2 ;; esac
+case $ETAPA in no-sensibles|sensibles|password-reset|fase2a) ;; *) echo "--etapa debe ser no-sensibles, sensibles o fase2a." >&2; exit 2 ;; esac
 if [ "$ETAPA" = fase2a ] && [ "$MODO" != verificar ]; then echo "La etapa fase2a solo admite --verificar." >&2; exit 2; fi
 [[ $CUENTA =~ ^cervesur_escritura[a-z0-9_]{0,20}$ ]] || { echo "--cuenta debe empezar por cervesur_escritura (minúsculas, dígitos y _)." >&2; exit 2; }
 [[ $CUENTA_VISTA =~ ^cervesur_vista_alta[a-z0-9_]{0,10}$ ]] || { echo "--cuenta-vista debe empezar por cervesur_vista_alta (minúsculas, dígitos y _; máx. 21 caracteres)." >&2; exit 2; }
@@ -49,6 +49,8 @@ if [ "$ETAPA" = no-sensibles ]; then
   # Orden: la vista y su DEFINER ANTES de conceder INSERT sobre ella; al revertir, PRIMERO se revoca a la cuenta y DESPUÉS se elimina la vista (MySQL no borra los privilegios huérfanos de una vista eliminada).
   UPS=("$REPO/UX-08I-alta-usuarios-vista.up.sql.template" "$REPO/UX-08I-usuarios-no-sensibles.up.sql.template")
   DOWNS=("$REPO/UX-08I-usuarios-no-sensibles.down.sql.template" "$REPO/UX-08I-alta-usuarios-vista.down.sql.template")
+elif [ "$ETAPA" = password-reset ]; then
+  UPS=("$REPO/UX-09C-p5r-password-reset.up.sql.template"); DOWNS=("$REPO/UX-09C-p5r-password-reset.down.sql.template")
 else
   UPS=("$REPO/UX-08I-usuarios-$ETAPA.up.sql.template"); DOWNS=("$REPO/UX-08I-usuarios-$ETAPA.down.sql.template")
 fi
@@ -60,6 +62,7 @@ VISTA_COLS="created_at email first_name is_active last_name password phone role 
 COL_UPDATE_2A="last_login"
 COL_UPDATE_NOSENS="first_name is_active last_login last_name phone session_version updated_at"
 COL_UPDATE_SENS="first_name is_active last_login last_name password phone role session_version updated_at"
+COL_UPDATE_RESET="first_name is_active last_login last_name password phone session_version updated_at"
 
 sql_dba() { $MYSQL_ADMIN -N -B "$@"; }
 cuenta_sql() { printf "'%s'@'%s'" "$CUENTA" "$HOST_CUENTA"; }
@@ -107,7 +110,7 @@ estado_cuenta() { # → fase2a | no-sensibles | sensibles | otro
   ins=$(columnas_de INSERT); upd=$(columnas_de UPDATE); vp=$(privs_de "$GRANTS" v_user_alta)
   if [ -z "$ins" ] && [ -z "$vp" ] && [ "$upd" = "$COL_UPDATE_2A" ] && vista_ausente; then echo fase2a
   elif [ -z "$ins" ] && [ "$vp" = INSERT ] && [ -z "$(vista_problemas)" ]; then
-    if [ "$upd" = "$COL_UPDATE_NOSENS" ]; then echo no-sensibles; elif [ "$upd" = "$COL_UPDATE_SENS" ]; then echo sensibles; else echo otro; fi
+    if [ "$upd" = "$COL_UPDATE_NOSENS" ]; then echo no-sensibles; elif [ "$upd" = "$COL_UPDATE_SENS" ]; then echo sensibles; elif [ "$upd" = "$COL_UPDATE_RESET" ]; then echo password-reset; else echo otro; fi
   else echo otro; fi
 }
 # Violaciones generales (cualquier etapa): lo que la cuenta NUNCA debe tener
@@ -158,7 +161,7 @@ if [ "$ETAPA" != fase2a ] && [ "$ACTUAL" != fase2a ]; then
   [ -z "$VP" ] && ok "vista v_user_alta: insertable, WITH CHECK OPTION vigente, solo role user/usuario, DEFINER $CUENTA_VISTA@localhost bloqueado y con SELECT/INSERT por columnas únicamente" || aviso "vista de alta: $VP"
 fi
 echo "== 3. Interruptores del .env (solo se lee la presencia/valor exacto de dos claves)"
-U_ENV=$(env_valor_actual ADMIN_WRITES_USUARIOS); S_ENV=$(env_valor_actual ADMIN_WRITES_USUARIOS_SENSIBLE)
+U_ENV=$(env_valor_actual ADMIN_WRITES_USUARIOS); S_ENV=$(env_valor_actual ADMIN_WRITES_USUARIOS_SENSIBLE); R_ENV=$(env_valor_actual ADMIN_WRITES_USUARIOS_PASSWORD_RESET)
 
 case $MODO in
   verificar)
@@ -172,6 +175,10 @@ case $MODO in
         ver=$(sql_dba -e "SELECT VERSION()" 2>/dev/null || true)
         if [[ $ver =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]] && [[ $ver != *MariaDB* ]] && { [ "${BASH_REMATCH[1]}" -gt 8 ] || { [ "${BASH_REMATCH[1]}" = 8 ] && { [ "${BASH_REMATCH[2]}" -gt 0 ] || [ "${BASH_REMATCH[3]}" -ge 18 ]; }; }; }; then ok "MySQL $ver admite CREATE USER ... RANDOM PASSWORD"
         else bloquear "se requiere MySQL >= 8.0.18 (CREATE USER ... RANDOM PASSWORD); versión detectada: «${ver:-desconocida}»"; fi ;;
+      password-reset)
+        [ "$ACTUAL" = no-sensibles ] || bloquear "P5-R exige no-sensibles verificado y sin P5 general"
+        [ "$R_ENV" != 1 ] || bloquear "apague P5-R antes de cambiar privilegios"
+        [ "$S_ENV" != 1 ] || bloquear "P5 general no puede estar activo" ;;
       sensibles)
         [ "$ACTUAL" = no-sensibles ] || bloquear "sensibles exige la etapa no-sensibles ya aplicada y verificada (está en «$ACTUAL»)"
         [ "$S_ENV" != 1 ] || bloquear "el .env ya tiene ADMIN_WRITES_USUARIOS_SENSIBLE=1: apáguelo antes de tocar privilegios" ;;
@@ -180,6 +187,8 @@ case $MODO in
     case $ETAPA in
       no-sensibles) { [ "$ACTUAL" = no-sensibles ] || { [ "$ACTUAL" = otro ] && parcial_2b && ! grep -qE '(password|role)' <<<"$(columnas_de UPDATE)"; }; } || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL» (si está en «sensibles», revierta primero esa etapa; un estado parcial de no-sensibles SÍ se puede revertir)"
                     [ "$U_ENV" != 1 ] || bloquear "apague ADMIN_WRITES_USUARIOS (interruptor-usuarios.sh apagar) antes de revertir privilegios" ;;
+      password-reset) [ "$ACTUAL" = password-reset ] || bloquear "P5-R exige etapa password-reset para revertir"
+                  [ "$R_ENV" != 1 ] || bloquear "apague ADMIN_WRITES_USUARIOS_PASSWORD_RESET antes de revertir" ;;
       sensibles) { [ "$ACTUAL" = sensibles ] || { [ "$ACTUAL" = otro ] && parcial_2b && grep -qE '(password|role)' <<<"$(columnas_de UPDATE)"; }; } || bloquear "no hay nada que revertir: la cuenta está en «$ACTUAL»"
                  [ "$S_ENV" != 1 ] || bloquear "apague ADMIN_WRITES_USUARIOS_SENSIBLE antes de revertir privilegios" ;;
     esac ;;
@@ -233,8 +242,8 @@ GRANTS=$(grants_actuales || true); printf '%s\n' "$GRANTS" > "$EVID/grants-despu
 { vista_existe && sql_dba -e "SHOW CREATE VIEW \`$DB\`.\`v_user_alta\`" 2>/dev/null; } > "$EVID/vista-despues.txt" || true; chmod 600 "$EVID/vista-despues.txt"
 FIN=$(estado_cuenta); V=$(violaciones_generales)
 case $MODO:$ETAPA in
-  aplicar:no-sensibles) ESPERADO=no-sensibles ;; aplicar:sensibles) ESPERADO=sensibles ;;
-  revertir:no-sensibles) ESPERADO=fase2a ;;
+  aplicar:no-sensibles) ESPERADO=no-sensibles ;; aplicar:sensibles) ESPERADO=sensibles ;; aplicar:password-reset) ESPERADO=password-reset ;;
+  revertir:no-sensibles) ESPERADO=fase2a ;; revertir:password-reset) ESPERADO=no-sensibles ;;
   revertir:sensibles) if [ "$ACTUAL" = sensibles ]; then ESPERADO=no-sensibles; else ESPERADO=$FIN; grep -qE '(password|role)' <<<"$(columnas_de UPDATE)" && ESPERADO=sin-sensibles; fi ;;
 esac
 if [ "$FIN" = "$ESPERADO" ] && [ -z "$V" ]; then ok "VERIFICACIÓN POSTERIOR: la cuenta está en «$FIN», sin privilegios de más"; echo "RESULTADO-PRIVILEGIOS: PASS $MODO $ETAPA"; exit 0; fi
