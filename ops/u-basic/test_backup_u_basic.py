@@ -120,7 +120,7 @@ class BackupTests(TestCase):
         def changing(sql):
             if "COUNT(*) FROM " in sql and ("." + chr(96) + "user" + chr(96)) in sql:
                 counter["reads"] += 1
-                if counter["reads"] >= 3:
+                if counter["reads"] >= 2:
                     return "191"
             return original(sql)
         with mock.patch.object(mod, "mysql_query", side_effect=changing):
