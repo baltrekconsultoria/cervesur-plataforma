@@ -211,3 +211,11 @@ Proxima comprobacion focalizada en A1: huella actual y guardia perfil ajeno de `
 El operador reporto `F5A=VERSION_CON_K2_Y_F5A`, `A1_SHA256=41610318f9bb5cd11ad7daa40cfbcf95f1742e5f14d5c4d4b59e4613a5206709`, `A1_GUARDIA=PASS_ESTRUCTURAL`, `CAMBIOS_PRODUCTIVOS=NO`. El router Empresa coincide con la variante K2+F5a del manifiesto; no reinstalar. El router A1 ya tiene guardia propio/admin/403 después de `require_auth`, pendiente QA HTTP con cuenta de prueba. K2 2/2 huellas; F-4 A2 2/2 huellas; F10 anonimo HTTP401; K1 HTTP410; P4a PASS.
 
 Proximo bloque acotado: identificar F5b/F5c POST/PUT/DELETE con guardias admin antes de cambiar reportes/asignaciones, sin DML. Despues QA focalizado y cierre politica JWT 10800 vs 86400, fallback K1, D3 y firmas. U-BASIC OFF, P5 sensible OFF. Ref: [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — F5b y F5c autorizaciones POST/PUT/DELETE 6/6 PASS estructural
+
+Operador confirma en legado: `F5B_POST/PUT/DELETE=PASS_ESTRUCTURAL`, `F5C_POST/PUT/DELETE=PASS_ESTRUCTURAL`, ambos `RESULTADO=PASS`, `CAMBIOS_PRODUCTIVOS=NO`. Estos seis PASS son de estructura/orden de guardias `require_auth → role admin → 403 → exit` sobre el archivo efectivo, **no** de ejecucion HTTP real, roles de token o cobertura de alias. No reinstalar ni seguir auditando archivos ya verificados.
+
+Estado agregado: K2 PASS huellas, A1 PASS estructural, F4/F5a PASS huellas, F5b/c PASS estructural, F10 POST anónimo 401, K1 HTTP 410 y P4a grants PASS. Siguiente hito ya no es inspeccion por archivos: **GO/NO-GO integral de P4b** con QA negativo admin/user, formalización de K1/K2/A1/A2/A3/D3, diferencia JWT 10800 vs 86400, continuidad altas Flutter, autorizaciones y rollback. Hasta cierre formal, `ADMIN_WRITES_USUARIOS` y `ADMIN_WRITES_USUARIOS_SENSIBLE` OFF (último chequeo). 114 cuentas migradas no tienen credenciales inicializadas, portal 443 SELECT denegado, trabajos posteriores separados.
+
+Detallado en [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md), commit c60176f1dbefa3a5bc106be95bc06d8433c86ce6.
