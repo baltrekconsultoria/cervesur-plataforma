@@ -104,3 +104,20 @@ PRIVILEGIOS_USUARIOS=PASS
 **Conclusión acotada:** se localizó por lo menos una copia del verificador cuyo hash Git coincide con el blob oficial de `feat/cervesur-ux-09a-cierre-usuarios` (`d849a014ff938e67d3a31d88da955be7fc453462`), y **esa copia** completó la validación de privilegios de fase `no-sensibles` con PASS (script de solo lectura). Esto confirma **P4a de permisos mínimos** y evita repetir su comprobación. La salida no demuestra por sí sola la huella del paquete `interruptor-usuarios.sh`, ni K1/K2/A1/A2/A3/D3/D4, ni una autorización P4b; no hay evidencia de que el operador haya encendido gestión.
 
 **Decisión:** mantener `GESTION_USUARIOS=OFF` y `GESTION_SENSIBLE=OFF` hasta verificar las salvaguardas bloqueantes restantes y autorización administrativa/DBA; luego activar exclusivamente U-BASIC con el kit oficial y una cuenta sintética autorizada. No usar `.env` directo ni habilitar `usuarios_sensible` o P5-R para contraseñas de los 114 migrados. Lote de catálogos y Power BI fuera de alcance.
+
+## K1: prueba HTTP funcional de ruta retirada — 410 (12/11/2026)
+
+El operador, siguiendo el comando de solo lectura y SIN Authorization, obtuvo:
+
+```text
+=== CERVESUR: VERIFICACION K1 ===
+K1_HTTP=410
+```
+
+Prueba contra el VirtualHost corporativo del servidor por puerto HTTP 80 (ruta `/api/powerbi/tokens/0`). El correctivo K1 documenta que el modo `retirar` devuelve **410** antes de consultar la base o emitir token, mientras `observar` / `mixto` devuelven respuesta distinta para id 0. Por ello, `K1_RUTA_RETIRADA_HTTP=PASS` para esa ruta y ese origen. La prueba no contiene ni expone credenciales o tokens.
+
+**Límite:** una respuesta 410 en una única URL no atesta por sí sola la ausencia de consumidores legítimos, que la política está aplicada homogéneamente en todos los hosts/entradas ni el cierre formal A-L2. Puede considerarse una evidencia fuerte del modo `retirar` efectivo en ese vhost, no una firma de liberación. El script de D4 incluye D4-08/D4-08b y debe cruzarse con la evidencia antes de marcar `K1=GO_FINAL`.
+
+**Estado acumulado:** `P4A_NO_SENSIBLES=PASS_REAL`, `K1_RUTA_RETIRADA_HTTP=PASS`, `CODIGO_FASE_2B=PRESENTE`, `MODO=PASS`, `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Continúan pendientes de evidencia para P4b K2, A1/A2, A3/F-10, D3, D4 y cierre de autorizaciones. No encender ni editar `.env` hasta entonces.
+
+**Próximo bloque recomendado, sin volver a auditar catálogos:** ejecutar la atestación de solo lectura D4 con script verificado SHA-256, previo consentimiento/constancia de la persona responsable para esa inspección. Reportar exclusivamente PASS/FAIL/PENDIENTE por código D4-01 a D4-09, sin copiar el contenido de `.env`. Esto permite evaluar JWT, estado K1/PowerBI, F-10 y huellas en un lote; después únicamente resolver controles faltantes antes de autorizar el kit `interruptor-usuarios.sh encender`.
