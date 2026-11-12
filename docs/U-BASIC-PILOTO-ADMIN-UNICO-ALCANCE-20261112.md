@@ -60,6 +60,34 @@ El listado de la base de estado confirmó **una sola fila activa**, pero **no se
 
 **GO técnico PREPARADO** para activación acotada: P3 instalado, P4a no sensibles PASS, un admin en allowlist, K1/D4/H1 y K2 aislado PASS históricos, rollback nativo del interruptor. **GO operativo PENDIENTE**: identidad admin designada y autorización comprobable del DBA y responsable funcional para la excepción temporal a UX-09B v2. Si ambos confirman y se conserva respaldo vigente, el operador puede ejecutar `interruptor-usuarios.sh encender --autorizacion "responsables/fecha/alcance"`, con las dos credenciales de verificación 8443 cargadas de forma no visible en el entorno, sin pegarlas en el chat, y el script debe revalidar HTTP403, P4a y capabilities, respaldando .env con reversión automática si falla. Después verificar `writes.usuarios=true`, `users_sensitive=false`, que solo hay un admin, y realizar una acción ficticia autorizada con un único registro en auditoría. El PR #32 sigue DRAFT.
 
+## 3d. Activación técnica ejecutada — P4b piloto (12/11/2026)
+
+Evidencia informada por operador después de ejecución en VPS (se omiten identificadores de acceso):
+
+```text
+PRE: ADMIN_UNICO=PASS (allowlist_activos=1)
+PRE: RESULTADO-PRIVILEGIOS=PASS no-sensibles
+PRE: ADMIN_WRITES_USUARIOS=<sin definir>
+PRE: ADMIN_WRITES_USUARIOS_SENSIBLE=<sin definir>
+SCRIPT: UX-08I interruptor de usuarios -- accion=encender
+SCRIPT: backend 2B con usuarios bloqueados previamente (403 fase_2b_bloqueada): PASS
+SCRIPT: empresas/reportes/accesos intactos: PASS
+SCRIPT: privilegios no-sensibles verificados: PASS
+SCRIPT: capacidades usuarios=true y users_sensitive=false: PASS
+ACTIVACION_SCRIPT=PASS
+POST: ADMIN_WRITES_USUARIOS=1
+POST: ADMIN_WRITES_USUARIOS_SENSIBLE=<sin definir>
+POST: ADMIN_USER_REACTIVATE_HOURS=<sin definir> (código: default 24 horas)
+```
+
+**Estado real actual:** U-BASIC activado técnicamente en portal 8443 para operaciones no sensibles; P5/roles/contraseñas OFF; otros módulos intactos. El script oficial hizo copia de `.env` y validó capacidades.
+
+**Defecto documental pendiente, NO encubrir:** en el texto de `--autorizacion` el operador escribió literalmente los marcadores `DBA: [Nombre]` y `Funcional: [Nombre]`. El script solo verifica que la referencia tiene longitud mínima: **NO acredita que existan las firmas reales ni quiénes aprobaron**. Se debe complementar el expediente con referencia verificable de responsables y sus aprobaciones, SIN modificar o borrar la evidencia histórica. Hasta entonces, declarar `GO_TECNICO=PASS`, `GO_DOCUMENTAL=PENDIENTE`, `P4C_PRIMERA_ESCRITURA=RETENIDA`. Si las aprobaciones no existen, suspender el acceso a las funciones de edición mediante el interruptor `apagar`.
+
+**Próximas operaciones:** confirmar identidad del único admin autorizado, adjuntar aprobación real DBA/funcional, comprobar en UI capacidades (usuarios habilitado, sensible apagado) sin alterar datos; después **una sola alta de cuenta QA estándar autorizada**, con correo controlado y contraseña privada, y comprobar exactamente una fila de `audit_log` `user.create`. Si falla o hay duplicados/no auditoría, apagar inmediatamente, conservar respaldo y diagnosticar antes de reintentar. Prohibido crear administradores, modificar roles/contraseñas o publicar datos/tokens.
+
+La excepción temporal A1/A2/A3 no modifica las protecciones existentes y conserva P4b general NO-GO para apertura general. Se requiere cierre D3 y firmas para expandir acceso.
+
 ## 4. Condiciones imprescindibles antes de encender (breve preflight)
 
 1. Confirmación nominativa del **responsable funcional y DBA** de que autorizan *esta excepción acotada*, la cuenta única autorizada, el alcance y el plan de retorno. No escribir `CERVESUR_CONFIRMAR_USUARIOS=SI` sin esa autorización real.
