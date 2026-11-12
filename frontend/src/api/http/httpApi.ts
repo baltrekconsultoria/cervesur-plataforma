@@ -74,6 +74,7 @@ export class HttpApiClient implements ApiClient {
     this.capabilities.adminWrites = false;
     this.capabilities.writes = undefined;
     this.capabilities.usersSensitive = false;
+    this.capabilities.usersPasswordReset = false;
     this.capabilities.reactivateAfterHours = undefined;
     try {
       const env = await this.request('GET', '/api/admin/capacidades');
