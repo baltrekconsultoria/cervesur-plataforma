@@ -83,7 +83,11 @@ function validatePlan(array $plan, array $snapshot): array {
         $email = normalized((string)($p['email'] ?? ''));
         $name = normalized((string)($p['username'] ?? ''));
         requireGate(filter_var($email, FILTER_VALIDATE_EMAIL) !== false
-            && preg_match('/^[a-z0-9._-]{3,30}$/D', $name) === 1
+            // Los identificadores LEGADOS pueden incluir puntuacion imprimible o tildes.
+            // PHP login acepta username como texto; no cambiarlo ni imponer la regla
+            // del formulario de ALTA NUEVA (3-30 [a-z0-9._-]).
+            // Limite de tabla: 50 caracteres; prohibir controles/Unicode invalido.
+            && preg_match('/\A[^\p{C}]{3,50}\z/u', trim((string)($p['username'] ?? ''))) === 1
             && trim((string)($p['first_name'] ?? '')) !== ''
             && trim((string)($p['last_name'] ?? '')) !== ''
             && !isset($seenEmail[$email]) && !isset($seenUser[$name])
