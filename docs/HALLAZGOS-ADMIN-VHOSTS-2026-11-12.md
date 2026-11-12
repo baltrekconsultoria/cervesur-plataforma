@@ -136,3 +136,26 @@ DIRECTIVE=DocumentRoot
 **Precaución:** este test determina el DB_NAME del loader en la RUTA DECLARADA de 8443, pero por los Define globales NO basta para demostrar que Apache haya montado efectivamente esa misma ruta. Correlacionar luego AliasMatch, vhost y respuesta HTTP con autenticacion controlada/TLS validado. Solo tras confirmacion de DB real habilitar funciones para los 190 usuarios y el onboarding individual.
 
 Estado productivo inalterado: 190 usuarios, 176 activos, 14 inactivos; 114 migrados activos pero sin credenciales inicializadas.
+
+## 11. PuTTY: DB_NAME en cargadores PHP de ambos portales (12/11/2026)
+
+El operador ejecuto bajo `www-data`, sin mostrar `.env` ni credenciales, una comprobacion del cargador `lib/env.php` ubicado mediante el Define BACKEND de cada VirtualHost corporativo.
+
+```text
+PORTAL=admin
+DB_TARGET=PRODUCCION
+PORTAL=usuarios
+DB_TARGET=PRODUCCION
+```
+
+Interpretacion precisa: ambos cargadores **declarados** asignan `DB_NAME=cervesur_portalbi`. Esto confirma el nombre configurado para el backend admin 8443 y el de usuarios 443. **No demuestra todavía que Apache este sirviendo esos mismos backends efectivamente** ni que `DB_HOST` apunte al mismo servidor/instancia MySQL donde se auditaron los 190 usuarios (bases distintas pueden compartir el mismo nombre). Tampoco certifica funcionalidad del login administrativo. La comprobacion no abrio una conexion PDO: solo cargo el entorno PHP y comparo `DB_NAME`.
+
+Hallazgos previamente validados: Front/Backend/Sessions literales DIFERENTES entre ambos vhosts; loader PHP admin encontrado y legible por `www-data`; Includes distintos con AliasMatch/DocumentRoot; HTTPS 443/8443 salud 200 en / y /api/ping; `/api/users` anonimo 403/401; MySQL migracion 190 usuarios, 176 activos, 14 inactivos, 114 activados sin contrasena inicializada.
+
+### Proxima puerta: confirmar la instancia y los conteos de DB de 8443, solo SELECT
+
+Con ruta BACKEND de admin declarada y `www-data`, usar su `lib/env.php` para abrir PDO en modo lectura, validar `SELECT DATABASE() = cervesur_portalbi`, contar filas en `user` y estados activos/inactivos, devolver solo totales 190/176/14 y `DB_CONTEOS=PASS` cuando coincide. Si se requiere demostrar que ambos portales apuntan a la misma instancia, comparar internamente `@@server_uuid` (o identificador verificado equivalente) y la base de datos, mostrando unicamente `MYSQL_MISMA_INSTANCIA=SI/NO/INDETERMINADA`, sin imprimir servidor/IP/secreto. Un conteo coincidente no prueba por si solo que las bases sean identicas; la verificacion de identificador de servidor fortalece evidencia. No ejecutar DML ni exponer perfiles/hash.
+
+Finalmente correlacionar con los Aliases efectivos y un login admin por navegador de confianza y certificado TLS validado. Sin certificar esas puertas, NO realizar deploy/merge ni proclamar habilitada administracion React sobre los 190 usuarios.
+
+Esta fase no modifica Apache, Flutter, produccion ni cuentas.
