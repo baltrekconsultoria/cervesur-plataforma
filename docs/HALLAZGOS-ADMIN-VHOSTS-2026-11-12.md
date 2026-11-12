@@ -90,3 +90,23 @@ Acción propuesta para PuTTY, **SOLO LECTURA**, sin abrir `.env` ni mostrar vari
 4. Posteriormente, con cuenta de administrador existente y certificado TLS VALIDADO, comprobar `/admin/usuarios` y GET `/api/users?status=all` con JWT sin imprimir datos personales. Resultado buscado: 190 registros (176 activos, 14 inactivos) y controles de autorización admin/no-admin.
 
 IMPORTANTE: migración y activación ya PASS (`190/176/14`, `114` migrados activos), pero credenciales de 114 siguen sin inicializar. No ejecutar APPLY previos. No tocar Flutter, QA 8088/8089, asignaciones ni enlaces Power BI.
+
+## 9. Apache HTTPS: nombres de Define e Include (PuTTY, solo lectura)
+
+El operador ejecuto un lector de directivas de dos vhosts. El resultado extraido fue:
+
+| Portal | Define FRONT | Define BACKEND | Define SESSIONS | Include |
+|---|---|---|---|---|
+| Corporativo admin 8443 | `CERVESUR_USUARIOS_FRONT` | `CERVESUR_USUARIOS_BACKEND` | `CERVESUR_USUARIOS_SESSIONS` | `/etc/apache2/cervesur-react-admin/react-usuarios-common.conf` |
+| Corporativo usuarios 443 | `CERVESUR_USUARIOS_FRONT` | `CERVESUR_USUARIOS_BACKEND` | `CERVESUR_USUARIOS_SESSIONS` | `/etc/apache2/cervesur-react-usuarios/react-usuarios-common.conf` |
+
+**Importante:** estos son solo los nombres de las variables (`$2` en las sentencias `Define`), porque el filtro del operador no devolvio sus valores (`$3`) ni el contenido de los archivos `Include`. Coincidir en nombres NO prueba que frontend/backend/sesiones apunten al mismo directorio ni que la base de datos sea igual. Cada portal tiene un `Include` distinto. Tampoco se ha demostrado si las definiciones Apache son efectivamente locales o si existe riesgo de colision al reutilizar nombres globales; requiere analizar directivas efectivas antes de cambiar Apache.
+
+### Puerta siguiente (solo lectura, sin valores sensibles)
+
+1. Comparar **solo igualdad/diferencia** de los valores literales de `Define CERVESUR_USUARIOS_FRONT`, `CERVESUR_USUARIOS_BACKEND`, `CERVESUR_USUARIOS_SESSIONS` en los dos vhosts, sin mostrar los valores ni rutas privadas.
+2. Comprobar por nombre de variable si el backend de 8443 tiene loader `lib/env.php` y si `www-data` puede leerlo, sin imprimir el archivo.
+3. Inspeccionar filtradas las directivas `Alias`, `AliasMatch`, `ProxyPass*`, `DocumentRoot`, `Include` de los archivos comunes (ocultando valores), para comprobar si ambos vhosts montan realmente la API.
+4. Solo con el backend efectivo confirmado, ejecutar el loader `env.php` en modo lectura y reportar exclusivamente `DB_TARGET=PRODUCCION/OTRA/INDETERMINADA`, nunca `DB_PASS`, `DB_USER`, valores de `.env` ni acceso de usuarios.
+
+Estado: **sin cambios en Apache ni MySQL**, usuarios productivos 190 total / 176 activos / 14 inactivos, 114 activados aun sin credenciales inicializadas. PR #23 sigue borrador.
