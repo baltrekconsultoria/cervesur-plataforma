@@ -22,7 +22,7 @@ def stub_query(sql):
     if sql.startswith("CHECKSUM TABLE "):
         return "cervesur_portalbi.table\t123456"
     if "COUNT(*) FROM " in sql:
-        return "190" if ".user" in sql else "0"
+        return "190" if ("." + chr(96) + "user" + chr(96)) in sql else "0"
     raise AssertionError("unexpected query type")
 
 def fake_dump(path, cmd):
@@ -118,7 +118,7 @@ class BackupTests(TestCase):
         original = stub_query
         counter = {"reads": 0}
         def changing(sql):
-            if "COUNT(*) FROM " in sql and ".user" in sql:
+            if "COUNT(*) FROM " in sql and ("." + chr(96) + "user" + chr(96)) in sql:
                 counter["reads"] += 1
                 if counter["reads"] >= 3:
                     return "191"
