@@ -111,3 +111,11 @@ Antes de cambiar permisos se verificará identidad e instancia de servicio y alc
 El operador confirmó internamente con `@@server_uuid` y `CURRENT_USER()` de ambas conexiones PDO: `MISMA_INSTANCIA=SI`, `MISMA_CUENTA_MYSQL=NO`. No se expusieron valores. 8443 sigue con lectura de `user` PASS 190/176/14. La identidad SQL de 443 recibe código 1142/1143 por `SELECT FROM user`. La causa inmediata de la lectura fallida de 443 es la insuficiencia de permisos SELECT para su usuario de servicio sobre `user`, no otra instancia. El portal 443 podría no poder autenticar usuarios mientras persista ese error, pues el AuthController del repositorio necesita SELECT a `user`; hay que verificar código efectivamente desplegado antes de generalizar.
 
 Próximos pasos independientes: (a) QA funcional de `/admin/usuarios` en 8443 con navegador, dominio/certificado TLS válidos y administrador existente, sin imprimir PII/JWT; (b) auditoría sin cambios de GRANT y rol del usuario MySQL 443, definir permisos mínimos en código y SQL, respaldar grants y corregir solo con aprobación. No conceder globales, no usar credenciales de admin en 443 ni reutilizar APPLY. Ver detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## QA React admin real en 8443 completado para directorio (12/11/2026)
+
+El usuario confirmó visualmente desde el portal ADMIN corporativo que `Estado=Activos` muestra `176 de 190 usuarios` y reportó `14` inactivos. La captura evidencia también módulos de Empresas, Reportes, Informes por empresa, Accesos y asignaciones, Historial y Mi perfil. `DIRECTORIO_ADMIN_QA=PASS` para visibilidad de usuarios y conteos 190/176/14; no extrapolar a operaciones de escritura, roles, restablecimiento de contraseñas ni sesión en portal usuarios 443.
+
+La captura original contiene nombres y correos; NO se almacena en este repositorio público. El backend PHP declarado de 443 sigue con SQL `PERMISO_SELECT` sobre `user`; resolver antes de habilitar login/onboarding de los 114 migrados. No repetir importacion/activacion.
+
+Continuidad completa en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Próximo gate: QA lectura de empresas/reportes/vinculos y revisión de privilegios mínimos del portal 443.
