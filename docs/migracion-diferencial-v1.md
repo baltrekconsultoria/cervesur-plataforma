@@ -346,3 +346,27 @@ Tras la incidencia de nomenclatura de WinSCP:
 **Siguiente fase autorizada operativamente por continuidad del diagnostico:** instalar copia de `ops/migracion/export_snapshot.php` desde la rama PR #23 bajo `/usr/local/lib/cervesur-migration/export_snapshot.php`, propiedad `root:root` 0644, verificar `cmp` y `php -l` y comprobar `/var/lib/cervesur-migration/snapshots` accesible para `www-data` 0770. Ejecutar exclusivamente `--origin=react --database=cervesur_portalbi` desde `www-data`, en lectura y con salida JSON 0600 **fuera de DocumentRoot**. Nunca subir/copiar snapshots ni claves al chat o GitHub. No ejecutar migracion real ni tocar permisos del sitio.
 
 **Puerta de parada:** si `KEY_MATCH`, `KEY_ACCESS`, comprobacion del exportador, directorio de snapshots o `CERVESUR_SNAPSHOT` dejan de ser PASS, detenerse y revisar; nunca sobreescribir `react.json` ni regenerar clave para subsanar el error.
+
+### Ubuntu — snapshot de destino completado: PASS (12/11/2026)
+
+El operador instaló `export_snapshot.php` desde el checkout de PR #23 en `/usr/local/lib/cervesur-migration/export_snapshot.php` como `root:root` 0644. Controles observados:
+- `COPIA=PASS`, `No syntax errors detected`, `SNAPSHOT_DIR=PASS` con `www-data`.
+- Ejecutó como `www-data` el exportador privado `--origin=react --database=cervesur_portalbi --key-file=/var/lib/cervesur-migration/.cervesur-migration-hmac --out=/var/lib/cervesur-migration/snapshots/react.json`.
+- Salida agregada: `CERVESUR_SNAPSHOT=PASS`; 76 usuarios, 26 empresas, 95 reportes, 82 empresa-usuario, 103 empresa-reporte, 103 usuario-empresa-reporte. `BASE_MODIFICADA=NO`, `SALIDA_PRIVADA=SI`.
+- **Ambos snapshots están generados**, pero aún **no** se realizó el cotejo entre sus `key_id` y las relaciones semánticas. No interpretar diferencias de conteo como órdenes de inserción.
+
+### Siguiente puerta: conciliación agregada en Ubuntu (pendiente)
+
+El script existente `ops/migracion/compare_snapshots.py` está diseñado para abrir ambos JSON privados, exigir `schema`/`origin` válidos, comprobar `key_id` igual y reportar solo recuentos, colisiones, relaciones de acceso y diferencias de enlace; **no accede a MySQL ni realiza DML**.
+
+Para no ampliar la exposición de los archivos:
+1. Actualizar checkout de la rama PR #23 con `git pull --ff-only`, comprobar estado limpio.
+2. Copiar solo `compare_snapshots.py` a `/usr/local/lib/cervesur-migration/compare_snapshots.py` como `root:root` 0644, comprobar `sudo cmp -s`, validar sintaxis Python sin escribir bytecode.
+3. Mantener `react.json` 0600 legible para `www-data`. Instalar **una copia** de `/home/usr_cervesur/cervesur_migracion_privada/entrada/legado-snapshot.json` como `/var/lib/cervesur-migration/snapshots/legado.json` 0600 `www-data:www-data`, si el destino no existe, sin sobreescribir y sin mostrar contenido. El directorio ya es privado, fuera de DocumentRoot.
+4. Ejecutar como `www-data` una sola vez:
+```sh
+sudo -u www-data -- python3 /usr/local/lib/cervesur-migration/compare_snapshots.py --legado /var/lib/cervesur-migration/snapshots/legado.json --react /var/lib/cervesur-migration/snapshots/react.json --salida /var/lib/cervesur-migration/snapshots/resultado-agregado.json
+```
+5. Compartir **únicamente la salida JSON agregada** de la ejecución, que no incluye nombres, correos, IDs, HMAC ni contraseñas. Si aparece `CERVESUR_DRYRUN=ERROR_CLAVES_HMAC_DISTINTAS` u otro error, detener sin repetir la extracción ni regenerar claves.
+
+**NO-GO:** ninguna inserción, activación de roles, cambio de enlaces, importación o migración productiva hasta analizar los resultados, aprobar un mapeo humano y pasar QA, respaldo y gates previos.
