@@ -19,6 +19,8 @@ def stub_query(sql):
         return "1"
     if "DATA_LENGTH" in sql:
         return "1000"
+    if sql.startswith("CHECKSUM TABLE "):
+        return "cervesur_portalbi.table\t123456"
     if "COUNT(*) FROM " in sql:
         return "190" if ".user" in sql else "0"
     raise AssertionError("unexpected query type")
@@ -122,6 +124,20 @@ class BackupTests(TestCase):
                     return "191"
             return original(sql)
         with mock.patch.object(mod, "mysql_query", side_effect=changing):
+            with mock.patch.object(mod, "dump_gzip", side_effect=fake_dump):
+                with self.assertRaisesRegex(mod.Blocked, "TABLAS_CAMBIARON"):
+                    mod.make_backup()
+
+    def test_in_place_edits_with_same_row_count_rejected(self):
+        counter = {"checksum": 0}
+        def changed_checksum(sql):
+            if sql.startswith("CHECKSUM TABLE "):
+                counter["checksum"] += 1
+                return "cervesur_portalbi.table\t" + (
+                    "999999" if counter["checksum"] > 7 else "123456"
+                )
+            return stub_query(sql)
+        with mock.patch.object(mod, "mysql_query", side_effect=changed_checksum):
             with mock.patch.object(mod, "dump_gzip", side_effect=fake_dump):
                 with self.assertRaisesRegex(mod.Blocked, "TABLAS_CAMBIARON"):
                     mod.make_backup()
