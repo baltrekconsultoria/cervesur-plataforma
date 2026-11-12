@@ -99,3 +99,9 @@ Para ver resultados y puertas pendientes consultar [HALLAZGOS-ADMIN-VHOSTS-2026-
 ## Diagnóstico de SELECT en backend 443 (12/11/2026)
 
 Nuevo resultado PuTTY: `USUARIOS_DB_STAGE=ERROR_SELECT`. Loader, CONFIG, PDO_CONNECT, READ_ONLY y BEGIN fueron superados, pero falló el SELECT agregado de tabla `user` por causa todavía no clasificada. **No** diagnosticarlo automáticamente como falta de GRANT. Backend admin 8443 conserva evidencia de lectura PASS con 190/176/14. Próxima prueba 443 clasifica código de error MySQL sin revelar excepción ni datos personales. Ver detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Diagnóstico concluyente SELECT usuarios 443 (12/11/2026)
+
+PuTTY: `DIAGNOSTICO=ERROR_TABLA_USER_PERMISO_SELECT`. El backend declarado de usuarios corporativos 443 superó LOADER, CONNECT, READ_ONLY y SELECT 1/DATABASE, pero MySQL rechazó `SELECT COUNT(*) FROM user` mediante código 1142/1143. El backend administrativo 8443 sí consultó totales 190/176/14 con PASS. No se han concedido privilegios ni modificado Apache.
+
+Antes de cambiar permisos se verificará identidad e instancia de servicio y alcance de GRANT mínimo; no confundir la restricción HTTP 403 del directorio de usuarios sin JWT con un error SQL. Puede afectar inicio de sesión del portal 443 si necesita acceder a la tabla `user`; no hay aún QA funcional del login. Registro completo [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
