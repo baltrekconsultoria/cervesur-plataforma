@@ -283,9 +283,17 @@ function app_sql_write_guard($sql) {
         if ($t === 'user') {
             $set = preg_split('/\sWHERE\s/i', $n, 2)[0];
             if (preg_match('/(?:^|[\s,`])role`?\s*=/i', $set) && !admin_write_capability_on('usuarios_sensible')) $reject('P5-R: UPDATE(role) prohibido');
-            if (preg_match('/(?:^|[\s,`])password`?\s*=/i', $set)
-                && !admin_write_capability_on('usuarios_sensible')
-                && !admin_write_capability_on('usuarios_password_reset')) $reject('P5-R: UPDATE(password) exige permiso independiente');
+            if (preg_match('/(?:^|[\s,`])password`?\s*=/i', $set)) {
+                if (!admin_write_capability_on('usuarios_sensible') && !admin_write_capability_on('usuarios_password_reset')) {
+                    $reject('P5-R: UPDATE(password) exige permiso independiente');
+                }
+                // El modo P5-R restringido solo admite el UPDATE exacto del modelo,
+                // con incremento obligatorio de session_version en la misma operacion.
+                if (!admin_write_capability_on('usuarios_sensible')
+                    && $n !== 'UPDATE user SET password = :p, session_version = session_version + 1, updated_at = NOW() WHERE id = :id') {
+                    $reject('P5-R: SQL de password fuera de ruta controlada');
+                }
+            }
         }
         if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
         return;
