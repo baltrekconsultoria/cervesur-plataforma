@@ -271,3 +271,36 @@ sudo -u www-data -- php /usr/local/lib/cervesur-migration/ubuntu_db_preflight.ph
 ```
 
 No realizar DML, cambios de contrasenas, permisos de `.env`, fusion de PR ni importaciones. Si falla preflight, detener y diagnosticar el codigo de estado.
+
+### Ubuntu — preflight de BD del destino: PASS (12/11/2026)
+
+El operador ejecuto el preflight protegido `sudo -u www-data -- php /usr/local/lib/cervesur-migration/ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php` con esta evidencia:
+
+```text
+CERVESUR_UBUNTU_DB_PREFLIGHT=PASS
+PHP_CLI=PASS
+EXPECTED_DATABASE=cervesur_portalbi
+DB_CONNECTED=PASS
+DATABASE_MATCH=PASS
+READ_ONLY_TRANSACTION=PASS
+REQUIRED_TABLES_PRESENT=6/6
+DB_DATA_MODIFIED=NO
+SECRET_VALUES_PRINTED=NO
+```
+
+**Puerta cerrada:** acceso del servidor Ubuntu `www-data` a `cervesur_portalbi` por la configuracion existente, 6/6 tablas y posibilidad de transaccion READ ONLY. El archivo `.env` mantiene los permisos 0640, sin alteraciones. El preflight no exporta identidades ni modifica datos.
+
+**CI del commit previo de PR #23:** `Migracion diferencial CI #21` y `Backend CI #82` concluyeron `success`. Los cambios posteriores de documentacion no se consideran aprobados automaticamente hasta observar sus propios checks.
+
+### Siguiente fase: transferencia directa de archivos privados (NO ejecutada)
+
+Se necesita que el **mismo archivo de clave HMAC de 256 bits** creado en el cPanel legado llegue al Ubuntu; generar otra clave haria imposible la conciliacion. Se debe emplear transporte cifrado, por ejemplo descarga autenticada desde File Manager de cPanel a Windows y subida SFTP a Ubuntu con WinSCP usando las credenciales ya habilitadas en PuTTY. Nunca copiar/pegar valores de la clave, enviarla por correo/chat, incluirla en URL ni registrarla en GitHub. En cPanel activar visualizacion de archivos ocultos si el archivo `.cervesur-migration-hmac` no aparece.
+
+**Puertas separadas para el operador:**
+1. Preparar staging restringido del usuario `/home/usr_cervesur/cervesur_migracion_privada/entrada` con modo 0700; en Ubuntu, llave final `/var/lib/cervesur-migration/.cervesur-migration-hmac` en directorio `root:www-data` 0750, clave `www-data:www-data` 0600; destino de snapshots `/var/lib/cervesur-migration/snapshots` directorio `root:www-data` 0770, fuera de DocumentRoot.
+2. Subir clave via SFTP **sin imprimir su valor**. Verificar que no sea symlink, propietario/modo 0600; copiar con `sudo install -o www-data -g www-data -m 0600`, comparar contenido con `sudo cmp -s` (solo muestra PASS/FAIL), comprobar lectura con `sudo -u www-data test -r`, y retirar staging solo una vez confirmada copia y acceso correcto. Revisar sensibilidad de `www-data`: acceso temporal con borrado seguro organizacional de la copia tras conciliacion.
+3. Instalar una copia del exportador PHP `ops/migracion/export_snapshot.php` como `root:root` 0644 fuera del sitio en `/usr/local/lib/cervesur-migration/export_snapshot.php`; verificar `cmp`, `php -l` y que el checkout esta limpio/actualizado. El exportador solo realiza SELECT y establece `SET SESSION TRANSACTION READ ONLY` al abrir MySQL.
+4. Ejecutar una sola vez bajo `www-data` con argumentos `--origin=react --loader=/var/www/cervesur/backend/lib/env.php --database=cervesur_portalbi --key-file=/var/lib/cervesur-migration/.cervesur-migration-hmac --out=/var/lib/cervesur-migration/snapshots/react.json`. No sobrescribir snapshots ya existentes; tratar archivo JSON como sensible y no exponerlo en conversaciones, GitHub ni directorio web. Compartir exclusivamente la salida agregada `CERVESUR_SNAPSHOT=PASS` y seis conteos.
+5. Solo despues transferir el snapshot legado **directamente por SFTP** a ubicacion privada y ejecutar `compare_snapshots.py` en el propio Ubuntu, copia de codigo protegida, con ambos JSON y clave coincidente. Compartir unicamente `resultado-agregado.json` (solo conteos, sin hashes ni PII), no los snapshots.
+
+**NO-GO:** migracion real de usuarios, roles, passwords, grants, cambios de estados o enlaces, merge y despliegue productivo sin el dry-run comparado, revision humana, respaldo/rollback y autorizacion especifica.
