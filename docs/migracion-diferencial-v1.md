@@ -60,3 +60,29 @@ Legado: entre 271 asignaciones activas, 5 apuntan primero a usuario inactivo y 4
 ## Continuidad
 
 Auditorías y decisiones del proyecto: GitHub Issue #17. No registrar PII ni secretos. Este paquete es solo desarrollo y diagnóstico, NO corte productivo.
+
+## cPanel sin SSH: ejecucion CLI mediante Cron Jobs (12/11/2026)
+
+El puerto SSH 22 y el 21098 no respondieron desde la red operativa. cPanel si permite **Cron Jobs** y **Administrador de archivos**.
+
+**Evidencia aportada del hosting legado:** en `/home/databalt/cervesur_cron_private/`, el script de diagnostico `cron_preflight.php` genero `cervesur-cron-preflight-result.txt` con `CERVESUR_CRON_PREFLIGHT=PASS`, PHP CLI **8.1.35**, PDO/MySQL, JSON y HMAC disponibles, carpeta privada escribible y archivo resultado con modo 0600. No se accedio a ninguna BD ni se alteraron datos.
+
+**Limpieza inmediata:** eliminar el cron temporal de 5 minutos una vez obtenido PASS; preservar los archivos de evidencia fuera de `public_html`.
+
+### Siguiente puerta: conectividad de la BD antigua (pendiente)
+
+El script `ops/migracion/cron_db_preflight.php` esta preparado en GitHub, **no desplegado ni ejecutado**. Solo verifica configuracion DB, conexion PDO, sesion MySQL READ ONLY y presencia de seis tablas mediante `information_schema`. Genera un archivo privado `cervesur-db-preflight-result.txt`; no consulta filas de usuarios ni realiza DML.
+
+1. **Primero confirmar la ruta del cargador** en el File Manager remoto: inspeccionar si existe `/home/databalt/public_html/backend/lib/env.php` (mostrar solo nombres de archivos, jamas abrir o compartir `.env`). La ruta es **hipotesis de despliegue**, no un hecho probado del hosting.
+2. Si existe y corresponde al **legado**, descargar de la rama del PR `ops/migracion/cron_db_preflight.php` y subirlo a `/home/databalt/cervesur_cron_private/`; no subirlo a `public_html`.
+3. Comprobar sintaxis y planificar cron de corta duracion, con una sola salida (el script evita sobrescribir resultados). Usar el PHP CLI ya validado:
+   
+   ```sh
+   /usr/local/bin/php /home/databalt/cervesur_cron_private/cron_db_preflight.php --loader=/home/databalt/public_html/backend/lib/env.php >/dev/null 2>&1
+   ```
+   
+   **NO programar hasta comprobar la ruta del loader**. No incluir contrasenas en cron, GitHub o chat.
+4. Abrir solo `cervesur-db-preflight-result.txt` (no contiene secretos), revisar `CERVESUR_DB_PREFLIGHT` y los controles de READ ONLY; eliminar el cron inmediatamente despues.
+5. Si la ruta no existe o la base configurada no es `databalt_portalbi`, parar. No intentar otro loader de otra aplicacion a ciegas. Investigar la configuracion correcta sin exponer secretos y/o usar exportaciones autorizadas de phpMyAdmin como plan alternativo.
+
+**No-GO permanente:** ningun script de exportacion real ni aplicador de migracion se ejecuta antes de evaluar el resultado de esta prueba, confirmar esquema y obtener autorizacion para la fase correspondiente.
