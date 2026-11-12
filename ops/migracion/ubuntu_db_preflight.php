@@ -37,6 +37,16 @@ try {
     if (!extension_loaded('pdo_mysql')) {
         throw new RuntimeException('PDO_MYSQL_UNAVAILABLE');
     }
+    // El loader de esta aplicacion lee backend/.env automaticamente.
+    // Comprobar primero su legibilidad para no producir warnings ni
+    // confundir una denegacion del sistema operativo con una falla MySQL.
+    $envFile = dirname($loader, 2) . DIRECTORY_SEPARATOR . '.env';
+    if (!is_file($envFile)) {
+        throw new RuntimeException('ENV_NOT_FOUND');
+    }
+    if (!is_readable($envFile)) {
+        throw new RuntimeException('ENV_PERMISSION_DENIED');
+    }
     require_once $loader;
     $host = getenv('DB_HOST');
     $db = getenv('DB_NAME');
@@ -76,7 +86,8 @@ try {
     $code = $n === 6 ? 'PASS' : 'SCHEMA_REVIEW_REQUIRED';
 } catch (Throwable $e) {
     $known = ['LOADER_ARGUMENT_INVALID', 'LOADER_NOT_FOUND',
-        'PDO_MYSQL_UNAVAILABLE', 'DB_ENV_INCOMPLETE', 'WRONG_DATABASE'];
+        'PDO_MYSQL_UNAVAILABLE', 'ENV_NOT_FOUND', 'ENV_PERMISSION_DENIED',
+        'DB_ENV_INCOMPLETE', 'WRONG_DATABASE'];
     $code = in_array($e->getMessage(), $known, true)
         ? $e->getMessage() : 'CONNECTION_OR_READONLY_ERROR';
 } finally {
