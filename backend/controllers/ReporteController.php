@@ -22,8 +22,11 @@ class ReporteController {
      * Valida y normaliza los datos de un informe (UX-07B/07C). Devuelve [datos, mensaje de error|null].
      *
      * Campos principales: nombre, descripcion (opcional) y enlace (Power BI). El enlace se clasifica con classify_powerbi_link():
-     *  - «Publicar en web» (view?r=…): no trae identificadores de Power BI. NO se inventan: `reporte_id` conserva el valor actual
-     *    (en ediciones) o recibe una referencia interna de Cervesur (UUID v4) y `grupo_id` queda NULL.
+     *  - «Publicar en web» (view?r=…): no trae identificadores de Power BI. `reporte_id` conserva
+     *    el valor actual (ediciones) o recibe una referencia interna de Cervesur (UUID v4).
+     *    UX-08B4: cuando el esquema exige grupo_id NOT NULL, una nueva alta pública reutiliza
+     *    esa referencia interna también como grupo_id sintético. NO es un grupo real de Power BI,
+     *    no sirve para autenticación ni se envía a Microsoft. Los informes existentes se conservan.
      *  - Inserción (reportEmbed) o enlace normal del informe: `reporte_id` y `grupo_id` se extraen del enlace (si están presentes y son válidos).
      * Compatibilidad: `reporte_id`/`grupo_id` siguen aceptándose como opcionales y se validan contra el enlace.
      * La identidad estable del informe es `reporte.id` (numérico); `reporte_id` es una referencia UUID única y estable para las rutas históricas.
@@ -72,11 +75,17 @@ class ReporteController {
             $ref = $link['report_id'];
             $grupo = $link['group_id'] ?? $explicit['grupo_id'];
         }
-        // Esquema real (UX-07D.2B): si `reporte.grupo_id` es NOT NULL y el enlace «Publicar en web» no trae grupo, NO se inventa uno ni se guarda
-        // una cadena vacía: se rechaza con un mensaje claro. Las ediciones de informes existentes conservan su grupo_id actual y no se ven afectadas.
+        // UX-08B4: compatibilidad con el esquema productivo grupo_id NOT NULL, sin DDL.
+        // SOLO para un nuevo enlace publico sin grupo: la referencia interna UUID v4 ya generada
+        // para reporte_id sirve como marcador sintético en grupo_id. Es propia de Cervesur, NO
+        // un groupId Power BI. En ediciones se conserva el grupo anterior; no se modifica ningún
+        // registro existente ni se habilitan los flujos de token para enlaces publicos.
+        if ($grupo === null && $link['kind'] === 'public' && $current === null
+            && $this->reporteModel->grupoIdNullable() === false) {
+            $grupo = $ref;
+        }
         if ($grupo === null && $this->reporteModel->grupoIdNullable() === false) {
-            return [null, 'Esta base de datos exige el ID del grupo del informe y el enlace «Publicar en web» no lo incluye. No se inventan identificadores: '
-                . 'aplique la migración UX-08B3 (pendiente de autorización) o registre el informe con un enlace que incluya el grupo.'];
+            return [null, 'Esta base de datos exige un ID de grupo real para este tipo de enlace; utilice una URL de Power BI que incluya groupId.'];
         }
         if ($this->reporteModel->reporteIdExists($ref, $excludeId)) {
             return [null, 'Ya existe un informe con ese ID de Power BI'];
