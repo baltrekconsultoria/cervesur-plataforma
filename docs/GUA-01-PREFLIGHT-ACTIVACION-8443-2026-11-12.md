@@ -247,3 +247,23 @@ F10_NEGATIVO=PASS
 **Limitaciones pendientes:** No se ha efectuado prueba HTTP con una cuenta QA de rol `user`/`usuario` validamente autenticada para confirmar rechazo 403. El test de cuerpo `{}` no sustituye un examen de toda la cadena de servidor ni acredita autorizacion de flujo admin. Flutter heredado no envia JWT en `RegisterCall`: su flujo anterior de alta probablemente se interrumpe, por lo que se requiere decision de continuidad/alternativa DBA mientras la alta 8443 siga OFF. No crear cuentas reales para demostrar.
 
 **Puertas acumuladas para GUA-01:** P4a permisos MySQL no sensibles PASS REAL; K1 HTTP 410 PASS en una entrada, cierre formal/consumidores pendiente; F10 anonimato PASS REAL, 403 no-admin pendiente. D4 JWT real 10800 s frente a objetivo 86400; D4 K1 ve `observar` y `retirar`; nueve literales default heredados. K2, A1, A2, D3 y autorizaciones son pendientes de verificacion de sus evidencias. **P4b permanece OFF** y P5 sensible OFF. Ningun cambio productivo realizado desde ChatGPT.
+
+## 12/11/2026 — K2 y parte de A2 verificados por huellas, A1 requiere discriminación
+
+El operador ejecutó en `/var/www/cervesur/backend` comprobación SOLO LECTURA contra el manifiesto de GitHub y obtuvo:
+
+```text
+=== CERVESUR: ESTADO CORRECTIVOS K2 A1 A2 ===
+K2_ROUTER=COINCIDE
+K2_SANITIZADOR=COINCIDE
+A1_ROUTER=MODIFICADO_VERIFICAR
+A2_ASIGNACIONES=COINCIDE
+A2_EMPRESA_USUARIO=COINCIDE
+CAMBIOS_PRODUCTIVOS=NO
+```
+
+**Lectura precisa:** K2 (EmpresaRouter + empresa_sanitizer.php) coincide con las huellas esperadas y F-4 (los routers de Asignacion y EmpresaUsuario) coincide con el manifiesto del Lote 4. Esto es **PASS de version/huella para esos archivos** y no equivale a QA HTTP completo ni a certificacion del lote A2 completo (F-5a/F-5b/F-5c todavia deben verificarse). El chequeo de K2 aceptaba tanto `0c710e...` (K2 solo) como `3b0e38...` (K2 + F-5a), por lo que no permite inferir si F-5a esta instalado.
+
+**A1_ROUTER=MODIFICADO_VERIFICAR no es FAIL**: el comando previo comparó únicamente con la huella **base** `60b011d54265...`. Cualquier F-3/A1 instalado cambia la huella y genera ese mensaje. La documentacion `deploy/flutter-heredado/MANIFIESTO-SHA256.md` indica base A1 `[R]` textual parcial y NO publica huella de salida completa; por ello se requiere leer únicamente las guardias `GET/PUT /api/user/profile/{id}` de forma local y compararlas con el patrón de autenticacion + dueño/admin + 403, sin imprimir JWT ni archivos enteros.
+
+**Próximo chequeo, solo A1 y discriminación F-5a:** comprobar la existencia y posición de guardia `require_auth` y `user_id` propio/admin en `UserRouter.php`; reportar SHA y booleans, además de identificar si EmpresaRouter tiene K2 solo o K2+F5a. Si A1 está instalada, no re-parchar. Con ello priorizar QA negativo de perfil ajeno en cuenta de prueba autorizada. Mantener P4b OFF hasta K2/A1/A2/D3, JWT 10800 vs 86400 y autorización de seguridad. No se escribio en produccion.
