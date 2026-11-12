@@ -159,3 +159,9 @@ Nuevo issue de ejecución: [#24 — GUA-01/GUA-02: gestión administrativa de us
 El código de GitHub de esta rama incluye directorio, alta y asignación pero carece de interfaz completa de editar/activar/desactivar/restablecer usuarios; el despliegue real 8443 puede diferir de esa rama, así que no sobreescribir features existentes. Implementar en rama/PR aislados, QA primero con una cuenta de prueba, sin cambios en producción sin autorización explícita.
 
 190 usuarios (176 activos, 14 inactivos) y 114 migrados sin contraseñas inicializadas son la linea base. No repetir APPLY de migracion o activacion. Catalogos, empresas y Power BI quedan fuera del incremento administrativo, como backlog de conciliacion independiente.
+
+## GUA-01 PRE-FLIGHT REAL 8443 — BANDERAS AUN APAGADAS (12/11/2026)
+
+El operador obtuvo con lectura de `lib/env.php`/codigo declarado del backend 8443: `CODIGO_FASE_2B=PRESENTE`, `MODO=PASS` (`admin_escritura`), `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. El marcador 2B no sustituye una atestación de versión completa. La gestion productiva de escritura de usuarios **NO** quedó activada. Estado de los 190 usuarios sin cambios.
+
+Ya existe código U-BASIC de UX-09A; no duplicar. Puerta próxima: verificar kit oficial y salvaguardas de P4b (K2/K1/A1/A2/A3-F10, D3/D4 y firmas de DBA/negocio) antes de ejecutar interruptor. Los controles de passwords P5-R permanecen separados y NO-GO. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
