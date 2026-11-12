@@ -183,11 +183,11 @@ def check_tables(container: str, meta: dict) -> tuple[int, int]:
 
 
 def receipt_for(meta: dict, image_id: str,
-                triggers: int, state_tables: int) -> dict:
+                triggers: int, state_tables: int, manifest_hash: str = "") -> dict:
     return {
         "kind": "cervesur-u-basic-p2-restore-isolated-v1",
         "completed_utc": datetime.now(timezone.utc).isoformat(),
-        "source_manifest_sha256": "not-included",
+        "source_manifest_sha256": manifest_hash,
         "image_sha256": image_id,
         "network": "none",
         "published_ports": 0,
@@ -244,7 +244,8 @@ def restore_isolated(folder: Path, meta: dict, image_id: str) -> dict:
         import_archive(container, folder / "estado-admin.sql.gz", None)
         triggers, state_tables = check_tables(container, meta)
         done = True
-        return receipt_for(meta, image_id, triggers, state_tables)
+        return receipt_for(meta, image_id, triggers, state_tables,
+                           backup.sha_file(folder / "manifest.json"))
     finally:
         if started:
             try:
