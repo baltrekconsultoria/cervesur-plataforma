@@ -482,3 +482,17 @@ Objetivo users-only: conservar los **76 registros existentes** del destino, anal
 5. Tras plan agregado, revisar bloqueos, requerimientos de restablecimiento de credenciales y compatibilidad del esquema. Preparar por separado importador transaccional aditivo con backup/rollback, QA y autorizacion explicita antes de una sola insercion. Preservar las 76 cuentas actuales y las entidades no incluidas en el alcance.
 
 **Gate de alcance:** no se ejecutara la migracion de empresas, reportes, asignaciones ni la antigua propuesta de reproducir 226 cadenas automaticamente. El estado final del sistema solo se considera valido tras QA de inicio de sesion/roles y aprobacion del usuario.
+
+### Users-only — exportacion de destino React: PASS (12/11/2026)
+
+Evidencia de PuTTY aportada por el operador:
+- Actualizacion `git pull --ff-only origin feat/migracion-diferencial-dryrun-v1`, fast-forward `f1f3d82..a200c4e`.
+- `export_usuarios_privado.php` instalado como copia `root:root` 0644 en `/usr/local/lib/cervesur-migration/export_usuarios_privado.php`; `USUARIOS_CODE=PASS` y `php -l` sin errores.
+- Ejecutado con `sudo -u www-data -- php ... --origin=react --loader=/var/www/cervesur/backend/lib/env.php --database=cervesur_portalbi --out=/var/lib/cervesur-migration/snapshots/usuarios-react.json`.
+- Resultado: `CERVESUR_USUARIOS_EXPORT=PASS`, `ORIGEN=react`, `USUARIOS=76`, `ACTIVOS=62`, `CONTRASENAS_EXPORTADAS=NO`, `BASE_MODIFICADA=NO`, `SALIDA_PRIVADA=SI`.
+
+La exportacion privada del destino esta completada, pero **no se ha construido ni aplicado ningun plan de altas**, ni se ha exportado aun el JSON privado users-only del hosting antiguo.
+
+**Siguiente puerta: hosting cPanel legado, usuarios exclusivamente.** Usar la misma ubicacion no publica `/home/databalt/cervesur_cron_private/` y misma ruta de PHP CLI/loader verificados en las pruebas previas, verificando que la ruta `/home/databalt/public_html/backend/lib/env.php` existe; esta ruta del loader se usa solo para consultar configuracion de BD, no para guardar ni servir resultados. Subir exclusivamente el archivo revisado `ops/migracion/export_usuarios_privado.php` (rama PR #23). Verificar que este fuera de `public_html`; exportacion bajo el mismo directorio no publico `usuarios-legado.json`. Ejecutarlo con Cron Jobs de manera **puntual**, solo si no existe archivo de salida, capturando salida agregada en log privado, y eliminar cron tras observar PASS. Campos incluidos: nombre, apellido, usuario, email, telefono, rol, estado, ID local; no password ni tokens.
+
+No volver a descargar los snapshots HMAC anteriores (no contienen nombres). **El nuevo `usuarios-legado.json` contiene PII real; no enviarlo al chat/email/GitHub ni almacenarlo en un directorio publico.** Descarga local cifrada por File Manager autenticado y subida SFTP directamente a directorio privado de Ubuntu despues de PASS. Solo despues ejecutar `plan_usuarios.py` (sin SQL), previa comprobacion de CI y permisos 0600. No ejecutar INSERT/UPDATE/DELETE ni habilitar usuarios todavia.
