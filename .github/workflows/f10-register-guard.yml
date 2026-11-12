@@ -1,0 +1,31 @@
+name: F10 legacy register guard - isolated QA
+on:
+  pull_request:
+    paths:
+      - 'ops/f10/**'
+      - '.github/workflows/f10-register-guard.yml'
+  push:
+    branches:
+      - 'fix/f10-proteger-registro-legacy-controlado'
+    paths:
+      - 'ops/f10/**'
+      - '.github/workflows/f10-register-guard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-guard-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify interpreter availability
+        run: |
+          python3 --version
+          php --version
+      - name: Verify shell and Python syntax
+        run: |
+          bash -n ops/f10/f10-install-controlled.sh
+          python3 -m py_compile ops/f10/patch_register.py ops/f10/test_f10.py
+      - name: Execute isolated F10 authorization tests
+        run: python3 ops/f10/test_f10.py
