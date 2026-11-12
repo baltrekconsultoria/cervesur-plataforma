@@ -862,3 +862,37 @@ sudo -u www-data -- php "$DST" \
 - `/api/login` requiere `password_verify`, rol conocido, `is_active=1`, `session_version>=1`; 114 usuarios importados inactivos con hashes aleatorios desconocidos, por lo que **ninguno puede iniciar sesion ahora**.
 - No activar a todos por SQL ni repartir una contraseña común; implementar **flujo de invitacion/reinicializacion individual**, auditable, con token aleatorio de un solo uso, solo hash almacenado, expiracion corta, activacion y nueva contraseña en una transaccion, invalidacion de tokens previos al cambiar credenciales, sin modificar permisos de informes/empresas ni privilegios admin. Exigir autorización admin + rate limiting y prueba de usuarios no autorizados. Definir el canal de entrega seguro (correo verificado o entrega individual protegida) antes de habilitar el modo productivo.
 - En `/admin/usuarios` mostrar estado `Pendiente de activacion` para los 114, sin confundirlo con un usuario operativo. Importante: 14 usuarios preexistentes inactivos deben permanecer intactos.
+
+### 12/11/2026 — Postflight PROD de usuarios PASS; autorizacion de activacion masiva acotada
+
+Salida real del operador:
+```text
+CERVESUR_POSTFLIGHT_QA=PASS
+CASOS=5
+MYSQL_CONSULTADO=NO
+SIN_PII_REAL=SI
+POSTFLIGHT_CODE=PASS
+php -l: PASS
+CERVESUR_POSTFLIGHT_USUARIOS=PASS
+usuarios_totales=190
+usuarios_originales_conservados=76
+originales_activos=62
+originales_inactivos=14
+nuevos_migrados=114
+nuevos_activos=0
+nuevos_inactivos=114
+duplicados=0
+mysql_modificado=false
+```
+El usuario autorizo expresamente **activar los 114 nuevos** y **despues habilitar la administracion de usuarios**. No activar las 14 cuentas antiguas inactivas ni alterar roles, empresas/reportes o permisos.
+
+**Implementacion preparada en PR #23**: `ops/migracion/activar_usuarios_migrados.php` independiente del importador y postflight. `--mode=check` consulta en READ ONLY que 190 cuentas igualan snapshot de 76 y plan de 114 (todos nuevos inactivos, con password hash valido y session_version=1). `--mode=backup` guarda copia privada de la **tabla user completa (190 filas con PII y hashes)** usando `outputBackup` modo 0600 y SHA256. `--mode=apply` exige `--confirm=ACTIVAR_SOLO_114_MIGRADOS` y SHA256 mas coincidencia exacta de filas DB vs respaldo; `SELECT ... FOR UPDATE` y 114 cambios individuales `is_active=1, session_version=session_version+1`, todos bajo una transaccion InnoDB; comprueba `total=190, active=176, inactive=14` y diffs de identidad antes de COMMIT; cualquier error hace ROLLBACK. `--mode=postflight` vuelve a consultar en READ ONLY que 114 nuevas activas con version=2 y las 76 originales intactas. CLI no devuelve PII. QA sintético sin DB `tests/migracion/test_activar_usuarios_migrados.php` y CI.
+
+**Operacion en PuTTY, ejecutar por puertas:**
+1. Actualizar checkout limpio rama `feat/migracion-diferencial-dryrun-v1`, verificar test sintético `CERVESUR_ACTIVACION_QA=PASS`, instalar PHP root-owned `0644` en `/usr/local/lib/cervesur-migration/activar_usuarios_migrados.php`, `cmp`, `php -l`. No hacer merge ni desplegar bundle.
+2. CHECK (solo SELECT): `sudo -u www-data -- php /usr/local/lib/cervesur-migration/activar_usuarios_migrados.php --mode=check --loader=/var/www/cervesur/backend/lib/env.php --database=cervesur_portalbi --plan=/var/lib/cervesur-migration/snapshots/plan-usuarios.json --snapshot=/var/lib/cervesur-migration/snapshots/usuarios-react.json`. Esperado `CERVESUR_ACTIVACION_USUARIOS=PASS`, 114 inactivos preparados, 76 intactos, 190 total y 62 activos.
+3. BACKUP (solo lectura): `--mode=backup` con los mismos `--loader`, `--database`, `--plan`, `--snapshot` y `--backup=/var/lib/cervesur-migration/snapshots/usuarios-preactivacion-190-20261112.json`. Esperado 190 filas, ruta nueva no existente, owner www-data y 0600. SHA256 devuelto debe coincidir con `sudo -u www-data -- sha256sum`. No almacenar contenido en repo/chat.
+4. APPLY una sola vez con mismos flags, `--mode=apply`, `--backup=...`, `--backup-sha256=<hash verificado>`, `--confirm=ACTIVAR_SOLO_114_MIGRADOS`. Resultado esperado: `CERVESUR_ACTIVACION_USUARIOS=PASS MODO=APPLY NUEVOS_ACTIVADOS=114 ANTIGUOS_MODIFICADOS=0 TOTAL=190 ACTIVOS=176 INACTIVOS=14`.
+5. `--mode=postflight` READ ONLY, 114 nuevos activos, 76 intactos. Detener ante cualquier ERROR, no reintentar APPLY ciegamente.
+
+**Importante:** "activo" no significa "credenciales listas". Las 114 cuentas poseen contraseñas aleatorias irrecuperables desde la importacion, por lo que el login seguira imposibilitado hasta configurar **credenciales individuales**. La fase siguiente, distinta de la activacion SQL, habilitara funciones de Administracion/Usuarios en el portal, restablecimiento o invitacion seguro, registro de auditoria, versionado de sesion, rate limiting y QA de permisos (admin vs user). `/admin/usuarios` y `GET /api/users` existen en codigo, pero no se comprobo la disponibilidad efectiva en el portal productivo. Las 14 inactivas originales permanecen inactivas.
