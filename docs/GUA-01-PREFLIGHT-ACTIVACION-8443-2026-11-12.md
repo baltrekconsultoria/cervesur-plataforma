@@ -121,3 +121,37 @@ Prueba contra el VirtualHost corporativo del servidor por puerto HTTP 80 (ruta `
 **Estado acumulado:** `P4A_NO_SENSIBLES=PASS_REAL`, `K1_RUTA_RETIRADA_HTTP=PASS`, `CODIGO_FASE_2B=PRESENTE`, `MODO=PASS`, `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Continúan pendientes de evidencia para P4b K2, A1/A2, A3/F-10, D3, D4 y cierre de autorizaciones. No encender ni editar `.env` hasta entonces.
 
 **Próximo bloque recomendado, sin volver a auditar catálogos:** ejecutar la atestación de solo lectura D4 con script verificado SHA-256, previo consentimiento/constancia de la persona responsable para esa inspección. Reportar exclusivamente PASS/FAIL/PENDIENTE por código D4-01 a D4-09, sin copiar el contenido de `.env`. Esto permite evaluar JWT, estado K1/PowerBI, F-10 y huellas en un lote; después únicamente resolver controles faltantes antes de autorizar el kit `interruptor-usuarios.sh encender`.
+
+## 12/11/2026 — D4 REAL: 6 PASS / 3 FAIL / 2 PENDIENTE, P4b NO-GO
+
+El operador ejecutó `d4-atestacion-solo-lectura.sh` sobre `/var/www/cervesur/backend` con `--expiracion-prevista 86400`. El kit oficial tuvo `KIT_D4=PASS` (huella SHA-256 comparada contra el manifiesto), y el resumen real fue:
+
+```text
+KIT_D4=PASS
+D4-01=PASS
+D4-02=PASS
+D4-03=PASS
+D4-04=PASS
+D4-05=PASS
+D4-06=PASS
+D4-06b=PENDIENTE
+D4-07=FAIL
+D4-08=FAIL
+D4-08b=PENDIENTE
+D4-09=FAIL
+D4-RESUMEN: 6 PASS, 3 FAIL, 2 PENDIENTE  (PENDIENTE no es aprobacion)
+D4_EXIT_CODE=1
+```
+
+**Diagnóstico de naturaleza estrictamente documental / lectura; NO modificar todavía el servidor:**
+
+- `D4-01..06 PASS`: la atestación del secreto JWT pasó sus comprobaciones de existencia, longitud, valores débiles, variedad y no coincidencia con literales por defecto. Esto no exonera las 3 fallas restantes.
+- `D4-06b PENDIENTE`: el script detecta literales por defecto en los archivos heredados, potencial riesgo si alguna ruta cae al literal; verificar los detalles antes de decidir parche de seguridad.
+- `D4-07 FAIL`: la duración real de `JWT_EXPIRATION` **no coincide** con `86400` esperado. La salida filtrada no muestra el valor observado. Un dictamen previo de P5-R reportó `10800` (3 h), pero **no** debe tratarse como valor actual sin confirmación en la salida detallada. No cambiar TTL ni secreto automáticamente: cualquier cambio afecta sesiones Flutter.
+- `D4-08 FAIL`: la revisión estática del código no acredita `POWERBI_AUTH_MODE=retirar` como único literal. `K1_HTTP=410` fue observado aparte contra el vhost HTTP del 80; puede haber otro `define`/fallback, o rutas/raíces distintas. No marcar K1 GO universal con la discrepancia sin verificar la ejecución efectiva en las entradas relevantes.
+- `D4-08b PENDIENTE`: el script **siempre marca PENDIENTE** porque él mismo no hace red; conservar `K1_HTTP=410` como evidencia externa del vhost probado y cotejarla formalmente. No repetir llamadas sin razón.
+- `D4-09 FAIL`: el verificador no acredita F-10 instalado en `router/auth.php` del backend heredado. Puede ser el marcador ausente o una alternativa no reconocida; revisar el texto de diagnóstico y ruta efectiva antes de declarar registro público abierto o desplegar el parche. F-10 condiciona P4b por el riesgo de cuentas sin aprobación.
+
+**Resultado:** `P4A_NO_SENSIBLES=PASS_REAL`, `K1_RUTA_RETIRADA_HTTP=PASS`, `D4_FINAL=FAIL`, `P4B=NO_GO`; `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Usuario quiere habilitación prioritaria; no son necesarios más chequeos de catálogos, empresas ni reportes, solo resolver estas puertas reales y A1/A2/K2/A3.
+
+**Siguiente paso agrupado (única ejecución SOLO LECTURA):** repetir el script D4 oficial con el mismo `--expiracion-prevista 86400` y devolver SOLO las líneas con motivo de `D4-06b`, `D4-07`, `D4-08`, `D4-08b`, `D4-09` (el comando anterior imprimió solo estado, ocultando las razones). Su salida está diseñada para no contener secretos; filtrar estrictamente esas líneas, sin imprimir contenido de `.env`, hash ni nombres privados. Con los motivos exactos se prepara la intervención K1/F-10/JWT correspondiente, con firmas de DBA/Infra y rollback antes de cualquier escritura productiva.
