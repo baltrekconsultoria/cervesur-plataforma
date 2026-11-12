@@ -149,10 +149,16 @@ def prompt_token(label: str) -> str:
     return token
 
 
-def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None, vhost: str | None = None) -> int:
+def http_lectura(
+    base_url: str,
+    other_id: int | None,
+    ca_cert: str | None = None,
+    vhost: str | None = None,
+    solo_anonimos: bool = False,
+) -> int:
     base = validate_local_base(base_url)
     vhost = validate_vhost(vhost, base)
-    if other_id < 1 or other_id > 2147483647:
+    if not solo_anonimos and (other_id is None or not 1 <= other_id <= 2147483647):
         raise ValueError("--id-ajeno debe ser un ID existente y distinto del usuario normal")
     opener = build_client(base, ca_cert)
     cases = [
@@ -167,6 +173,13 @@ def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None, vhost
     if not all(result):
         print("D3_HTTP_GET=NO_GO_ANONIMO")
         return 2
+
+    if solo_anonimos:
+        print("D3_HTTP_ANON=PASS_2_DE_2")
+        print("D3_HTTP_ROLES=PENDIENTE_NO_EJECUTADO")
+        print("D3_VEREDICTO_GLOBAL=PENDIENTE_QA_ROLES_Y_CASOS_NO_ELUSION")
+        print("OPERACIONES_ESCRITURA=NO_REALIZADAS")
+        return 0
 
     if not sys.stdin.isatty():
         print("D3_HTTP_GET=PENDIENTE_CONSOLA_INTERACTIVA")
@@ -197,14 +210,18 @@ def main(argv=None) -> int:
     source_parser.add_argument("--backend", default="/var/www/cervesur/backend")
     http_parser = sub.add_parser("http")
     http_parser.add_argument("--base-url", default="http://127.0.0.1")
-    http_parser.add_argument("--id-ajeno", type=int, required=True)
+    http_parser.add_argument("--id-ajeno", type=int, default=None)
+    http_parser.add_argument(
+        "--solo-anonimos", action="store_true",
+        help="Solo dos GET 401 anonimos; no solicita JWT ni IDs",
+    )
     http_parser.add_argument("--ca-cert", default=None)
     http_parser.add_argument("--vhost", default=None, help="IPv4 privada del ServerName de Apache, sin cambiar la IP de conexion")
     args = parser.parse_args(argv)
     try:
         if args.accion == "fuentes":
             return fuentes(Path(args.backend))
-        return http_lectura(args.base_url, args.id_ajeno, args.ca_cert, args.vhost)
+        return http_lectura(args.base_url, args.id_ajeno, args.ca_cert, args.vhost, args.solo_anonimos)
     except (ValueError, URLError, OSError, TimeoutError, ssl.SSLError, EOFError, KeyboardInterrupt) as exc:
         # No imprimir detalles de excepciones: algunas librerias incluyen URLs/cabeceras.
         print("D3=NO_GO_ENTORNO_O_CREDENCIALES")
