@@ -8,6 +8,7 @@ on:
     branches:
       - 'ci/**'
       - 'security/**'
+      - 'feat/cervesur-ux08b4-id-grupo-interno-20261112'
 
 permissions:
   contents: read
