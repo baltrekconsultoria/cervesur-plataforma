@@ -89,10 +89,16 @@ $v0 = (int)one($pdo, 'SELECT session_version v FROM user WHERE id = ?', [$uid])[
 expectCase($s === 200 && (int)one($pdo, 'SELECT is_active a FROM user WHERE id = ?', [$uid])['a'] === 0 && (int)one($pdo, 'SELECT session_version v FROM user WHERE id = ?', [$uid])['v'] === $v0 + 1, 'deactivate a user and revoke its sessions');
 [$s] = requestApi('POST', "/api/users/$uid/reactivate", [], $admin);
 expectCase($s === 200, 'reactivate a user');
+// P5-R: la contrasena solo puede restablecerse en una cuenta estandar activa.
+// Probarlo ANTES de elevar el rol; cambiar la regla productiva para satisfacer
+// esta fixture supondria una regresion de seguridad.
+[$s] = requestApi('PUT', "/api/users/$uid/password", ['password' => 'otra-clave-larga-456'], $admin);
+expectCase($s === 200 && tokenOf('min.priv', 'otra-clave-larga-456') !== '', 'reset a standard user password (the new one works)');
 [$s] = requestApi('PUT', "/api/user/$uid/role", ['role' => 'admin'], $admin);
 expectCase($s === 200 && one($pdo, 'SELECT role FROM user WHERE id = ?', [$uid])['role'] === 'admin', 'change a role');
-[$s] = requestApi('PUT', "/api/users/$uid/password", ['password' => 'otra-clave-larga-456'], $admin);
-expectCase($s === 200 && tokenOf('min.priv', 'otra-clave-larga-456') !== '', 'reset a password (the new one works)');
+[$s, $d] = requestApi('PUT', "/api/users/$uid/password", ['password' => 'tercera-clave-larga-789'], $admin);
+expectCase($s >= 400 && ($d['success'] ?? true) === false && tokenOf('min.priv', 'otra-clave-larga-456') !== '',
+    'P5-R: reset of admin account is denied; previous password remains valid');
 [$s] = requestApi('POST', '/api/logout', null, tokenOf('usera'));
 expectCase($s === 200, 'logout bumps the session version');
 

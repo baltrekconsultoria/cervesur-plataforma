@@ -8,6 +8,7 @@ on:
     branches:
       - 'ci/**'
       - 'security/**'
+      - 'feat/cervesur-ux08b4-id-grupo-interno-20261112'
 
 permissions:
   contents: read
@@ -49,6 +50,15 @@ jobs:
               count=$(find backend tests -type f -name "*.php" | wc -l)
               echo "PHP syntax: ${count} files passed"
             '
+
+      - name: Validate scoped UX-08B4 deploy and rollback script
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ops/reportes/desplegar-ux08b4.sh
+          grep -Fq 'd51c89361ae5dda52435b224ad8e58f5de0fc82b' ops/reportes/desplegar-ux08b4.sh
+          grep -Fq '3a120727252cea924354716e8de125acafbda4c2' ops/reportes/desplegar-ux08b4.sh
+          echo "UX08B4_INSTALLER_SYNTAX=PASS"
 
       - name: Run PHP security unit tests
         run: |
