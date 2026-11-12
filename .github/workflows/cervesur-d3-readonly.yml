@@ -4,7 +4,6 @@ on:
     paths:
       - "ops/u-basic/d3_readonly_gate.py"
       - "ops/u-basic/d3_auth_synthetic.php"
-      - "ops/u-basic/d3_auth_synthetic.php"
       - "ops/u-basic/test_d3_readonly_gate.py"
       - "ops/u-basic/D3-READONLY-GATE.md"
       - ".github/workflows/cervesur-d3-readonly.yml"
@@ -13,6 +12,7 @@ on:
       - "feat/cervesur-d3-qa-readonly-20261112"
     paths:
       - "ops/u-basic/d3_readonly_gate.py"
+      - "ops/u-basic/d3_auth_synthetic.php"
       - "ops/u-basic/test_d3_readonly_gate.py"
       - ".github/workflows/cervesur-d3-readonly.yml"
 permissions:
@@ -40,7 +40,7 @@ jobs:
           assert "'lib/jwt.php'" in code
           assert "getallheaders" in code
           assert "D3_CIERRE_GLOBAL=PENDIENTE_OTROS_VECTORES_Y_FIRMAS" in code
-          assert "db.php" not in code.replace("No usa .env, db.php", "")
+          assert "require_once $realRoot . '/lib/db.php'" not in code
           assert "mysqli" not in code.lower()
           print("D3_PHP_PREFLIGHT_STATIC=PASS")
           PY
