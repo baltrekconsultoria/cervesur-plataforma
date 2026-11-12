@@ -114,3 +114,21 @@ umask 077; test ! -e /home/databalt/cervesur_cron_private/legado-export-status.t
 **Seguridad de archivos:** `legado-snapshot.json` contiene HMAC e IDs internos; constituye informacion sensible seudonimizada y **no se debe subir a conversaciones ni a GitHub**. El archivo `legado-export-status.txt` contiene solo conteos y codigos de estado y si se puede compartir para diagnostico. Ambos quedan fuera de `public_html`. No descargar/copiar la clave salvo a un dispositivo autorizado mediante el canal cifrado necesario para cotejar con el destino.
 
 **NO-GO:** no migrar registros, no cambiar estados/roles/reportes, no exponer un endpoint HTTP, no ejecutar sobre el servidor React hasta completar la etapa de exportacion legado y revisar el resultado.
+
+### Extraccion del legado confirmada y comprobada (12/11/2026)
+
+- La ejecucion de `export_snapshot.php` devolvio `CERVESUR_SNAPSHOT=PASS`, `ORIGEN=legado`, `BASE_MODIFICADA=NO`, `SALIDA_PRIVADA=SI`.
+- Conteos: 190 usuarios (176 activos), 25 empresas (5 activas), 264 reportes (169 activos), 198 empresa-usuario (176 activas), 273 empresa-reporte (270 activas), 334 usuario-empresa-reporte (271 activas).
+- Se reviso el JSON privado en el entorno de conversacion: estructura `cervesur-snapshot-v1`, seis colecciones con identificadores presentes sin duplicados; 226 cadenas activas validas y unicas y 45 cadenas inactivas por causa principal (5 usuario inactivo, 40 reporte inactivo). No se registraron claves HMAC, hashes o IDs de usuarios en GitHub.
+- **Incidente de manejo de datos a vigilar:** el operador adjunto el snapshot privado a la conversacion aunque la guia desaconsejaba hacerlo. Evitar nuevos adjuntos de snapshots, claves o identificadores; trabajar en transferencias directas por canal cifrado y comunicar solo conteos agregados.
+- Los tres cron de preparacion y el cron de exportacion del origen han sido eliminados por el operador tras ejecutar las pruebas. La clave privada del legado debe conservarse con permisos 0600 en el hosting.
+
+### Siguiente puerta Ubuntu (pendiente)
+
+`ops/migracion/ubuntu_db_preflight.php` preparado en la misma rama del PR. Probar primero en el host Ubuntu (sin secret HMAC) que:
+- PHP CLI y `pdo_mysql` funcionan.
+- La ruta `/var/www/cervesur/backend/lib/env.php` existe y corresponde realmente a la nueva plataforma.
+- La configuracion DB identifica `cervesur_portalbi` y estan presentes las seis tablas.
+- Se puede iniciar transaccion `READ ONLY` sin consultar filas de datos.
+
+**No copiar todavia la clave HMAC ni ejecutar el snapshot del destino hasta confirmar esta puerta**. Para el script usar una carpeta de trabajo privada fuera de `/var/www`, nunca dentro del DocumentRoot. El resultado del preflight se puede compartir porque solo contiene codigos de estado, nunca contrasenas.
