@@ -33,7 +33,19 @@ class NativeMySQL8Fixture(unittest.TestCase):
             qa = native.private_tmp(account.pw_uid, account.pw_gid)
             process = None
             try:
-                native.initialize(qa)
+                try:
+                    native.initialize(qa)
+                except native.NoGo:
+                    # CI uses ONLY synthetic data. Show filtered init diagnostics
+                    # to identify an OS/AppArmor or MySQL option incompatibility.
+                    f = qa / "error.log"
+                    if f.is_file():
+                        for line in f.read_text(errors="replace").splitlines()[-12:]:
+                            if "ERROR" in line or "MY-" in line:
+                                print("MYSQL_FIXTURE_INIT_DIAGNOSTICO=" + line[-260:])
+                    else:
+                        print("MYSQL_FIXTURE_INIT_LOG=NO_CREAT")
+                    raise
                 process = native.start_daemon(qa)
                 sock = qa / "mysql.sock"
                 bdb, sdb = backup.BUSINESS_DB, backup.STATE_DB
