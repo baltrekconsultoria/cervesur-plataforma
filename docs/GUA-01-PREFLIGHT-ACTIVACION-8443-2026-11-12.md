@@ -314,3 +314,30 @@ CAMBIOS_PRODUCTIVOS=NO
 5. Plan de respaldo/reversión del interruptor P4b; activar **solo** U-BASIC una vez que todas las puertas se declaren GO; sensible/P5 sigue OFF.
 
 **Estado final de este bloque:** `F5B=PASS_ESTRUCTURAL`, `F5C=PASS_ESTRUCTURAL`, `P4B=NO_GO_PENDIENTE_LIBERACION`; `GESTION_USUARIOS=OFF` y `GESTION_SENSIBLE=OFF` según último chequeo de entorno. Ninguna modificación productiva se ejecutó en esta conversación.
+
+## 12/11/2026 — RELEASE K1/JWT APLICADO EN PRODUCCION CON BACKUP, VERIFICADO
+
+El operador ejecuto el paquete fusionado en GitHub [PR #25](https://github.com/baltrekconsultoria/cervesur-plataforma/pull/25), commit inmutable `c2f01a7942f12427a9267d8325c432554a2c7214`, `ops/p4b/legacy_policy.py` con blob `3253b72bbb2d1685a3df886f16e85ad84d6340ed`. Primero valido `git hash-object` del kit, sin transferir secretos. Salida exacta resumida:
+
+```text
+KIT_INTEGRIDAD=PASS
+ANTES: F10_SHA=PASS H1_SHA=PASS JWT_ACTUAL_SEG=10800 K1_FALLBACK_ACTUAL=observar
+PREFLIGHT=PASS_SOLO_LECTURA
+BACKUP_VERIFICADO=SI
+BACKUP_PATH=/home/usr_cervesur/cervesur-p4b-policy-20261112T113010Z-1975881
+JWT_NUEVO_SEG=86400
+K1_FALLBACK_NUEVO=retirar
+APLICADO=SI
+REINICIO_APACHE=NO
+DESPUES: F10_SHA=PASS H1_SHA=PASS JWT_ACTUAL_SEG=86400 K1_FALLBACK_ACTUAL=retirar
+CAMBIO_JWT=NO
+CAMBIO_K1=NO
+PREFLIGHT=PASS_SOLO_LECTURA
+K1_HTTP=410
+```
+
+**Veredicto del lote:** `K1_JWT_RELEASE=PASS_PRODUCTIVO_ARCHIVOS_Y_HTTP`, backup privado previo reportado `BACKUP_VERIFICADO=SI`. Se modificaron unicamente los archivos que permite el instalador: `/var/www/cervesur/backend/.env` (JWT_EXPIRATION de 10800 a 86400) y `lib/powerbi_authz.php` (fallback `observar` a `retirar`). PHP F10 `router/auth.php` y middleware H1 permanecen con huellas invariantes. No SQL, usuarios, roles, contrasenas, Apache ni frontends modificados por este lote. No reproducir, publicar ni adjuntar contenido del respaldo porque contiene `.env`/secretos. Conservar su ruta exacta para eventual rollback. El preflight posterior no modifica la aplicacion; la frase `PRODUCCION_MODIFICADA=NO` en ese paso significa que **la verificacion no hizo nuevas escrituras**, no que el apply anterior no hubiera cambiado archivos.
+
+**Limitaciones:** `JWT_ACTUAL_SEG=86400` acredita la linea de configuracion del archivo, pero no por si solo la emision efectiva de JWT 24h; comprobar inicio de sesion de cuenta controlada y claim exp/iat en entorno autorizado sin revelar tokens ni contrasenas. `K1_HTTP=410` valida la entrada HTTP especifica y el fallback de codigo ya es `retirar`; otras entradas/consumidores y acta A-L2 se verifican aparte. D4-09 es detector heredado que no reconoce el guard `F10-20261111` pese a QA F10 guardia PASS/POST anonimo 401. Nueve literales default JWT D4-06b aun requieren seguimiento separado. Portal de usuarios 443 carece de SELECT en cuenta MySQL distinta, incidencia independiente.
+
+**Proximo hito:** QA funcional minimo de autenticacion y autorizacion con cuentas de prueba (no enviar tokens), cierre D3/firmas/continuidad altas Flutter, respaldo SQL previo a P4b y autorizacion para encender exclusivamente U-BASIC. Las banderas de Usuarios y Usuarios sensible NO fueron activadas por este release: conservar OFF hasta nueva atestacion y GO. No repetir auditorias de codigo K2/A1/A2/F10.
