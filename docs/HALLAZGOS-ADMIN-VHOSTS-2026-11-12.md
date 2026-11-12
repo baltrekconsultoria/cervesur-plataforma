@@ -224,3 +224,23 @@ DIAGNOSTICO=ERROR_TABLA_USER_PERMISO_SELECT
 Se contrastó el diagnóstico con `backend/controllers/AuthController.php` de la rama de trabajo: el método `login()` hace `SELECT * FROM user WHERE (email = :email OR username = :username) LIMIT 1`, valida contraseña/estado/rol/versión de sesión, y después hace `UPDATE user SET last_login = NOW() WHERE id = :user_id`. El middleware `backend/lib/auth_middleware.php` vuelve a leer `session_version`, `is_active` y `role` de la tabla user al verificar JWT. Por tanto, si el portal 443 usa este mismo código y este mismo usuario MySQL, el permiso SELECT denegado puede bloquear también el login y la verificación de sesiones, aunque `/api/ping` responda 200. No se ha demostrado todavía que código desplegado = código de la rama.
 
 El mínimo de permisos no puede decidirse solo a partir del COUNT fallido: examinar todas las consultas necesarias a `user`, incluidos SELECT para autenticación y UPDATE limitado de `last_login`; evaluar alternativas de consultas con columnas explícitas en lugar de ampliar a toda la tabla. Antes de un GRANT, auditar identidad e instancia MySQL y política de seguridad de portales; pedir aprobación separada para privilegios productivos.
+
+## 15. Identidad de MySQL verificada entre 443 y 8443 (12/11/2026)
+
+Último resultado del operador, a partir de lectura PDO desde los backends declarados por Apache, mostrando **solo comparaciones internas** de `@@server_uuid` y `CURRENT_USER()` (sus valores no se mostraron):
+
+```text
+=== CERVESUR: IDENTIDADES MYSQL ===
+MISMA_INSTANCIA=SI
+MISMA_CUENTA_MYSQL=NO
+```
+
+**Hallazgo confirmado:** las dos conexiones PDO efectuadas en CLI consultaron el mismo identificador de instancia MySQL, pero utilizaron **identidades de cuenta MySQL distintas**. La cuenta declarada del portal admin 8443 pudo hacer SELECT agregado sobre `user` (190/176/14 PASS), mientras la del portal usuarios 443 recibió código MySQL 1142/1143 `PERMISO_SELECT` sobre `user`.
+
+**Conclusión:** no hace falta cambiar de instancia ni repetir la migración; el foco es revisar la configuración y los privilegios mínimos de la identidad SQL utilizada por el backend declarado de 443. No puede atribuirse automáticamente a una equivocación de infraestructura o a una política intencionada sin revisión. Recordatorio: las pruebas PHP CLI aún no verifican las rutas efectivamente servidas por Apache; la UI funcional HTTPS sigue pendiente.
+
+**Siguiente puerta SIN ESCRITURA:** bajo `www-data` y el `lib/env.php` del backend declarado 443, abrir PDO, consultar `CURRENT_USER()` y `SHOW GRANTS FOR CURRENT_USER()` solo **en memoria**, sin imprimir textos de GRANT o identidades; clasificar si hay SELECT/UPDATE efectivos para `cervesur_portalbi.user` y comprobar con `SELECT ... FROM user LIMIT 0` de columnas de login, que no extrae filas. Evitar concluir permisos efectivos de roles solo por grants directos. No ejecutar GRANT, REVOKE, ALTER USER, UPDATE ni cambiar `.env`.
+
+**Precisión de mínimo privilegio:** el AuthController del código de GitHub hace `SELECT * FROM user` y luego `UPDATE user SET last_login=NOW()`; un ajuste estrictamente de columnas requiere además revisar todos los SELECT a user y eventualmente modificar el código para no usar `SELECT *`, ensayar en QA y autorizar el despliegue. Un GRANT sobre toda la tabla concede lectura de hashes y demás columnas y debe evaluarse explícitamente, nunca aplicarlo de manera automática.
+
+Postura de seguridad: el repositorio GitHub es público; no publicar identificadores reales `CURRENT_USER()`, `@@server_uuid`, rutas `.env`, nombres de cuentas SQL, secretos ni GRANT completos. Mantener 443 y 8443 independientes; no sustituir cuentas ni ampliar a `*.*`.
