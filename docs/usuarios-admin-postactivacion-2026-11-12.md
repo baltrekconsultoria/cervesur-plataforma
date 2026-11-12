@@ -73,3 +73,9 @@ No alterar la configuracion Apache ni redirigir los React QA a MySQL productivo.
 Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md) para la consolidacion de: POSTFLIGHT 190/176/14, verificacion de API 80/8088/8089, VirtualHosts habilitados para 80/443/8443 y 8088-8094, puertos realmente en LISTEN, distincion entre entorno QA y portales corporativos, y siguiente puerta para verificar HTTPS 443/8443 sin credenciales.
 
 Nota de seguridad: el repositorio es publico, por lo que el inventario de GitHub documenta el binding como interfaz interna/VPN sin publicar la IP corporativa concreta. No compartir configuraciones privadas, .env ni PII de usuarios.
+
+## Gate HTTPS corporativo 443/8443 (ejecutado 12/11, solo lectura)
+
+El operador confirmó `GET /`, `/api/ping` y `/admin/usuarios` por HTTPS con 200 (HTML, JSON, HTML respectivamente) tanto en puerto 443 como 8443. `GET /api/users?status=all` sin credenciales devolvió **403 JSON en 443** y **401 JSON en 8443**. Ninguno entregó listado anónimo. Esta evidencia no demuestra todavía que la vista React 8443 se conecte a la BD productiva, ni que el 200 HTML de `/admin/usuarios` sea gestión funcional (podría ser fallback SPA). No usar credenciales con validación de certificado deshabilitada.
+
+Para resultados, interpretación, hallazgos de vhosts y proxima verificacion segura de la BD real, consultar el documento canónico [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
