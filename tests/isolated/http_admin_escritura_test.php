@@ -150,10 +150,13 @@ $n1 = (int)one($root, 'SELECT COUNT(*) FROM reporte');
 // para un enlace publico sin groupId. Es un UUID de Cervesur, NO un grupo de Microsoft.
 [$s, $web] = api('appaw', 'POST', '/api/reportes', $t, ['nombre' => 'Sin grupo', 'descripcion' => 'x', 'enlace' => 'https://app.powerbi.com/view?r=eyJrIjoiMTIzNDU2Nzg5MDEyMyJ9']);
 $webId = (int)($web['data']['id'] ?? 0);
-$webRow = $webId ? one($root, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$webId]) : null;
+// one() devuelve un ESCALAR; para leer ambas columnas se usa rows() (fetchAll asociativo).
+$webRows = $webId ? rows($root, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$webId]) : [];
+$webRow = $webRows[0] ?? null;
 expectCase($s === 200 && $webId > 0 && (int)one($root, 'SELECT COUNT(*) FROM reporte') === $n1 + 1
     && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', (string)($webRow['grupo_id'] ?? '')) === 1
-    && $webRow['grupo_id'] === $webRow['reporte_id'],
+    && $webRow['grupo_id'] === $webRow['reporte_id']
+    && (int)one($root, "SELECT COUNT(*) FROM audit_log WHERE entity = 'reporte' AND entity_id = ? AND action = 'reporte.create'", [$webId]) === 1,
     'UX-08B4: enlace publico creado en NOT NULL con UUID interno, auditado y sin grupo Power BI real');
 if ($webId) {
     $root->prepare('DELETE FROM reporte WHERE id = ?')->execute([$webId]); // cleanup SOLO en DB sintetica
