@@ -29,6 +29,7 @@ export function UserResetPasswordDialog({ user, onClose, onSaved }: {
     setFailure('');
     setSaving(true);
     try {
+      if (!api.resetUserPassword) throw new Error('Proveedor no compatible con P5-R');
       await api.resetUserPassword(user.id, password);
       setPassword('');
       setConfirm('');
