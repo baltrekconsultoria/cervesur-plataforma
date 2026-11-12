@@ -200,3 +200,34 @@ stat -c '%U %G %a %n' /home/usr_cervesur /home/usr_cervesur/cervesur_migracion_p
 Esta comprobacion solo valida metadatos y sudoers; el comando `sudo -n -l` puede informar que se necesita autenticacion o que la autorizacion esta restringida. Nunca pegar una contraseña de sudo en el chat ni utilizar `sudo cat .env`. Determinar con responsable autorizado si se permite una ejecucion restringida del preflight por la identidad de servicio `www-data`, desde codigo verificado e instalado en ubicacion no publica, o una cuenta de MySQL solo lectura gestionada por DBA. **No ejecutar `sudo -u www-data` ni copiar `.env` hasta completar esta puerta.**
 
 Estado: **Ubuntu preflight bloqueado por permisos**, no por fallo confirmado de MySQL; **NO-GO para snapshot de destino y cambios productivos**.
+
+### Ubuntu — diagnostico de sudo y ruta privada (12/11/2026)
+
+Prueba de operador, sin autenticacion sudo ni cambios de permisos:
+
+```text
+sudo -n -l
+sudo: a password is required
+
+namei -l /home/usr_cervesur/cervesur_migracion_privada/repo/ops/migracion/ubuntu_db_preflight.php:
+  /home/usr_cervesur                     usr_cervesur:usr_cervesur 0750
+  cervesur_migracion_privada              usr_cervesur:usr_cervesur 0700
+  repo                                    usr_cervesur:usr_cervesur 0775
+  ops                                     usr_cervesur:usr_cervesur 0775
+  migracion                               usr_cervesur:usr_cervesur 0775
+  ubuntu_db_preflight.php                 usr_cervesur:usr_cervesur 0664
+
+stat:
+  /home/usr_cervesur                      0750
+  /home/usr_cervesur/cervesur_migracion_privada 0700
+  /home/usr_cervesur/cervesur_migracion_privada/repo 0775
+```
+
+**Interpretacion:**
+- `sudo -n -l` solo indica que se requiere autenticacion para listar reglas. **No prueba** autorizacion ni denegacion definitiva.
+- El directorio 0700 impide a `www-data` atravesar hasta el PHP y el codigo 0664 dentro de rutas 0775 es modificable por usuario/grupo. No se debe ejecutar ese PHP con identidad `www-data` desde el checkout.
+- El `backend/.env` del aplicativo sigue protegido `www-data:www-data 0640`, y debe conservarse igual.
+
+**Siguiente gate propuesto, aun NO ejecutado:** `sudo -l` de manera interactiva, siempre local y sin compartir contrasena; registrar solo reglas que autorizan ejecutar como `www-data` o instalar una copia privilegiada. Si existe autorizacion efectiva de Infra/operador, copiar el preflight revisado a una ubicacion NO publica bajo propiedad `root:root`, permisos directorio 0755 y PHP 0644, con checksum y `php -l` antes de ejecutar como `www-data`; no elevar el propio script a root, no ejecutar la copia modificable en HOME. El servicio `www-data` solo debe recibir la lectura temporal necesaria; no leer ni imprimir `.env`.
+
+Si `sudo -l` no autoriza el mecanismo acotado o el equipo no tiene autorizacion operacional, **NO-GO** a ejecutar como `www-data`: usar DBA para una cuenta SQL de lectura dedicada o pedir una ejecucion supervisada. No modificar permisos, propietarios, grupos, `.env`, cron productivo, flags ni acceso de usuarios. Documentar resultado antes de cualquier otra accion.
