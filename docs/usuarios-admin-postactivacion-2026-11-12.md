@@ -125,3 +125,13 @@ Continuidad completa en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-V
 El operador mostro tres pantallas de 8443 sin modificar datos. `Empresas` muestra 6 activas de 26; `Reportes` 82 activos de 95; `Accesos y asignaciones` 91 vigentes de 103. Se observaron botones de alta/edicion/desactivacion/retiro, pero su funcionamiento **NO** se probo. Capturas con PII no publicadas. El agregado de `informes activos` por las 6 empresas visibles suma 84 frente a 82 reportes activos únicos mostrados en el catálogo; diferencias de criterio o duplicidad de relaciones aún no verificadas.
 
 Continuidad detallada y puestas de control en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Proximo QA en lectura: `Informes por empresa`, conciliación de informes únicos vs relaciones, y comparar con checklist de dashboards optimizados, antes de editar enlaces y asignaciones. Portal usuarios 443 sigue limitado por falta SELECT a `user`; 114 migrados sin contraseña utilizable. No conceder permisos ni hacer acciones masivas todavía.
+
+## QA vinculos empresa-reporte conciliado y desactivacion real de empresa de pruebas (12/11/2026)
+
+Cinco empresas activas mostraron contadores `(asociados, disponibles)` de `(8,74)`, `(55,27)`, `(3,79)`, `(5,77)`, `(13,69)`, sobre el catálogo común de 82 reportes activos. El total de asociaciones es 84. En una empresa se vieron exactamente dos reportes `Compartido con 1 más`, lo que explica 84 relaciones vs 82 reportes únicos; ver detalles en el documento de hallazgos.
+
+El OPERADOR desactivó desde el portal 8443 la empresa ficticia Test SAC (0 reportes, 0 usuarios en la vista previa); la UI mostró confirmación correcta y `Mostrando 5 de 26 empresas` activas. Se verificó visualmente el efecto de la baja lógica, pero aún no se ha consultado el `Historial` para validar auditoría. Cambio efectuado por el operador, no por GPT. No crear más empresas ni borrar otras.
+
+Estado al cierre: 190 usuarios/176 activos/14 inactivos; 26 empresas/5 activas/21 inactivas; 95 reportes/82 activos; 103 asignaciones/91 vigentes; 84 vínculos activos empresa-informe. Los 114 nuevos usuarios siguen sin contraseñas inicializadas y el portal 443 tiene una denegación SQL `SELECT` de su cuenta de servicio, pendiente de corrección de privilegio mínimo. Siguiente fase: audit trail de desactivación, luego matriz de conciliación de todos los dashboards optimizados con reportes existentes y URL Power BI, sin escrituras hasta aprobación específica.
+
+Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
