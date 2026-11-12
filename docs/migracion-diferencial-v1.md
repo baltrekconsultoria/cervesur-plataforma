@@ -147,3 +147,26 @@ Resultados observados (sin incluir identificadores confidenciales):
 **Alcance:** la existencia del archivo `env.php` no demuestra por si sola el nombre de base configurado ni capacidad de lectura en MySQL. Falta ejecutar `ops/migracion/ubuntu_db_preflight.php` con `--loader=/var/www/cervesur/backend/lib/env.php` y verificar `CERVESUR_UBUNTU_DB_PREFLIGHT=PASS`, `DATABASE_MATCH=PASS`, `READ_ONLY_TRANSACTION=PASS`, `REQUIRED_TABLES_PRESENT=6/6`.
 
 **Procedimiento recomendado:** transferir el PHP aprobado desde la rama de GitHub a una carpeta privada `/home/usr_cervesur/cervesur_migracion_privada/` utilizando mecanismo autenticado (Git local con acceso verificado o SFTP/WinSCP). Ejecutar primero `php -l` y luego `php ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php`. No cambiar contenido dentro de `/var/www/cervesur`, no copiar todavia la clave HMAC al Ubuntu ni ejecutar el exportador de destino. El codigo de preflight muestra solo estado agregado y no revela credenciales.
+
+### Bloqueo detectado en Ubuntu: lectura de .env (12/11/2026)
+
+Operador ejecuto en Ubuntu (usuario `usr_cervesur`):
+- `php -l /home/usr_cervesur/cervesur_migracion_privada/repo/ops/migracion/ubuntu_db_preflight.php` -> **sin errores de sintaxis**.
+- `php .../ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php` -> **`CERVESUR_UBUNTU_DB_PREFLIGHT=DB_ENV_INCOMPLETE`**. Antes del estado, PHP emitio warnings `Permission denied` al intentar leer `/var/www/cervesur/backend/.env` desde `backend/lib/env.php` (lineas 11 y 12).
+- La aplicacion en produccion no fue modificada; `DB_CONNECTED=NO`, `DATABASE_MATCH=NO`, `READ_ONLY_TRANSACTION=NO`, `REQUIRED_TABLES_PRESENT=UNKNOWN`, `DB_DATA_MODIFIED=NO`, `SECRET_VALUES_PRINTED=NO`.
+
+**Interpretacion correcta:** `env.php` existe, pero la identidad de shell `usr_cervesur` no puede leer `backend/.env`. No hay evidencia de error de credenciales, indisponibilidad MySQL ni divergencia de la BD.
+
+**Correccion en rama del PR:** `ops/migracion/ubuntu_db_preflight.php` ahora comprueba existencia y legibilidad de `backend/.env` antes de invocar el cargador. Si carece de permisos, devuelve **`CERVESUR_UBUNTU_DB_PREFLIGHT=ENV_PERMISSION_DENIED`**, sin warnings ni acceso a los valores secretos. Se incluyo test sintetico de permisos en CI (resultado CI pendiente de verificar).
+
+**Siguiente diagnostico permitido (solo metadatos, NO abrir .env):**
+```sh
+id
+namei -l /var/www/cervesur/backend/.env
+stat -c '%U %G %a %n' /var/www/cervesur/backend /var/www/cervesur/backend/.env
+test -r /var/www/cervesur/backend/.env && echo ENV_READABLE=YES || echo ENV_READABLE=NO
+```
+
+No copiar `.env`, no imprimir su contenido, no cambiar propietario/permisos, no entrar por root ni heredar credenciales sin autorizacion de Infra/DBA. Decidir con responsables la identidad de servicio bajo la que se puede ejecutar una prueba auditada, o solicitar cuenta MySQL de **solo lectura** gestionada por DBA. No ejecutar el exportador de destino ni transferir clave HMAC hasta resolver esta puerta sin debilitar permisos.
+
+**Estado:** Ubuntu DB preflight **NO-GO** por permisos de archivo; legado export **PASS**; migracion productiva sigue no autorizada.
