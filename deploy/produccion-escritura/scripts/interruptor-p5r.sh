@@ -6,6 +6,12 @@ set -uo pipefail
 PAQ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib.sh
 source "$PAQ/scripts/lib.sh"
+# 8443 es el sitio productivo de administracion actual. El lib heredado usa 8093.
+# Nunca tomar silenciosamente su puerto: podria verificar otro portal.
+P5R_API_PORT="${CERVESUR_P5R_API_PORT:-8443}"
+case "$P5R_API_PORT" in 8443) ;; *) abortar "Puerto de API P5-R no autorizado (solo 8443)";; esac
+URL_ADMIN="https://localhost:$P5R_API_PORT"
+CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:$P5R_API_PORT:127.0.0.1")
 trap api_limpiar EXIT
 
 ACCION="${1:-}"; shift || true
