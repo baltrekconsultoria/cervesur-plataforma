@@ -161,8 +161,8 @@ class EmpresaModel {
 }
 """
     leak = safe.replace(
-        "SELECT e.id, e.nombre FROM empresa",
-        "SELECT e.* FROM empresa"
+        b"SELECT e.id, e.nombre FROM empresa",
+        b"SELECT e.* FROM empresa"
     )
     passed, a = trial(safe, Path(__file__).with_name("d3_empresa_fixture.php"))
     blocked, b = trial(leak, Path(__file__).with_name("d3_empresa_fixture.php"))
