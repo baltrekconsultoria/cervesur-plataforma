@@ -72,3 +72,21 @@ Salida orientativa: `CODE_2B=PRESENT`, `USERS_ROUTER=PRESENT`, `MODE=ADMIN_ESCRI
 6. P5-R queda bloqueado hasta verificación end-to-end de JWT antiguo rechazado en PHP y Firebase/Flutter, más credenciales individuales y GRANT mínimo. Error MySQL SELECT en 443 se resuelve por línea independiente.
 
 **Fuente de verdad de cambios ejecutados:** evidencias observadas en PuTTY y CI; esta guía NO afirma activación realizada.
+
+## Resultado de preflight REAL 8443 (12/11/2026) — verificado por operador
+
+El operador ejecuto desde PuTTY el preflight focalizado que lee el codigo y las variables del backend declarado del portal administrativo 8443. Salida reportada:
+
+```text
+=== CERVESUR: ACTIVACION USUARIOS - ESTADO ===
+CODIGO_FASE_2B=PRESENTE
+MODO=PASS
+GESTION_USUARIOS=OFF
+GESTION_SENSIBLE=OFF
+```
+
+**Interpretacion:** existe el marcador `fase_2b_bloqueada` en el archivo `backend/lib/admin_escritura.php` del directorio declarado por 8443; el loader PHP reporta `CERVESUR_MODE=admin_escritura` y ambas banderas de escritura de usuarios apagadas. No es SHA/atestacion de que todo el codigo RC1c este instalado ni prueba de autorizacion HTTP. **U-BASIC NO ESTA ACTIVADO** y P5 sigue OFF. Se mantienen 190 usuarios (176 activos/14 inactivos) y 114 migrados sin credenciales inicializadas.
+
+**Puertas antes del comando `encender`:** en dictamen del 11/11 P4a `no-sensibles` se verifico PASS y P3 4/4; faltaba evidencia verificable de K2, K1, A1/A2/A3-F10, D3/D4 y autorizaciones. Ninguna de estas puertas se cierra por el nuevo resultado de banderas. No ejecutar `interruptor-usuarios.sh encender` ni editar `.env` manualmente hasta que esos controles esten GO en la instalacion real.
+
+**Proximo paso acotado:** localizar el kit oficial `privilegios-usuarios.sh` y `interruptor-usuarios.sh` del paquete de produccion (nunca descargar scripts no verificados para ejecutarlos como root), ejecutar solo `interruptor-usuarios.sh estado` y `privilegios-usuarios.sh --etapa no-sensibles --verificar` despues de comprobar el origen/huella del kit, y cotejar la hoja K1/K2/D3/D4 antes de activar. Si ya hay verificacion firmada reciente de las puertas, reutilizarla en vez de repetir auditoria. Con gates aprobados, la activacion puede ser un solo comando oficial mas QA focalizado. Sin SSH directo desde ChatGPT, el operador debe ejecutar los comandos en PuTTY y devolver solo codigos/resultados.
