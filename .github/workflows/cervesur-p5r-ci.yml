@@ -1,0 +1,55 @@
+name: Cervesur P5-R Isolated QA
+on:
+  push:
+    branches:
+      - 'feat/cervesur-p5r-reset-usuarios-20261112'
+  pull_request:
+    branches:
+      - 'feat/cervesur-ux-09a-cierre-usuarios'
+permissions:
+  contents: read
+jobs:
+  p5r:
+    name: PHP guards, SQL gates, frontend and packaging syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PHP syntax and isolated P5-R security tests
+        run: |
+          php -l backend/lib/admin_escritura.php
+          php -l backend/lib/mode.php
+          php -l backend/models/UserModel.php
+          php -l backend/router/AdminWriteRouter.php
+          php -l tests/p5r_unit.php
+          php tests/p5r_unit.php
+      - name: Check deployment script syntax and JS module syntax
+        run: |
+          bash -n deploy/produccion-escritura/scripts/privilegios-usuarios.sh
+          bash -n deploy/produccion-escritura/scripts/interruptor-usuarios.sh
+          bash -n deploy/produccion-escritura/scripts/interruptor-p5r.sh
+          node --check deploy/produccion-escritura/lib-empaquetado.mjs
+          node --check deploy/produccion-escritura/empaquetar.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps (no lifecycle scripts)
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Frontend lint, types and tests
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Explicit scope
+        run: |
+          echo "P5R_QA_ISOLATED=YES"
+          echo "PRODUCCION_CONTACTADA=NO"
+          echo "DEPLOY=NO"
+          echo "MYSQL_PRODUCTIVO_MODIFICADO=NO"
