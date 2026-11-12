@@ -370,3 +370,15 @@ sudo -u www-data -- python3 /usr/local/lib/cervesur-migration/compare_snapshots.
 5. Compartir **únicamente la salida JSON agregada** de la ejecución, que no incluye nombres, correos, IDs, HMAC ni contraseñas. Si aparece `CERVESUR_DRYRUN=ERROR_CLAVES_HMAC_DISTINTAS` u otro error, detener sin repetir la extracción ni regenerar claves.
 
 **NO-GO:** ninguna inserción, activación de roles, cambio de enlaces, importación o migración productiva hasta analizar los resultados, aprobar un mapeo humano y pasar QA, respaldo y gates previos.
+
+### Comparador privado Ubuntu — preparacion validada e idempotencia (12/11/2026)
+
+Evidencia reportada por el operador:
+- En **primera ejecucion** de la copia `legado-snapshot.json` -> `/var/lib/cervesur-migration/snapshots/legado.json`: `LEGADO_COPY=PASS`, `LEGADO_ACCESS=PASS`, `REACT_ACCESS=PASS`.
+- `git pull --ff-only` de rama `feat/migracion-diferencial-dryrun-v1` -> `Already up to date`; `git status --short` sin cambios mostrados.
+- Comparador `compare_snapshots.py` instalado fuera de DocumentRoot en `/usr/local/lib/cervesur-migration/compare_snapshots.py`, propiedad `root:root` 0644: `COMPARE_CODE=PASS`, `PYTHON_SYNTAX=PASS`.
+- En **segunda ejecucion** del bloque de copia: `LEGADO_COPY=STOP`; ambos accesos siguieron en `PASS`. Es el bloqueo previsto para **no sobrescribir** el destino ya existente, no una falla de la primera copia.
+
+**Siguiente gate:** confirmar `sudo cmp -s` entre el snapshot del staging y `/var/lib/cervesur-migration/snapshots/legado.json` sin mostrar contenido, verificar que `resultado-agregado.json` no exista, y solo entonces ejecutar bajo `www-data` `compare_snapshots.py` con ambos JSON en el directorio privado y `--salida` nueva. La salida puede compartirse si contiene exclusivamente los agregados previstos. No solicitar, imprimir, copiar a GitHub ni adjuntar HMAC/snapshots.
+
+**Estado:** preparado para el dry-run semantico; aun **no existe salida de comparacion validada**. Prohibidos DML, activacion de usuarios o despliegues.
