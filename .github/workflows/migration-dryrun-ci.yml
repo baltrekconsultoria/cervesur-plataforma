@@ -34,6 +34,7 @@ jobs:
           php -l ops/migracion/export_snapshot.php
           php -l ops/migracion/cron_preflight.php
           php -l ops/migracion/cron_db_preflight.php
+          php -l ops/migracion/cron_hmac_bootstrap.php
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py tests/migracion/test_dryrun.py
       - name: Pruebas sinteticas sin datos personales
