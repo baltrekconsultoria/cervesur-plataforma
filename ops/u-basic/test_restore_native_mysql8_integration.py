@@ -66,7 +66,7 @@ class NativeMySQL8Fixture(unittest.TestCase):
                         "SET MESSAGE_TEXT='immutable'")
                 native.client(sock, "CREATE TABLE " + quote + sdb + quote +
                               "." + quote + "qa_state" + quote + "(id INT PRIMARY KEY, note VARCHAR(20)) ENGINE=InnoDB")
-                native.client(sock, "INSERT INTO " + quote + sdb +
+                native.client(sock, "INSERT INTO " + quote + sdb + quote +
                               "." + quote + "qa_state" + quote + " VALUES (1,'fixture')")
 
                 def dump(db: str, tables: tuple[str, ...] | None) -> bytes:
