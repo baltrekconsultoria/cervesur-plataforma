@@ -332,3 +332,17 @@ fi
 **Puerta antes de copiar a destino privilegiado:** `STAGING=PASS` y `KEY_BYTES=65` (64 caracteres hex mas salto de linea). Verificar *sin mostrar clave* que no existe ya `/var/lib/cervesur-migration/.cervesur-migration-hmac` antes de instalar. Solo despues copiar bajo `www-data:www-data`, 0600, comparar via `sudo cmp -s` y confirmar lectura `sudo -u www-data test -r`. Nunca adjuntar el archivo secreto o el snapshot a chats ni GitHub.
 
 Estado: paso de staging **aun no validado tras correccion**. Base nueva no modificada y exportacion destino pendiente.
+
+### Puerta HMAC del destino cerrada: staging corregido e instalado (12/11/2026)
+
+Tras la incidencia de nomenclatura de WinSCP:
+- Primer intento de buscar `.cervesur-migration-hmac`: `STAGING=FAIL` porque el archivo se transfirio sin punto inicial.
+- Correccion `mv -- cervesur-migration-hmac .cervesur-migration-hmac` en la carpeta de entrada restringida `/home/usr_cervesur/cervesur_migracion_privada/entrada` -> `STAGING=PASS`.
+- `KEY_BYTES=65` (64 caracteres hex y salto de linea), `chmod 600` aplicado.
+- Instalacion al destino `/var/lib/cervesur-migration/.cervesur-migration-hmac`: `KEY_MATCH=PASS` con `sudo cmp -s`, `KEY_ACCESS=PASS` para el usuario `www-data`, y `KEY_OWNER=www-data:www-data KEY_MODE=600`.
+- Operador ejecuto `chmod 600 /home/usr_cervesur/cervesur_migracion_privada/entrada/legado-snapshot.json`. No se solicito ni mostro contenido del secreto ni del snapshot.
+- La clave tiene la longitud y acceso esperados; el cotejo criptografico de ambas fuentes sigue pendiente de verificar el `key_id` en la comparacion de snapshots. **No asumir aun equivalencia de identidades o permisos.**
+
+**Siguiente fase autorizada operativamente por continuidad del diagnostico:** instalar copia de `ops/migracion/export_snapshot.php` desde la rama PR #23 bajo `/usr/local/lib/cervesur-migration/export_snapshot.php`, propiedad `root:root` 0644, verificar `cmp` y `php -l` y comprobar `/var/lib/cervesur-migration/snapshots` accesible para `www-data` 0770. Ejecutar exclusivamente `--origin=react --database=cervesur_portalbi` desde `www-data`, en lectura y con salida JSON 0600 **fuera de DocumentRoot**. Nunca subir/copiar snapshots ni claves al chat o GitHub. No ejecutar migracion real ni tocar permisos del sitio.
+
+**Puerta de parada:** si `KEY_MATCH`, `KEY_ACCESS`, comprobacion del exportador, directorio de snapshots o `CERVESUR_SNAPSHOT` dejan de ser PASS, detenerse y revisar; nunca sobreescribir `react.json` ni regenerar clave para subsanar el error.
