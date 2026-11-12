@@ -558,3 +558,16 @@ La verificacion del exportador `ops/migracion/export_usuarios_privado.php` recha
 **Procedimiento sin degradar protecciones:** (1) detener/eliminar Cron de exportacion repetitivo; (2) en cPanel File Manager, inspeccionar permisos de **carpeta** `/home/databalt/cervesur_cron_private` y ajustar a **0700** solo esa carpeta si es de propiedad de la cuenta (no tocar `.env`, public_html, ni permisos de MySQL); (3) comprobar que no existe `usuarios-legado.json`; (4) solo entonces ejecutar una vez export users-only por Cron usando `/usr/local/bin/php`, con salida privada. El codigo `ERROR_DIRECTORIO_NO_PRIVADO` es un bloqueo seguro, no un defecto de PHP-CLI (este ultimo ya fue confirmado `PHP_SAPI=cli PHP_EXIT=0`).
 
 Esperado tras correccion: `CERVESUR_USUARIOS_EXPORT=PASS`, 190 usuarios, 176 activos, `CONTRASENAS_EXPORTADAS=NO`, `BASE_MODIFICADA=NO`. Eliminar tarea cron tras una corrida y transferir PII solo por canal autorizado SFTP; no compartir JSON de usuarios en chat ni GitHub. Si persiste el error pese a 0700, detener y auditar el destino resuelto/symlink sin desactivar el gate.
+
+### Users-only legado — JSON de usuarios recibido, validacion estructural agregada (12/11/2026)
+
+El operador mostro cPanel File Manager con `cervesur_cron_private` configurado a 0700 y aporto un archivo `usuarios-legado.json` con **datos personales**. Se verifico localmente **solo su estructura y conteos**, sin imprimir nombres, correos, telefonos, filas ni hashes en la evidencia:
+- `schema=cervesur-usuarios-privados-v1`; `origin=legado`; `database=databalt_portalbi`; `includes_passwords=false`.
+- 190 usuarios, 176 activos, 14 inactivos. Roles: 176 `usuario`, 10 `user` y 4 `admin`.
+- 0 IDs duplicados, 0 emails duplicados, 0 usernames duplicados, 0 emails con formato invalido; campos nombre y apellido presentes.
+- 113 telefonos contienen el texto literal `"null"` (no valores JSON null). Correctivo acotado en `ops/migracion/plan_usuarios.py`: normalizar ese marcador a `None` SOLO en plan local, sin alterar el archivo fuente. Test sintetico agregado.
+- El contenido del archivo es **PII**, por lo que no debe adjuntarse de nuevo ni almacenarse en GitHub, issues o logs. El hecho de haberlo compartido en el chat no autoriza publicarlo ni volver a distribuirlo.
+
+**Puerta pendiente:** la inspeccion estructural del JSON no confirma por si sola la salida del log `CERVESUR_USUARIOS_EXPORT=PASS`; comprobar su estado y borrar cualquier cron activo. Para simular en Ubuntu, transportar desde el equipo del operador hacia `/home/usr_cervesur/cervesur_migracion_privada/entrada/usuarios-legado.json` via SFTP, chmod 0600, instalar copia 0600 bajo `www-data` en `/var/lib/cervesur-migration/snapshots/usuarios-legado.json` si no existe, comparar contenidos con `cmp`, e instalar comparador de rama como `root:root` 0644 despues del CI. Ejecutar `plan_usuarios.py` como `www-data` con salida privada nueva `plan-usuarios.json`; compartir unicamente el resumen agregado, no el plan ni datos individuales.
+
+No hacer INSERT/UPDATE/DELETE, no sobrescribir 76 cuentas React, no alterar empresas/reportes/relaciones. Cuentas nuevas solo propuestas inactivas, sin passwords, a revisar antes de autorizar aplicador.
