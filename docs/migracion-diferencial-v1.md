@@ -804,3 +804,30 @@ PuTTY del operador confirmo `BACKUP_PRE_APPLY=PASS` y respaldo privado existente
 **Correccion minima en PR borrador #23:** parser `preg_match('/^--([a-z0-9-]+)=(.+)$/D', $arg, $m)`. Se mantienen whitelist de argumentos, obligatoriedad de `--confirm=IMPORTAR_114_USUARIOS_INACTIVOS`, backup SHA, validaciones de 76 cuentas, transaction/rollback y 114 usuarios nuevos inactivos. Se agrego `tests/migracion/test_usuarios_import_args.sh` con 4 casos aislados, sin DB ni PII real: acepta flag `--backup-sha256` llegando hasta un STOP por archivos de prueba inexistentes (en lugar de ERROR_ARGUMENTOS), rechaza flag duplicado, rechaza usar hash en modo check y rechaza flags desconocidos. CI incorpora prueba shell.
 
 **Pasos siguientes:** solo si CI de Migracion diferencial PASS, actualizar checkout limpio y reinstalar `usuarios_import_controlado.php` desde GitHub en `/usr/local/lib/cervesur-migration` como root 0644; comparar `cmp` + `php -l`. Verificar que la copia de 76 usuarios de 28,484 bytes siga 0600 y que SHA coincida. Repetir exactamente una vez `--mode=apply` con parametros y SHA originales. Ante cualquier error nuevo detener y diagnosticar, no repetir ciegamente. Resultado esperado `MODO=APPLY NUEVOS_INACTIVOS=114 EXISTENTES_MODIFICADOS=0 TOTAL_FINAL=190 ACTIVOS_FINAL=62`. Respetar restriccion de no activar sesiones ni dar acceso a informes/empresas en este paso.
+
+### 12/11/2026 — Importacion REAL users-only COMMIT=PASS (datos de PuTTY)
+
+Ejecucion del operador confirmada, una sola vez:
+```text
+CERVESUR_IMPORT_ARGS_QA=PASS
+CASOS=4
+BASE_CONSULTADA=NO
+MYSQL_MODIFICADO=NO
+IMPORT_CODE=PASS
+PHP lint: No syntax errors
+BACKUP_PRE_APPLY=PASS
+CERVESUR_IMPORT_USUARIOS=PASS
+MODO=APPLY
+NUEVOS_INACTIVOS=114
+EXISTENTES_MODIFICADOS=0
+TOTAL_FINAL=190
+ACTIVOS_FINAL=62
+CONTRASENAS_PUBLICADAS=NO
+```
+El importador transaccional confirmo el COMMIT de las 114 cuentas nuevas, con rol user e inactivas y con hashes de secretos aleatorios desconocidos. Las 76 cuentas previas quedan intactas segun verificaciones de importador; no se ejecutó aun una auditoria **independiente** post-commit. No correr `--mode=apply` otra vez.
+
+**Resultado agregado esperado en DB:** 190 usuarios totales, 62 activos (todos preexistentes), 128 inactivos = 114 nuevos + 14 preexistentes. **La migracion de filas ya se completo; acceso/login aun pendiente**: no hay credenciales inicializadas de los 114, por diseño permanecen inactivos. No se transfirieron privilegios administrativos de origen ni accesos a empresas/reportes; dichos permisos son otro proceso.
+
+**Siguientes controles:** (1) postflight independiente *solo SELECT* comparando la DB real con plan y snapshot privados, sin imprimir PII; (2) comprobar /admin/usuarios con proveedor HTTP real y usuario admin existente y que solo admin vea directorio, sin exponer el listado en logs; (3) diseñar habilitacion individual administrada con credenciales inicializadas de modo seguro, audit trail, rate-limit, revocacion de sesiones, evitando contrasenas compartidas o automatica activacion de 114; (4) respaldos preservados fuera de DocumentRoot y PR #23 aun draft/no merge/no deploy de React/PHP.
+
+**Atencion:** contar filas insertadas NO equivale a disponer de cuentas listas para iniciar sesion. El backend exige `is_active=1`, `session_version>=1`, `role` reconocido y `password_verify` verdadero. Ninguna cuenta nueva cumple aun los requisitos de acceso.
