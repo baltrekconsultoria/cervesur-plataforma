@@ -83,7 +83,8 @@ function validatePlan(array $plan, array $snapshot): array {
         $email = normalized((string)($p['email'] ?? ''));
         $name = normalized((string)($p['username'] ?? ''));
         requireGate(filter_var($email, FILTER_VALIDATE_EMAIL) !== false
-            && $name !== '' && trim((string)($p['first_name'] ?? '')) !== ''
+            && preg_match('/^[a-z0-9._-]{3,30}$/D', $name) === 1
+            && trim((string)($p['first_name'] ?? '')) !== ''
             && trim((string)($p['last_name'] ?? '')) !== ''
             && !isset($seenEmail[$email]) && !isset($seenUser[$name])
             && !isset($destEmails[$email]) && !isset($destUser[$name])
