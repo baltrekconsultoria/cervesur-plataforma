@@ -397,3 +397,39 @@ Operador ejecuto `compare_snapshots.py` en Ubuntu como `www-data` sobre ambos sn
 **Lectura prudente:** los 114 usuarios activos y los 169 reportes sin match NO son inserciones a ejecutar; primero segmentar por actividad cruzada y dependencias. Ninguna de las 226 cadenas puede replicarse inmediatamente con entidades activas de destino. Diferencias de enlaces exigen reconciliar contra checklist Power BI. El resultado es **NO-GO para aplicacion automatica**.
 
 **Siguiente analisis controlado:** generar segunda matriz solo de conteos, distinguiendo actividad cruzada de usuarios/empresas/reportes y razones mutuamente excluyentes que bloquean las 226 cadenas. Ejecutar localmente sobre JSON privados ya presentes; sin exponer hashes, correos, links o IDs, sin acceso SQL ni mover los snapshots.
+
+### Segunda diagnostica agregada de brechas v1 (preparada, pendiente de ejecucion)
+
+Nuevo `ops/migracion/diagnostico_brechas.py` en rama del PR, sin reemplazar `compare_snapshots.py`. Lee **solamente** los dos JSON privados ya generados, revalida `schema`, `origin`, `key_id`, IDs y colisiones antes de clasificar. No abre conexiones SQL ni escribe datos. Imprime exclusivamente conteos agregados.
+
+Objetivos:
+- Matriz de actividad cruzada para usuarios por correo HMAC, empresas por RUC HMAC y reportes por referencia HMAC: activo/inactivo/ausente; metadatos sin identificadores.
+- Enlaces distintos por estado de actividad de los reportes coincidentes; fuente final de enlaces sigue siendo checklist Power BI actualizado.
+- Explicar las **226** cadenas de acceso pendientes con **una causa principal exclusiva** por cadena (`USUARIO_AUSENTE`, `USUARIO_INACTIVO`, `EMPRESA_AUSENTE`, `EMPRESA_INACTIVA`, `REPORTE_AUSENTE`, `REPORTE_INACTIVO`, `TRIPLE_ACTIVO_SIN_CADENA_DESTINO`). La prioridad de estas causas es declarada en la salida. Agrega por separado contadores independientes que pueden solaparse; su suma no tiene que igualar 226.
+- El proceso devuelve `CERVESUR_BRECHAS=PASS` solo si completó la validación. No genera nuevas claves, archivos de resultados ni expone HMAC/IDs.
+
+Pruebas sintéticas agregadas en `tests/migracion/test_brechas.py` y compilación en `.github/workflows/migration-dryrun-ci.yml`; **CI del nuevo commit debe verificarse antes de usarlo**.
+
+Instalacion controlada en Ubuntu (no ejecutar si CI falla):
+
+```sh
+REPO=/home/usr_cervesur/cervesur_migracion_privada/repo
+git -C "$REPO" status --short
+git -C "$REPO" pull --ff-only origin feat/migracion-diferencial-dryrun-v1
+git -C "$REPO" status --short
+SRC="$REPO/ops/migracion/diagnostico_brechas.py"
+DST=/usr/local/lib/cervesur-migration/diagnostico_brechas.py
+sudo install -o root -g root -m 0644 "$SRC" "$DST"
+sudo cmp -s "$SRC" "$DST" && echo BRECHAS_CODE=PASS || echo BRECHAS_CODE=FAIL
+python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],encoding="utf-8").read()); print("BRECHAS_SYNTAX=PASS")' "$DST"
+sudo -u www-data -- test -r /var/lib/cervesur-migration/snapshots/legado.json && echo LEGADO_ACCESS=PASS
+sudo -u www-data -- test -r /var/lib/cervesur-migration/snapshots/react.json && echo REACT_ACCESS=PASS
+```
+
+Solo si todos estos controles dan PASS, ejecutar:
+
+```sh
+sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesur-migration/diagnostico_brechas.py --legado /var/lib/cervesur-migration/snapshots/legado.json --react /var/lib/cervesur-migration/snapshots/react.json
+```
+
+Compartir **solo salida agregada**. `CERVESUR_BRECHAS=ERROR_...` significa STOP: no modificar snapshots, no regenerar claves ni intentar escribir a la BD. El diagnostico amplía el NO-GO de migracion productiva, no lo levanta.
