@@ -541,6 +541,10 @@ class UserModel {
                 if ((int)$row['id'] === (int)$actorId) {
                     throw new WriteConflict('state', 'No puede cambiar su propia contraseña desde el panel de administración');
                 }
+                // P5-R: nunca permitir restablecer la clave de un administrador, ni de un usuario inactivo.
+                if (normalize_role($row['role'] ?? null) !== 'user' || (int)($row['is_active'] ?? 0) !== 1) {
+                    throw new WriteConflict('state', 'P5-R solo permite usuarios estandar activos');
+                }
                 $this->pdo->prepare('UPDATE user SET password = :p, session_version = session_version + 1, updated_at = NOW() WHERE id = :id')
                     ->execute(['p' => password_hash($password, PASSWORD_DEFAULT), 'id' => (int)$id]);
                 audit_record($this->pdo, $actorId, 'user.password', 'user', $id, null, audit_snapshot('user', $row), ['password_changed' => true, 'session_revocada' => true]);
