@@ -98,7 +98,7 @@ expectGuard(count(validatePlan($legacy, $snapshot)) === 114, 'LEGACY_PRINTABLE')
 
 // Pero caracteres de control o Unicode malformado NO deben ingresar.
 $bad = $plan;
-$bad['creaciones_propuestas_privadas'][0]['username'] = "nombre\\nsur";
+$bad['creaciones_propuestas_privadas'][0]['username'] = "nombre\nsur";
 expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
 
 $bad = $plan;
@@ -114,4 +114,4 @@ $bad = $plan;
 $bad['creaciones_propuestas_privadas'][1]['username'] = $bad['creaciones_propuestas_privadas'][0]['email'];
 expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
 
-echo "CERVESUR_IMPORT_QA=PASS\\nCASOS=12\\nMYSQL_MODIFICADO=NO\\nSIN_PII_REAL=SI\\n";
+echo "CERVESUR_IMPORT_QA=PASS\nCASOS=12\nMYSQL_MODIFICADO=NO\nSIN_PII_REAL=SI\n";
