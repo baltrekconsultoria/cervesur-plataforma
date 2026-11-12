@@ -324,3 +324,19 @@ El operador aporto captura del portal 8443 `Administración > Historial`. El sel
 **Proxima accion sin escrituras:** en `Historial > Ver`, seleccionar `Empresas` y revisar que exista el evento de desactivacion de Test SAC, con fecha/operacion/registro/responsable. De la captura resultante almacenar en el repo publico solo tipo de evento, fecha (sin informacion privada), estado de QA y, si procede, ID de registro no sensible; NO subir capturas con PII. Si no aparece, clasificar `AUDIT_EMPRESA=PENDIENTE` y revisar log de forma protegida antes de cerrar el gate.
 
 Los conteos ya observados siguen siendo 5 de 26 empresas activas y 190 usuarios (176 activos/14 inactivos). Sin cambios por parte del asistente.
+
+## 20. QA Historial de empresas y reportes: registros visibles (12/11/2026)
+
+El operador proporcionó capturas adicionales del portal admin 8443 con los filtros de Historial `Ver=Empresas` y `Ver=Reportes`. No se publican capturas porque muestran nombres de responsables y datos de contacto que son privados.
+
+| Filtro | Fecha/hora presentada | Operación | Registro interno | Detalle |
+|---|---|---|---|---|
+| Empresas | `2026-11-12 10:40:38.761` | Empresa desactivada | `#28` | Estado activo -> inactivo |
+| Empresas | `2026-11-05 04:39:35.086` | Empresa editada | `#27` | Un teléfono fue modificado; **valor omitido** |
+| Reportes | `2026-11-05 04:49:22.684` | Reporte editado | `#133` | Se actualizó descripción; textos omitidos por prudencia |
+
+En `Historial > Ver=Empresas` se observaron 2 operaciones; en `Historial > Ver=Reportes` se observó 1 operación. Las tres filas tienen columna de responsable poblada y orden cronológico coherente. Resultado de QA: `AUDIT_EMPRESA_EVENTO_DESACTIVACION=PASS_VISUAL`; `AUDIT_REPORTE_EVENTO_EDICION=PASS_VISUAL`. Estas capturas verifican que **tales eventos aparecen en el historial**, no que todas las variantes de cambios de cualquier entidad queden auditadas; en particular el cambio de URL Power BI todavía no fue probado.
+
+**Vinculación de Test SAC**: el evento de desactivación de empresa `#28` ocurre en el momento de la baja lógica que el operador acababa de realizar sobre Test SAC, cuya UI mostró 5 de 26 empresas activas. Esto es evidencia contextual fuerte, pero la tabla de historial no presenta el nombre de empresa. Para trazabilidad inequívoca se debe comprobar por lectura protegida que el ID de Test SAC sea 28, sin publicar datos privados ni reactivar/desactivar.
+
+**Estado y siguiente fase:** cerrar el QA de auditoría a nivel de operación, dejando pendiente solo cotejo de ID `#28` si se exige trazabilidad nominativa. Avanzar a conciliación de inventario Power BI actualizado frente al catálogo legado de 95 reportes (82 activos) y 84 relaciones empresa-informe, usando fuente original de checklist y exportación de registros sin URLs/PII a GitHub público. No sustituir enlaces ni crear asignaciones antes de aprobar matriz de cambios. Continuar gestionando en paralelo bloqueo SELECT SQL del backend usuarios 443 y credenciales individuales pendientes para 114 cuentas.
