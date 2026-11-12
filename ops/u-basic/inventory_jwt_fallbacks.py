@@ -52,7 +52,10 @@ def scan(root: Path) -> list[dict]:
             preceding = data[:match.start()]
             start_line = preceding.rsplit("\n", 1)[-1]
             context = FUNC.findall(preceding)
-            v = ASSIGN.search(start_line)
+            # The match starts on JWT_SECRET, after the preceding getenv( quote.
+            # Strip only this syntactic prefix so we identify the assignment safely.
+            assignment_prefix = re.sub(r"""getenv\s*\(\s*[\x27\x22]\s*$""", "", start_line)
+            v = ASSIGN.search(assignment_prefix)
             findings.append({
                 "file": name,
                 "sha256": digest,
