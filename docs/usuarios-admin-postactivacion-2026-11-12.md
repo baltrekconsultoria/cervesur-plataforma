@@ -149,3 +149,13 @@ Con filtro `Empresas` la captura mostró dos eventos, incluido `Empresa desactiv
 Con filtro `Reportes` la captura mostró `Reporte editado` el `2026-11-05 04:49:22.684`, registro `#133`, descripción cambiada y responsable. Se confirma que se registran tales operaciones, no aún que se audite cualquier actualización de URL Power BI. Se preservan solamente métricas y registros; las capturas, teléfonos y nombres del responsable NO se suben al repositorio público.
 
 `QA_HISTORIAL_EMPRESAS=PASS_VISUAL_EVENTO`, `QA_HISTORIAL_REPORTES=PASS_VISUAL_EVENTO`. Proceder al inventario y conciliación de reportes existentes contra dashboards optimizados antes de modificar URLs/asignaciones. Detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Cambio de prioridad aprobado en conversacion (12/11/2026): ADMINISTRACION DE USUARIOS
+
+El operador cuestionó la extensión de auditorías de catalogos y pidió pasar directamente a la **activación de la gestión administrativa de usuarios**. Se decide poner en pausa las nuevas rondas de inventario/conciliacion de reportes y empresas para enfocarse en usuarios. Las auditorías previas ya cumplen su propósito de verificar datos y acceso.
+
+Nuevo issue de ejecución: [#24 — GUA-01/GUA-02: gestión administrativa de usuarios y credenciales](https://github.com/baltrekconsultoria/cervesur-plataforma/issues/24), separado del PR #23 de migracion. Prioridad: (1) descubrir release/capacidades **solo de usuarios** en 8443, (2) desarrollar edición y baja/reactivación de usuarios con auditoría, (3) mecanismo de inicialización/reset individual de contraseñas para 114 cuentas; (4) corregir en línea independiente la denegación SELECT de cuenta SQL del portal usuarios 443 antes de habilitar login.
+
+El código de GitHub de esta rama incluye directorio, alta y asignación pero carece de interfaz completa de editar/activar/desactivar/restablecer usuarios; el despliegue real 8443 puede diferir de esa rama, así que no sobreescribir features existentes. Implementar en rama/PR aislados, QA primero con una cuenta de prueba, sin cambios en producción sin autorización explícita.
+
+190 usuarios (176 activos, 14 inactivos) y 114 migrados sin contraseñas inicializadas son la linea base. No repetir APPLY de migracion o activacion. Catalogos, empresas y Power BI quedan fuera del incremento administrativo, como backlog de conciliacion independiente.
