@@ -831,3 +831,34 @@ El importador transaccional confirmo el COMMIT de las 114 cuentas nuevas, con ro
 **Siguientes controles:** (1) postflight independiente *solo SELECT* comparando la DB real con plan y snapshot privados, sin imprimir PII; (2) comprobar /admin/usuarios con proveedor HTTP real y usuario admin existente y que solo admin vea directorio, sin exponer el listado en logs; (3) diseñar habilitacion individual administrada con credenciales inicializadas de modo seguro, audit trail, rate-limit, revocacion de sesiones, evitando contrasenas compartidas o automatica activacion de 114; (4) respaldos preservados fuera de DocumentRoot y PR #23 aun draft/no merge/no deploy de React/PHP.
 
 **Atencion:** contar filas insertadas NO equivale a disponer de cuentas listas para iniciar sesion. El backend exige `is_active=1`, `session_version>=1`, `role` reconocido y `password_verify` verdadero. Ninguna cuenta nueva cumple aun los requisitos de acceso.
+
+### 12/11/2026 — Postflight independiente, users-only, codigo candidato (no ejecutado en host)
+
+Se agrega `ops/migracion/usuarios_postflight.php` en PR #23 para auditoria post-COMMIT de `cervesur_portalbi.user`. Se ejecuta bajo `www-data` por CLI usando `/var/www/cervesur/backend/lib/env.php` y los dos JSON privados `plan-usuarios.json` y `usuarios-react.json`. Impone `SET SESSION TRANSACTION READ ONLY`, `SELECT` a `user`, compara los **190 usuarios reales** con las **76 cuentas del snapshot** y los **114 nuevos del plan**, valida usernames/emails unicos, IDs, rol, estado, `session_version=1` y hash reconocido para nuevos; garantiza 62 activos, 128 inactivos. No imprime nombres, emails, usernames, hashes ni IDs, no DML. La salida reporta `CERVESUR_POSTFLIGHT_USUARIOS=PASS` y resumen agregado; toda desviacion genera ERROR y no cambia base.
+
+QA sintetico `tests/migracion/test_usuarios_postflight.php`: 190 cuentas sintéticas, rechaza caso nuevo activo, rol de cuenta original alterado, 189 en total o email duplicado; sin consultas de DB. Workflow de migracion incorpora lint y test.
+
+**Instrucciones de ejecucion, despues de CI PASS:**
+```sh
+REPO=/home/usr_cervesur/cervesur_migracion_privada/repo
+git -C "$REPO" status --short
+git -C "$REPO" pull --ff-only origin feat/migracion-diferencial-dryrun-v1
+git -C "$REPO" status --short
+(cd "$REPO" && php tests/migracion/test_usuarios_postflight.php)
+SRC="$REPO/ops/migracion/usuarios_postflight.php"
+DST=/usr/local/lib/cervesur-migration/usuarios_postflight.php
+sudo install -o root -g root -m 0644 "$SRC" "$DST"
+sudo cmp -s "$SRC" "$DST" && echo POSTFLIGHT_CODE=PASS || echo POSTFLIGHT_CODE=FAIL
+php -l "$DST"
+sudo -u www-data -- php "$DST" \
+  --loader=/var/www/cervesur/backend/lib/env.php \
+  --database=cervesur_portalbi \
+  --plan=/var/lib/cervesur-migration/snapshots/plan-usuarios.json \
+  --snapshot=/var/lib/cervesur-migration/snapshots/usuarios-react.json
+```
+
+**Siguiente incremento funcional — gestion/autenticacion** (no desplegado):
+- Ruta React `/admin/usuarios` y lectura `GET /api/users?status=all` ya existen en el repo; comprobar primero que React/HTTP real estan habilitados en el servidor antes de asumir que usuario final los ve.
+- `/api/login` requiere `password_verify`, rol conocido, `is_active=1`, `session_version>=1`; 114 usuarios importados inactivos con hashes aleatorios desconocidos, por lo que **ninguno puede iniciar sesion ahora**.
+- No activar a todos por SQL ni repartir una contraseña común; implementar **flujo de invitacion/reinicializacion individual**, auditable, con token aleatorio de un solo uso, solo hash almacenado, expiracion corta, activacion y nueva contraseña en una transaccion, invalidacion de tokens previos al cambiar credenciales, sin modificar permisos de informes/empresas ni privilegios admin. Exigir autorización admin + rate limiting y prueba de usuarios no autorizados. Definir el canal de entrega seguro (correo verificado o entrega individual protegida) antes de habilitar el modo productivo.
+- En `/admin/usuarios` mostrar estado `Pendiente de activacion` para los 114, sin confundirlo con un usuario operativo. Importante: 14 usuarios preexistentes inactivos deben permanecer intactos.
