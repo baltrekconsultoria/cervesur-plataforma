@@ -433,3 +433,29 @@ sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesu
 ```
 
 Compartir **solo salida agregada**. `CERVESUR_BRECHAS=ERROR_...` significa STOP: no modificar snapshots, no regenerar claves ni intentar escribir a la BD. El diagnostico amplía el NO-GO de migracion productiva, no lo levanta.
+
+## Decision funcional: restaurar base original legado, sin reemplazar mejoras nuevas (12/11/2026)
+
+**Aclaracion del responsable del proyecto:** el sistema antiguo `databalt_portalbi` contiene **la informacion base original** de Cervesur. El objetivo NO es limitarse a comparar snapshots anonimizados ni reconstruir a mano la informacion faltante: **se requiere trasladar al destino lo que aun falta de usuarios, empresas, reportes y asignaciones, respetando los registros originales**.
+
+### Autoridad por campo y estrategia (propuesta operativa para aprobacion)
+
+1. **Identidades / perfiles:** el legado es autoridad para recuperar registros originalmente existentes y sus metadatos funcionales, estados y asociaciones historicas. Dedupe por correo normalizado verificado (ademas de username y conflictos); crear solo faltantes, no sobreescribir cuentas ya registradas en React sin decision puntual. Mantener cuentas inactivas como inactivas. No copiar contrasenas/hashes automaticamente: primero comprobar compatibilidad de autenticacion Flutter/React y mecanismo seguro de inicializacion/restablecimiento.
+2. **Empresas:** el legado es fuente base para las 25 empresas; las 25 coinciden por RUC. Revisar y conservar la empresa adicional del nuevo destino (26 total), sin borrarla ni crear duplicados.
+3. **Reportes:** recuperar los 169 registros del origen sin `reporte_id` equivalente, conservando titulo, referencia, empresa(s) y estado; no confundir registros originales antiguos/inactivos con dashboards actuales. Si el enlace Power BI fue actualizado, la **fuente de verdad del enlace final** es el checklist actualizado validado por el operador y el servicio Power BI, no una URL antigua ni la del destino por defecto. Los 80 enlaces diferentes de reportes coincidentes van a revision de equivalencia; no reemplazo masivo ciego.
+4. **Vinculos:** recuperar las relaciones originales `empresa_usuario`, `empresa_reporte` y `user_empresa_reporte` por **mapeo de claves origen-destino**, nunca reutilizando IDs numericos sin correspondencia. Preservar estado activo/inactivo, no reactivar relaciones historicas invalidas. Aplicar en orden de dependencias: usuarios/empresas/reportes -> empresa_usuario y empresa_reporte -> user_empresa_reporte. Las 226 cadenas efectivas antiguas faltantes no pueden insertarse hasta restituir entidades y revisar estados; no eliminar ni ignorar 45 cadenas de origen marcadas activas pero inefectivas, preservarlas como incidencias historicas para revision.
+5. **Destino y mejoras:** mantener registros del destino que no provienen del legado y configuraciones, seguridad, auditoria, roles, claves, permisos y endpoints que ya funcionan. No sobrescribir ni resetear indiscriminadamente. Mismo criterio para sus 91 cadenas efectivas actuales, aun cuando sean distintas de las antiguas.
+
+### Diferenciar la prueba que ya paso de la migracion real
+
+- **Hecho validado:** los snapshots `cervesur-snapshot-v1` solo guardan IDs locales, estados, roles y HMAC de campos; permiten **cotejar**, pero NO contienen datos en claro necesarios para migrar metadatos, nombres, email, titulo, enlaces, etc. **No son archivos importables** y no deben usarse para inventar registros.
+- **Pendiente construir:** extractores completos privados, con minimizacion por tabla y transportes cifrados, y un importador `dry-run` que produzca plan JSON/SQL seguro *sin ejecutar DML*, con tablas de correspondencia (legacy ID -> React ID), conflictos, checks de unicidad, reversibilidad y procedimientos de backup.
+- La transferencia de datos personales debe hacerse **directamente entre entornos autorizados**, no en GitHub, chats, capturas, issues ni logs; credenciales y claves se mantienen fuera del proceso. El cliente debe validar finalidad, acceso y retencion antes del traslado de PII.
+- **Secuencia:** (A) cerrar explicacion agregada del cero de coincidencias; (B) auditar esquema real, columnas, FK, claves unicas, y campos de autenticacion mediante consultas de metadatos; (C) diseño de exportacion completa privada y matriz de conflictos; (D) dry-run del plan de insercion/actualizacion por etapas con conteos previstos y cero DML; (E) backup y restauracion ensayada, QA, autorizacion explicita del lote; (F) migracion transaccional con auditoria y rollback; (G) verificacion login/roles/permisos Power BI y catalogo actualizado por lote.
+- Cualquier conflicto (estado inactivo original, cuenta existente con datos modificados, enlaces Power BI, rol distinto, username duplicado) queda en revision humana; **nunca sobreescribir automaticamente**.
+
+### Resumen de magnitudes para planeacion (no orden de escritura)
+
+`190` usuarios originales frente a `76` destino (`76` coincidencias de email y `114` activos origen sin email equivalente); `25` empresas origen coinciden por RUC con `25` de las `26` destino; `264` reportes origen frente a `95` destino, `169` referencias sin equivalente; `226` cadenas efectivas legado frente a `91` destino, `0` coincidencias efectivas. Se deben revisar tambien las filas y estados historicos no efectivos.
+
+**Estado:** migracion real aun NO ejecutada; el DRY-RUN actual solo descubre diferencias. **No introducir nuevas escrituras sin plan detallado, QA, backup y aprobacion especifica.**
