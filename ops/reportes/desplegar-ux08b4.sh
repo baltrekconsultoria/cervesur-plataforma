@@ -3,7 +3,7 @@
 # NO altera MySQL, .env, Apache, Flutter, otros PHP, frontend, P5-R ni U-BASIC.
 set -euo pipefail
 
-MODE="\${1:---preflight}"
+MODE="${1:---preflight}"
 if [ "$#" -ne 1 ] || { [ "$MODE" != "--preflight" ] && [ "$MODE" != "--aplicar" ]; }; then
   echo "USO: sudo bash desplegar-ux08b4.sh --preflight|--aplicar" >&2
   exit 2
@@ -15,11 +15,11 @@ readonly ENV="/opt/cervesur-react-admin/backend/.env"
 readonly OLD_BLOB="d51c89361ae5dda52435b224ad8e58f5de0fc82b"
 readonly NEW_BLOB="3a120727252cea924354716e8de125acafbda4c2"
 readonly CONTROLLER_COMMIT="cbb4c1860708a9ae9be0305e3f7ffb1947fc50b8"
-readonly URL="https://raw.githubusercontent.com/baltrekconsultoria/cervesur-plataforma/\${CONTROLLER_COMMIT}/backend/controllers/ReporteController.php"
+readonly URL="https://raw.githubusercontent.com/baltrekconsultoria/cervesur-plataforma/${CONTROLLER_COMMIT}/backend/controllers/ReporteController.php"
 readonly PING="https://192.168.200.12:8443/api/ping"
 readonly CA="/etc/ssl/certs/ca-certificates.crt"
 
-echo "=== CERVESUR UX-08B4: \${MODE} ==="
+echo "=== CERVESUR UX-08B4: ${MODE} ==="
 for cmd in git curl php sha256sum; do command -v "$cmd" >/dev/null || { echo "UX08B4_DEPENDENCIA=NO_GO:$cmd"; exit 1; }; done
 [ -f "$TARGET" ] && [ -r "$TARGET" ] && [ -f "$ENV" ] && [ -r "$ENV" ] || { echo "UX08B4_ARCHIVOS=NO_GO"; exit 1; }
 [ -r "$CA" ] || { echo "UX08B4_CA=NO_GO"; exit 1; }
@@ -77,7 +77,7 @@ if [ "$MODE" = "--preflight" ]; then
 fi
 
 read -r -p "Autorizacion REAL (DBA/funcional, fecha, alcance): " APPROVAL </dev/tty
-if [ "\${#APPROVAL}" -lt 20 ] || [[ "$APPROVAL" == *"["* ]]; then
+if [ "${#APPROVAL}" -lt 20 ] || [[ "$APPROVAL" == *"["* ]]; then
   echo "UX08B4_AUTORIZACION=NO_GO"
   exit 1
 fi
