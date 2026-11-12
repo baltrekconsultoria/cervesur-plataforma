@@ -253,3 +253,21 @@ User usr_cervesur may run the following commands on presupuestos:
 4. Revisar exclusivamente salida agregada. Si no resulta PASS, detener y diagnosticar causa. No instalar exportador, no mover la clave ni habilitar usuarios hasta preflight PASS y siguiente puerta aprobada.
 
 **No-GO:** no usar `sudo cat .env`, no dar mas permisos a `.env`, no copiar secretos, no cambiar ACL, no correr scripts editables bajo `www-data`.
+
+### Ubuntu — instalacion de preflight protegido: PASS (12/11/2026)
+
+Evidencia ejecutada por operador:
+- `git pull --ff-only origin feat/migracion-diferencial-dryrun-v1` avanzo por fast-forward desde `f13ae6a` hasta `530faed`; archivos de prueba, documentacion y CI sincronizados.
+- Se copio exclusivamente `ops/migracion/ubuntu_db_preflight.php` con `sudo install -d -o root -g root -m 0755 /usr/local/lib/cervesur-migration` y `sudo install -o root -g root -m 0644 ...` a `/usr/local/lib/cervesur-migration/ubuntu_db_preflight.php` (fuera del DocumentRoot).
+- `sudo cmp -s "$SRC" "$DST"` -> `COPIA=PASS`.
+- `stat -c '%U %G %a %n' "$DST"` -> `root root 644 /usr/local/lib/cervesur-migration/ubuntu_db_preflight.php`.
+- `php -l "$DST"` -> `No syntax errors detected`.
+
+**Alcance:** copia protegida instalada y sintaxis validada. **No se dispone aun de resultado de ejecucion bajo `www-data`** y no debe marcarse conectividad MySQL PASS hasta recibir `CERVESUR_UBUNTU_DB_PREFLIGHT`.
+
+Siguiente unico comando acordado para operador:
+```sh
+sudo -u www-data -- php /usr/local/lib/cervesur-migration/ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php
+```
+
+No realizar DML, cambios de contrasenas, permisos de `.env`, fusion de PR ni importaciones. Si falla preflight, detener y diagnosticar el codigo de estado.
