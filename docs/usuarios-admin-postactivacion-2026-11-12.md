@@ -135,3 +135,9 @@ El OPERADOR desactivó desde el portal 8443 la empresa ficticia Test SAC (0 repo
 Estado al cierre: 190 usuarios/176 activos/14 inactivos; 26 empresas/5 activas/21 inactivas; 95 reportes/82 activos; 103 asignaciones/91 vigentes; 84 vínculos activos empresa-informe. Los 114 nuevos usuarios siguen sin contraseñas inicializadas y el portal 443 tiene una denegación SQL `SELECT` de su cuenta de servicio, pendiente de corrección de privilegio mínimo. Siguiente fase: audit trail de desactivación, luego matriz de conciliación de todos los dashboards optimizados con reportes existentes y URL Power BI, sin escrituras hasta aprobación específica.
 
 Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## QA Historial: evidencia de accesos; empresa Test SAC aun pendiente (12/11/2026)
+
+El operador mostró `Administración > Historial` pero con `Ver=Accesos y asignaciones`: aparecieron 2 registros históricos del mismo acceso interno, uno concedido y otro retirado el 05/11/2026. La vista confirma la presencia de movimientos de accesos, pero NO la desactivación de Test SAC. Siguiente paso: seleccionar `Ver=Empresas` y confirmar el evento de desactivación y sus metadatos sin exponer el nombre del autor en GitHub público. La baja lógica sí está visualmente confirmada en el listado de Empresas (5 de 26 activas).
+
+Detalles de continuidad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
