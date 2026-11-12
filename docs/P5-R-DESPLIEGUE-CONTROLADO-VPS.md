@@ -11,6 +11,25 @@ El alcance es **restablecer contraseñas de usuarios estándar activos** desde R
 - Paquete incremental: GitHub Actions #43272490325 `success`, artifact `cervesur-p5r-candidato-8443`. Commit del paquete `2aefe2366579665a0e8b8e63614f1336a1d65a7a`; no sustituir por un ZIP sin manifiesto.
 - Los scripts no se conectaron a la VPS ni alteraron la base productiva durante estos ensayos.
 
+## Correctivo de conectividad confirmado — 12/11/2026
+
+El preflight productivo anterior confirmó todos los controles salvo HTTPS: `P5R_BASE_GIT=PASS`, `P5R_U_BASIC_ON=PASS`, `P5R_MYSQL_SIN_SENSIBLES=PASS`, `P5R_8443=NO_GO_TLS_O_HTTP`. Diagnóstico sin cambios productivos: `ss -lnt` y `apache2ctl -S` corroboraron **escucha exclusiva `192.168.200.12:8443`**, no `127.0.0.1:8443`; `curl` sin privilegios obtuvo `(77) error setting certificate file` al intentar leer un certificado bajo `/etc/apache2/...` (solo se pudo leer con `sudo openssl`). Certificado vigente Oct 2026–Oct 2027, SAN `DNS:localhost`, IP `127.0.0.1`; **no tiene SAN 192.168.200.12**.
+
+Correctivo en PR #33: `ops/p5r/preflight-vps-solo-lectura.sh`, `instalar-codigo-p5r.sh` e `interruptor-p5r.sh` conectan a `192.168.200.12:8443` usando **URL `https://localhost:8443` y `curl --resolve localhost:8443:192.168.200.12 --cacert ...`**. Esto preserva la identidad TLS para `localhost`, sin desactivar validación ni reconfigurar Apache. Los scripts de instalación y activación usan root para leer el certificado. NO utilizar `-k`/`--insecure`; NO conceder permiso público al certificado ni a las claves.
+
+Sonda auxiliar en PuTTY, **solo lectura**, antes de descargar kit nuevo:
+
+```bash
+sudo curl -sS --connect-timeout 5 --max-time 15 \
+  --cacert /etc/apache2/cervesur-react-admin/tls/servidor.crt \
+  --resolve localhost:8443:192.168.200.12 \
+  -o /dev/null -w 'P5R_HTTPS_HTTP=%{http_code}\nP5R_HTTPS_VERIFY=%{ssl_verify_result}\n' \
+  https://localhost:8443/api/ping
+echo "P5R_HTTPS_RC=$?"
+```
+
+Exigir `P5R_HTTPS_HTTP=200`, `P5R_HTTPS_VERIFY=0`, `P5R_HTTPS_RC=0`; si no coinciden, mantener **NO-GO** y capturar error sin exponer tokens. La revisión del script `ops/p5r/preflight-vps-solo-lectura.sh` necesita nuevo commit y su **nuevo SHA Git blob**; prohibido descargar el archivo anterior y omitir chequeo de integridad. Regenerar el artifact desde la última cabeza aprobada; el ZIP del commit 2aefe236 usa scripts antiguos 127.0.0.1 y está **superseded**.
+
 ## Puerta 0: VPS en solo lectura (obligatoria)
 
 Conectar por SSH a la VPS. Descargar y verificar **sin ejecutar código no comprobado** el script `ops/p5r/preflight-vps-solo-lectura.sh` en el commit exacto aprobado, validando su blob SHA con `git hash-object`. Ejecutar con `sudo bash`. No muestra secretos, no lee filas de negocio, no realiza escrituras.
