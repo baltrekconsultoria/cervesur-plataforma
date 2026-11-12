@@ -128,7 +128,19 @@ def initialize(qa_root: Path) -> None:
         "mysqld", "--no-defaults", "--initialize-insecure", "--user=mysql",
         "--datadir=" + str(path),
     ]
-    execute(argv, 180)
+    try:
+        run = subprocess.run(argv, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.PIPE, timeout=180, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise NoGo("MYSQL_INICIALIZACION_TIMEOUT_O_BINARIO") from exc
+    if run.returncode != 0:
+        # Only this new, empty, isolated MySQL instance exists at init time.
+        # Keep diagnostic root-only inside ephemeral QA folder, never print
+        # source DB data, credentials or a production MySQL configuration.
+        diagnostic = qa_root / "init-diagnostic.log"
+        diagnostic.write_bytes((run.stderr or b"")[-6000:])
+        diagnostic.chmod(0o600)
+        raise NoGo("MYSQL_INICIALIZACION_NO_PASS")
 
 def daemon_args(qa_root: Path) -> list[str]:
     return [
