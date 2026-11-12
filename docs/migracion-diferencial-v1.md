@@ -95,3 +95,22 @@ Tras `CERVESUR_DB_PREFLIGHT=PASS` (12/11/2026 a las 08:05:02 UTC; `DB_CONNECTED=
 - Al ejecutarse por Cron Jobs PHP CLI: el resultado permitido es `/home/databalt/cervesur_cron_private/cervesur-hmac-bootstrap-result.txt` (0600). Si la clave ya existe no la sobrescribe. Se debe **eliminar el cron** tras la evidencia, sin repetir el bootstrap.
 - Nunca compartir la clave, el archivo oculto ni snapshots de usuarios en GitHub, issues o chats. Para mantener la misma huella HMAC, transferir el archivo secreto directamente por un canal cifrado autorizado a un directorio privado del servidor nuevo y comprobar 0600; **no generar una segunda clave independiente**.
 - No ejecutar aun `export_snapshot.php` ni pasar a escritura. Primero obtener el PASS del bootstrap, comprobar sintaxis y ruta, y validar permisos y plan de descarga/transferencia de archivos sensibles.
+
+### Evidencia recibida de bootstrap de clave (12/11/2026)
+
+- `CERVESUR_HMAC_BOOTSTRAP=PASS` a las `2026-11-12T08:14:02Z`.
+- `KEY_SIZE=256_BITS`, `KEY_PERMISSIONS=0600`, `SECRET_VALUE_PRINTED=NO`, `DATABASE_ACCESSED=NO`, `PRODUCTIVE_DATA_MODIFIED=NO`.
+- La clave local privada `/home/databalt/cervesur_cron_private/.cervesur-migration-hmac` existe. **No copiar su contenido a GitHub/chat.**
+- Se observaron **tres cron jobs activos**, incluido `cron_hmac_bootstrap.php` ejecutandose cada minuto. Eliminar los tres en cPanel antes de iniciar cualquier otra ejecucion para prevenir operaciones innecesarias.
+
+### Export del origen legado (preparado, aun NO ejecutado)
+
+Usar `ops/migracion/export_snapshot.php`, compatible con PHP 8.1 y de solo lectura, en la carpeta privada del hosting. Validar contenido descargado de la rama del PR y sintaxis PHP. Como mecanismo one-shot del cron (cada cinco minutos con eliminacion inmediata luego del resultado), la comprobacion de existencia del archivo de estado evita multiples ejecuciones:
+
+```sh
+umask 077; test ! -e /home/databalt/cervesur_cron_private/legado-export-status.txt && /usr/local/bin/php /home/databalt/cervesur_cron_private/export_snapshot.php --origin=legado --loader=/home/databalt/public_html/backend/lib/env.php --database=databalt_portalbi --key-file=/home/databalt/cervesur_cron_private/.cervesur-migration-hmac --out=/home/databalt/cervesur_cron_private/legado-snapshot.json > /home/databalt/cervesur_cron_private/legado-export-status.txt 2>&1
+```
+
+**Seguridad de archivos:** `legado-snapshot.json` contiene HMAC e IDs internos; constituye informacion sensible seudonimizada y **no se debe subir a conversaciones ni a GitHub**. El archivo `legado-export-status.txt` contiene solo conteos y codigos de estado y si se puede compartir para diagnostico. Ambos quedan fuera de `public_html`. No descargar/copiar la clave salvo a un dispositivo autorizado mediante el canal cifrado necesario para cotejar con el destino.
+
+**NO-GO:** no migrar registros, no cambiar estados/roles/reportes, no exponer un endpoint HTTP, no ejecutar sobre el servidor React hasta completar la etapa de exportacion legado y revisar el resultado.
