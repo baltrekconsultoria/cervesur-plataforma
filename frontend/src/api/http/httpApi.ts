@@ -85,6 +85,7 @@ export class HttpApiClient implements ApiClient {
       this.capabilities.writes = writes;
       this.capabilities.adminWrites = writes.empresas || writes.reportes || writes.accesos || writes.usuarios;
       this.capabilities.usersSensitive = writes.usuarios && payload?.users_sensitive === true;
+      this.capabilities.usersPasswordReset = writes.usuarios && payload?.users_password_reset === true && payload?.users_sensitive !== true;
       if (typeof payload?.reactivate_after_hours === 'number' && payload.reactivate_after_hours >= 0) this.capabilities.reactivateAfterHours = payload.reactivate_after_hours;
     } catch {
       this.capabilities.adminWrites = false;
