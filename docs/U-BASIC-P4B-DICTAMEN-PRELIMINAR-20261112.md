@@ -43,6 +43,14 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aa. Resultados estructurales adicionales y hallazgo D3-08 (12/11)
+
+El operador ejecutó `d3_source_indicators.py` con `D3_KIT_INTEGRIDAD=PASS` y `D3_FUENTES_SHA=PASS_8_DE_8`. D3-03 (método, URI y override) y D3-07 (imports, Stats y wiki) entregaron tres `INDICIO_OK` cada uno; D3-06 allowlist del perfil `INDICIO_OK`, pero `D3_06_EMAIL_EDITABLE=SI_REVISAR_POLITICA`. Es evidencia estática, no cierre de acceso ajeno/role 403 real.
+
+**Prioridad de revisión:** D3-08 devolvió `D3_08_SECRET_UNSET=REVISAR` y `D3_08_SECRET_READ_PATHS=REVISAR`. No equivale a fuga demostrada: el analizador original exige `unset($empresa['powerbi_clientsecret'])` y un método `withoutSecrets`, pero la implementación real puede excluir el campo desde SQL. Tampoco es aceptable marcar D3-08 PASS sin evidencia del modelo productivo exacto. Se añadió el comprobador `d3_secret_read_triage.py` en PR #32 para analizar **la proyección SELECT de cada método sobre las fuentes reales SHA-pinned**, sin publicar código ni valores. Cualquier clasificación `REVISAR_*` detiene la promoción a PASS; `INDICIO_*` continúa siendo estático y requiere prueba sintética aislada de salida sin secretos.
+
+**Estado formal:** D3 global aún PENDIENTE, P4b NO-GO, U-BASIC OFF y sensible OFF. Los resultados anteriores H1 9/9 siguen vigentes.
+
 ## 4a. Resultado real H1 sobre VPS (12/11)
 
 **PASS acotado del middleware autenticador H1:** el ensayo con `d3_auth_no_sqlite.php` terminó `D3_AUTH_CRITICOS=PASS_9_DE_9` después de `D3_FIXTURE_ONLY=PASS`. Validó admin, usuario, inactivo, SV revocada, inexistente, firma ajena, expirado, sin cabecera y malformado. Observaciones de riesgo: `D3_RIESGO_ROL_DESDE_JWT=MITIGADO_DB`, `D3_RIESGO_TOKEN_SIN_SV=RECHAZADO` y `D3_RIESGO_TOKEN_SIN_EXP=RECHAZADO`. Este resultado mejora explícitamente los supuestos históricos documentados sobre roles obsoletos y tokens antiguos.
