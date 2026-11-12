@@ -103,7 +103,7 @@ if (FASE2B) {
   colocarFase2b(ROOT, REPO, fail);
   // El instalador de la fase 2A (A1/A2) y su reversión no forman parte del paquete 2B: lo instalado YA es la fase 2A.
   for (const f of ['actualizar.sh', 'modo-escritura.sh', 'revertir-codigo.sh', 'preflight-fase2a.sh']) rmSync(join(ROOT, 'scripts', f), { force: true });
-  notas.push('fase2b/repo/ con las 6 plantillas UX-08I (vista de alta + privilegios) y su SHA256SUMS; sin los instaladores A1/A2 de la fase 2A');
+  notas.push('fase2b/repo/ con 6 plantillas UX-08I y 2 plantillas UX-09C P5-R (vista de alta + privilegios) y su SHA256SUMS; sin los instaladores A1/A2 de la fase 2A');
 }
 for (const doc of FASE2B ? ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md', 'UX-08I-FASE-2B-AUDITORIA-GO-NO-GO.md', 'UX-08I-FASE-2B-LIBERACION.md'] : ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md']) if (existsSync(join(REPO, 'docs', doc))) copy(join(REPO, 'docs', doc), `docs/${doc}`); else notas.push(`docs/${doc} no existe: no se incluye`);
 
