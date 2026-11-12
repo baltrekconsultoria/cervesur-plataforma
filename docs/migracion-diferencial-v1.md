@@ -170,3 +170,33 @@ test -r /var/www/cervesur/backend/.env && echo ENV_READABLE=YES || echo ENV_READ
 No copiar `.env`, no imprimir su contenido, no cambiar propietario/permisos, no entrar por root ni heredar credenciales sin autorizacion de Infra/DBA. Decidir con responsables la identidad de servicio bajo la que se puede ejecutar una prueba auditada, o solicitar cuenta MySQL de **solo lectura** gestionada por DBA. No ejecutar el exportador de destino ni transferir clave HMAC hasta resolver esta puerta sin debilitar permisos.
 
 **Estado:** Ubuntu DB preflight **NO-GO** por permisos de archivo; legado export **PASS**; migracion productiva sigue no autorizada.
+
+### Ubuntu — causa de denegacion de `.env` demostrada (12/11/2026)
+
+Salida real del operador tras el preflight fallido:
+```text
+uid=1001(usr_cervesur) gid=1001(usr_cervesur) groups=1001(usr_cervesur),27(sudo)
+f: /var/www/cervesur/backend/.env
+drwxr-xr-x root     root     /
+drwxr-xr-x root     root     var
+drwxr-xr-x root     root     www
+drwxr-xr-x www-data www-data cervesur
+drwxr-xr-x www-data www-data backend
+-rw-r----- www-data www-data .env
+www-data www-data 755 /var/www/cervesur/backend
+www-data www-data 640 /var/www/cervesur/backend/.env
+ENV_READABLE=NO
+```
+
+**Diagnostico definitivo:** el archivo `backend/.env` es propiedad de `www-data:www-data` con modo `0640`, y el usuario SSH `usr_cervesur` no pertenece al grupo `www-data`. Por ello `php` ejecutado directamente por `usr_cervesur` no puede leerlo. La presencia del grupo `sudo` **no autoriza por si sola** elevar a root o cambiar de identidad para acceder a secretos o ejecutables productivos; requiere confirmar las facultades permitidas y el alcance de operacion.
+
+**Prueba no invasiva siguiente** (sin lectura de secretos ni acceso a base):
+```sh
+sudo -n -l 2>&1 || true
+namei -l /home/usr_cervesur/cervesur_migracion_privada/repo/ops/migracion/ubuntu_db_preflight.php
+stat -c '%U %G %a %n' /home/usr_cervesur /home/usr_cervesur/cervesur_migracion_privada /home/usr_cervesur/cervesur_migracion_privada/repo
+```
+
+Esta comprobacion solo valida metadatos y sudoers; el comando `sudo -n -l` puede informar que se necesita autenticacion o que la autorizacion esta restringida. Nunca pegar una contraseña de sudo en el chat ni utilizar `sudo cat .env`. Determinar con responsable autorizado si se permite una ejecucion restringida del preflight por la identidad de servicio `www-data`, desde codigo verificado e instalado en ubicacion no publica, o una cuenta de MySQL solo lectura gestionada por DBA. **No ejecutar `sudo -u www-data` ni copiar `.env` hasta completar esta puerta.**
+
+Estado: **Ubuntu preflight bloqueado por permisos**, no por fallo confirmado de MySQL; **NO-GO para snapshot de destino y cambios productivos**.
