@@ -19,7 +19,7 @@ El script restore_native.py, junto con backup_u_basic.py y restore_verify.py des
 
 - Ejecuta mysqld --no-defaults --initialize-insecure SOLO para un datadir temporal aleatorio bajo /tmp/cervesur-p2-qa-*.
 - La carpeta se crea 0700 con dueño OS mysql; no usa /var/lib/mysql, /run/mysqld, /etc/mysql ni el socket MySQL productivo.
-- Arranca segundo mysqld con --no-defaults, --user=mysql, --skip-networking, --mysqlx=OFF, --skip-log-bin, un socket privado y parámetros de memoria acotados.
+- Inicializa y arranca el segundo mysqld **directamente con UID/GID de la cuenta Linux mysql** (sin iniciar como root y cambiar de dueño después), usando --no-defaults, --skip-networking, --mysqlx=OFF, --skip-log-bin, un socket privado y parámetros de memoria acotados.
 - Todas las invocaciones de mysql/mysqladmin usan --no-defaults, --protocol=socket y --socket=/tmp/cervesur-p2-qa-.../mysql.sock. Nunca se conectan al servidor productivo.
 - Importa los dumps .sql.gz existentes por stdin: siete tablas de negocio/audit_log más las tablas del estado del administrador.
 - Compara todas las filas y CHECKSUM TABLE contra el manifiesto previamente guardado, exige dos triggers audit y estado de admin restaurado.
