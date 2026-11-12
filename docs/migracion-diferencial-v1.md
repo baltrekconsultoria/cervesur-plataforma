@@ -459,3 +459,26 @@ Compartir **solo salida agregada**. `CERVESUR_BRECHAS=ERROR_...` significa STOP:
 `190` usuarios originales frente a `76` destino (`76` coincidencias de email y `114` activos origen sin email equivalente); `25` empresas origen coinciden por RUC con `25` de las `26` destino; `264` reportes origen frente a `95` destino, `169` referencias sin equivalente; `226` cadenas efectivas legado frente a `91` destino, `0` coincidencias efectivas. Se deben revisar tambien las filas y estados historicos no efectivos.
 
 **Estado:** migracion real aun NO ejecutada; el DRY-RUN actual solo descubre diferencias. **No introducir nuevas escrituras sin plan detallado, QA, backup y aprobacion especifica.**
+
+## Cambio de alcance (12/11/2026): SOLO RECUPERAR USUARIOS
+
+Decision del responsable tras validar dry-run: **reducir el entregable a usuarios**. La plataforma antigua sigue siendo referencia de informacion base de usuarios. Empresas (25 origen, 5 activas; destino 26, 6 activas), reportes y relaciones de acceso se gestionaran **manualmente en la plataforma nueva**: no exportarlos/importarlos/aplicarlos desde este incremento. No cambiar sus estados, relaciones, enlaces Power BI ni roles mientras se recuperan los usuarios. La clasificacion de las 226 cadenas bloqueadas queda como evidencia historica, no como requisito de este lote.
+
+Objetivo users-only: conservar los **76 registros existentes** del destino, analizar los **114 usuarios activos origen sin email coincidente** y proponer altas aditivas **sin duplicados**. Fuente base: 190 usuarios antiguos (176 activos), 76 nuevos (62 activos), coincidencias por email 76. El numero 114 es una cota del cotejo HMAC, NO un lote automaticamente aprobado.
+
+### Implementacion preparada en PR #23 (NO ejecutada en bases reales)
+
+- `ops/migracion/export_usuarios_privado.php`: CLI PHP 8.1+, `SELECT` con sesion READ ONLY sobre **solo** `user`, whitelist `id,first_name,last_name,username,email,phone,role,is_active`, sin `password`, `session_version`, tokens, avatar ni cookies. Acepta `--origin=legado|react`, `--database` debe corresponder exactamente a `databalt_portalbi|cervesur_portalbi`, `--loader` existente y `--out` exclusivo `usuarios-legado.json|usuarios-react.json` en directorio privado. Archivos contienen PII, 0600, prohibido enviarlos al chat/GitHub o exponerlos en HTTP; consola solo totales de usuarios, activos y PASS.
+- `ops/migracion/plan_usuarios.py`: lee ambos JSON en el **mismo servidor**, exige archivos 0600 y esquema/origen consistentes, bloquea emails y usernames duplicados y calcula plan fuera de BD sin DML. Respeta cuentas existentes por email; si hay username ocupado, datos obligatorios ausentes, email invalido, rol desconocido o rol `admin` propuesto, manda registro a revision humana. `usuario` alias legado pasa a `user`. Usuarios normales nuevos solo se proponen **`activo_propuesto=0`**; requieren inicializacion segura de credenciales y aprobacion antes de activacion.
+- `tests/migracion/test_plan_usuarios.py`: QA sintetico de dedupe, no sobrescritura, archivo privado 0600, roles y no activaciones. CI agrega PHP lint y Python tests.
+- `plan-usuarios.json` seria privado, con PII de las creaciones propuestas y revisiones, solo en directorio fuera de DocumentRoot; la consola imprimira **solo resumen**. No ejecutar DML, merge ni deploy en este incremento.
+
+### Proxima ejecucion controlada (aun pendiente)
+
+1. Esperar `Migracion diferencial CI` exitoso del commit que incluya estos scripts.
+2. En hosting cPanel sin SSH, preparar exportador PHP en `/home/databalt/cervesur_cron_private` y ejecutar una sola vez mediante Cron Jobs autenticado, como el anterior exportador. Archivo de salida privada bajo `/home/databalt/cervesur_cron_private/usuarios-legado.json`; eliminar la tarea cron tras la primera ejecucion y comprobar que no exista bajo `public_html`. El `--loader` debe ser el mismo previamente validado, nunca publicar credenciales.
+3. En Ubuntu, instalar copia `root:root` 0644 fuera de DocumentRoot y ejecutar `--origin=react` como `www-data` sobre `cervesur_portalbi` con salida `/var/lib/cervesur-migration/snapshots/usuarios-react.json`, 0600.
+4. Transferir el JSON original por SFTP directamente a Ubuntu, **sin chat/correo/GitHub**; instalar copia restringida bajo `www-data` y ejecutar `plan_usuarios.py` sin conectarse a MySQL. Compartir solo salida agregada, nunca nombres/correos ni archivos privados.
+5. Tras plan agregado, revisar bloqueos, requerimientos de restablecimiento de credenciales y compatibilidad del esquema. Preparar por separado importador transaccional aditivo con backup/rollback, QA y autorizacion explicita antes de una sola insercion. Preservar las 76 cuentas actuales y las entidades no incluidas en el alcance.
+
+**Gate de alcance:** no se ejecutara la migracion de empresas, reportes, asignaciones ni la antigua propuesta de reproducir 226 cadenas automaticamente. El estado final del sistema solo se considera valido tras QA de inicio de sesion/roles y aprobacion del usuario.
