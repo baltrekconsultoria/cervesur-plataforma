@@ -11,7 +11,7 @@ source "$PAQ/scripts/lib.sh"
 P5R_API_PORT="${CERVESUR_P5R_API_PORT:-8443}"
 case "$P5R_API_PORT" in 8443) ;; *) abortar "Puerto de API P5-R no autorizado (solo 8443)";; esac
 URL_ADMIN="https://localhost:$P5R_API_PORT"
-CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:$P5R_API_PORT:127.0.0.1")
+CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:$P5R_API_PORT:192.168.200.12")
 trap api_limpiar EXIT
 
 ACCION="${1:-}"; shift || true
