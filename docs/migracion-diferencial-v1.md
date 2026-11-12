@@ -132,3 +132,18 @@ umask 077; test ! -e /home/databalt/cervesur_cron_private/legado-export-status.t
 - Se puede iniciar transaccion `READ ONLY` sin consultar filas de datos.
 
 **No copiar todavia la clave HMAC ni ejecutar el snapshot del destino hasta confirmar esta puerta**. Para el script usar una carpeta de trabajo privada fuera de `/var/www`, nunca dentro del DocumentRoot. El resultado del preflight se puede compartir porque solo contiene codigos de estado, nunca contrasenas.
+
+### Ubuntu — comprobacion CLI local de preflight (12/11/2026, evidencias operador)
+
+En sesion SSH/PuTTY **del servidor Ubuntu de Cervesur**, el operador ejecuto `whoami`, `pwd`, `php -v | head -n 2`, `php -m | grep -i '^pdo_mysql$'`, `test -f /var/www/cervesur/backend/lib/env.php` y `test -w "$HOME"`.
+
+Resultados observados (sin incluir identificadores confidenciales):
+- Usuario de shell: `usr_cervesur`
+- HOME / directorio actual: `/home/usr_cervesur` y `PRIVATE_HOME=WRITABLE`
+- PHP CLI **8.3.6** (19/oct/2026)
+- Extensión `pdo_mysql` presente
+- Loader `/var/www/cervesur/backend/lib/env.php`: **LOADER=FOUND**
+
+**Alcance:** la existencia del archivo `env.php` no demuestra por si sola el nombre de base configurado ni capacidad de lectura en MySQL. Falta ejecutar `ops/migracion/ubuntu_db_preflight.php` con `--loader=/var/www/cervesur/backend/lib/env.php` y verificar `CERVESUR_UBUNTU_DB_PREFLIGHT=PASS`, `DATABASE_MATCH=PASS`, `READ_ONLY_TRANSACTION=PASS`, `REQUIRED_TABLES_PRESENT=6/6`.
+
+**Procedimiento recomendado:** transferir el PHP aprobado desde la rama de GitHub a una carpeta privada `/home/usr_cervesur/cervesur_migracion_privada/` utilizando mecanismo autenticado (Git local con acceso verificado o SFTP/WinSCP). Ejecutar primero `php -l` y luego `php ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php`. No cambiar contenido dentro de `/var/www/cervesur`, no copiar todavia la clave HMAC al Ubuntu ni ejecutar el exportador de destino. El codigo de preflight muestra solo estado agregado y no revela credenciales.
