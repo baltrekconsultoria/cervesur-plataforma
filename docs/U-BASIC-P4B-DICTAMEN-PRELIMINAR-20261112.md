@@ -43,6 +43,16 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aaaaaa. D3-08 — K2 instalado y funciona en los cuatro formatos (12/11)
+
+Evidencia posterior recibida en PuTTY: `K2_SHA=PASS`, `K2_ROUTER_GETALL/GETBYID/SEARCH/GETBYCITY=REFERENCIA_K2_DETECTADA`, `K2_SANITIZADOR_GETALL/GETBYID/SEARCH/GETBYCITY=PASS`, `K2_QA_SINTETICO=PASS_4_DE_4`. Sin consultas MySQL, uso de secretos reales ni cambios productivos.
+
+**La exposición del marcador en el modelo de datos no demuestra fuga de HTTP**, ya que la protección K2 existente filtra en la capa del router. La referencia de K2 en el router y el test del sanitizador no prueban que se ejecute en todos los caminos efectivos. Por tanto D3-08 sigue PENDIENTE, no declarar fuga real.
+
+Nuevo laboratorio `d3_k2_router_sandbox.py` + `d3_k2_router_fixture.php`: copia router/controlador/modelo/sanitizador a una carpeta temporal privada y ejecuta GETALl/GETBYID/SEARCH/GETBYCITY en PHP con fake PDO, vista sin filtros (para probar K2), usuario ficticio y JSON inspeccionado por clave o marcador de secreto. CI autoprueba los casos seguro/fuga sintética; **pendiente ejecutar contra router copiado de la VPS**. El router se toma como snapshot de producción y no tiene huella dorada previa; modelo, controlador y K2 sí van SHA-pinned.
+
+**NO_GO P4b** hasta el resultado sobre la copia real y los casos dinámicos pendientes A1/A2/A3, rutas alternativas, registro/alta y firmas formales. No activar `ADMIN_WRITES_USUARIOS`, no tocar P5.
+
 ## 4aaaaa. D3-08 — Hallazgo reproducido en modelo aislado (12/11)
 
 **Bloqueante confirmado en laboratorio (no se ha demostrado fuga HTTP):** el operador ejecutó el laboratorio `d3_empresa_sandbox.py` / `d3_empresa_fixture.php`, integridad PASS, PHP lint PASS, selftest PASS y `D3_08_REAL_SHA=PASS_2_DE_2`. Los cuatro métodos `getAll`, `getById`, `search`, `getByCity` devolvieron `SECRETO_EN_RESPUESTA_SINTETICA`. Resultado `D3_08_FIXTURE_GLOBAL=NO_GO_EXPOSICION_SINTETICA`. `D3_08_HTTP_REAL=NO_PROBADO`, `MYSQL_PRODUCTIVO_ACCEDIDO=NO`, `DATOS_PERSONALES_ACCEDIDOS=NO`, `U_BASIC_ACTIVADO=NO`.
