@@ -51,8 +51,10 @@ if (!extension_loaded('pdo_sqlite') || function_exists('getallheaders')) {
 }
 
 $GLOBALS['d3_headers'] = [];
-function getallheaders(): array {
-    return $GLOBALS['d3_headers'];
+if (!function_exists('getallheaders')) {
+    function getallheaders(): array {
+        return $GLOBALS['d3_headers'];
+    }
 }
 
 try {
