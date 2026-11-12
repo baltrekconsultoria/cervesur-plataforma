@@ -88,13 +88,25 @@ expectCase($g0['COLUMN_TYPE'] === 'varchar(50)' && $g0['IS_NULLABLE'] === 'NO', 
 expectCase(col($pdo, 'enlace')['COLUMN_TYPE'] === 'varchar(500)' && col($pdo, 'enlace')['IS_NULLABLE'] === 'NO', 'starting schema: enlace varchar(500) NOT NULL');
 $pdo->exec(file_get_contents('database/migrations/UX-08B-audit-log.up.sql'));
 
-/* ---------- 1. Esquema antiguo: se rechaza con el mensaje explicativo ---------- */
+/* ---------- 1. Esquema productivo NOT NULL: grupo interno para enlaces publicos (UX-08B4) ---------- */
 $before = count_of($pdo, 'reporte');
-[$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Sin grupo', 'descripcion' => 'x', 'enlace' => publicLink(1)], $admin);
-expectCase($s === 200 && ($d['success'] ?? true) === false && str_contains($d['message'] ?? '', 'ID del grupo') && str_contains($d['message'] ?? '', 'No se inventan identificadores'), 'old schema: a public link without group is rejected with the explanatory message');
-[$s] = requestApi('POST', '/api/reportes', ['nombre' => 'Sin grupo', 'descripcion' => 'x', 'enlace' => publicLink(1)], $admin, true);
-expectCase($s >= 400 && $s < 500 && $s !== 409, 'old schema, contract 2: the rejection is a validation error (4xx)');
-expectCase(count_of($pdo, 'reporte') === $before && count_of($pdo, 'audit_log') === 0 && rowHashes($pdo) === $baseline, 'old schema: nothing inserted, no audit row, historic rows intact');
+[$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Sin grupo A', 'descripcion' => 'x', 'enlace' => publicLink(1)], $admin, true);
+$oldId = (int)($d['data']['id'] ?? 0);
+$oldRow = $oldId ? one($pdo, 'SELECT * FROM reporte WHERE id = ?', [$oldId]) : [];
+expectCase($s >= 200 && $s < 300 && ($d['success'] ?? false) === true && $oldId > 0, 'UX-08B4 old schema: report with public URL is accepted without a real group');
+expectCase(preg_match(UUID4, (string)($oldRow['grupo_id'] ?? '')) === 1
+    && ($oldRow['grupo_id'] ?? null) === ($oldRow['reporte_id'] ?? null),
+    'UX-08B4: synthetic grupo_id reuses unique internal reporte_id UUIDv4, never a Power BI ID');
+[$s, $d] = requestApi('POST', '/api/reportes', ['nombre' => 'Sin grupo B', 'descripcion' => 'x', 'enlace' => publicLink(2)], $admin, true);
+$oldId2 = (int)($d['data']['id'] ?? 0);
+$oldRow2 = $oldId2 ? one($pdo, 'SELECT * FROM reporte WHERE id = ?', [$oldId2]) : [];
+expectCase($s >= 200 && $s < 300 && $oldId2 > 0 && ($oldRow2['grupo_id'] ?? null) !== ($oldRow['grupo_id'] ?? null),
+    'UX-08B4: different reports receive distinct synthetic group IDs');
+expectCase(count_of($pdo, 'reporte') === $before + 2 && count_of($pdo, 'audit_log') === 2,
+    'UX-08B4: two reports created with exactly two audit records');
+$pdo->prepare('DELETE FROM reporte WHERE id IN (?, ?)')->execute([$oldId, $oldId2]);
+expectCase(count_of($pdo, 'reporte') === $before && rowHashes($pdo) === $baseline,
+    'UX-08B4: synthetic fixture cleaned, historic rows intact (audit append-only is preserved)');
 
 /* ---------- 2. Migración UP ---------- */
 expectCase(runSql($pdo, UP) === 0, 'the up migration runs statement by statement without error');
