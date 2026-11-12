@@ -571,3 +571,22 @@ El operador mostro cPanel File Manager con `cervesur_cron_private` configurado a
 **Puerta pendiente:** la inspeccion estructural del JSON no confirma por si sola la salida del log `CERVESUR_USUARIOS_EXPORT=PASS`; comprobar su estado y borrar cualquier cron activo. Para simular en Ubuntu, transportar desde el equipo del operador hacia `/home/usr_cervesur/cervesur_migracion_privada/entrada/usuarios-legado.json` via SFTP, chmod 0600, instalar copia 0600 bajo `www-data` en `/var/lib/cervesur-migration/snapshots/usuarios-legado.json` si no existe, comparar contenidos con `cmp`, e instalar comparador de rama como `root:root` 0644 despues del CI. Ejecutar `plan_usuarios.py` como `www-data` con salida privada nueva `plan-usuarios.json`; compartir unicamente el resumen agregado, no el plan ni datos individuales.
 
 No hacer INSERT/UPDATE/DELETE, no sobrescribir 76 cuentas React, no alterar empresas/reportes/relaciones. Cuentas nuevas solo propuestas inactivas, sin passwords, a revisar antes de autorizar aplicador.
+
+### Users-only — transporte privado legado a Ubuntu: PASS (12/11/2026)
+
+El operador transfirio `usuarios-legado.json` por SFTP a `/home/usr_cervesur/cervesur_migracion_privada/entrada/`, y luego al destino privado:
+`/var/lib/cervesur-migration/snapshots/usuarios-legado.json`, propiedad `www-data:www-data` y modo 0600, sin sobreescritura. Salida de PuTTY:
+```text
+USERS_COPY=PASS
+USERS_ACCESS=PASS
+```
+La exportacion del destino `usuarios-react.json` ya tenia PASS (76 usuarios, 62 activos). El origen tiene 190 usuarios, 176 activos. Ambas fuentes users-only estan listas para calcular **un plan offline, NO una importacion**. No insertar filas, no activar usuarios ni copiar passwords.
+
+**QA observado:** en commit `58e1ca97` las ejecuciones `Migracion diferencial CI` y `Backend CI` concluyeron SUCCESS; `plan_usuarios.py` fue revisado y los cambios users-only estan cubiertos por pruebas sinteticas. Los archivos con PII no se trasladan a repositorio/chat.
+
+**Proximo paso acotado:**
+1. `git pull --ff-only origin feat/migracion-diferencial-dryrun-v1` y comprobar checkout limpio.
+2. Instalar `ops/migracion/plan_usuarios.py` como `root:root` 0644 en `/usr/local/lib/cervesur-migration/plan_usuarios.py`. `cmp` y validacion de sintaxis `ast.parse` PASS.
+3. Verificar ambos JSON 0600 legibles por `www-data`, existencia del directorio privado y **no existencia** de `/var/lib/cervesur-migration/snapshots/plan-usuarios.json`.
+4. Ejecutar **una sola vez** `sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesur-migration/plan_usuarios.py --legado /var/lib/cervesur-migration/snapshots/usuarios-legado.json --react /var/lib/cervesur-migration/snapshots/usuarios-react.json --salida /var/lib/cervesur-migration/snapshots/plan-usuarios.json`. El JSON de salida contiene PII y no puede compartirse, imprimirse o subirse. El stdout solo contiene conteos agregados y banderas `mysql_modificado=false`, `aplicacion_autorizada=false`.
+5. Revisar agregados; importador/aplicacion productiva requieren gates posteriores de backup, privilegios minimos, cuentas inactivas y credenciales iniciales de manera segura y **aprobacion explicita**. Empresas, reportes y asignaciones excluidos.
