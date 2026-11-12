@@ -56,6 +56,12 @@ function admin_write_capability_on($capability) {
     if (in_array($capability, ['usuarios_sensible', 'usuarios_password_reset'], true) && getenv('ADMIN_WRITES_USUARIOS') !== '1') {
         return false; // lo sensible nunca funciona sin el interruptor de usuarios
     }
+    // Compatibilidad con la etapa historica P5 completa. P5-R independiente
+    // no permite cambiar roles; el P5 historico conserva su comportamiento
+    // si se habilita por una liberacion posterior autorizada.
+    if ($capability === 'usuarios_password_reset' && admin_write_capability_on('usuarios_sensible')) {
+        return true;
+    }
     return getenv('ADMIN_WRITES_' . strtoupper((string)$capability)) === '1';
 }
 
@@ -281,7 +287,7 @@ function app_sql_write_guard($sql) {
                 && !admin_write_capability_on('usuarios_sensible')
                 && !admin_write_capability_on('usuarios_password_reset')) $reject('P5-R: UPDATE(password) exige permiso independiente');
         }
-                if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
+        if (preg_match('/\bjoin\b/i', $n)) { $reject('UPDATE con JOIN no permitido'); }
         return;
     }
     $reject('solo SELECT, INSERT y UPDATE de la lista cerrada');
