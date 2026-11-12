@@ -63,3 +63,30 @@ El resultado no demuestra acceso desde fuera de la VPN, que los puertos tengan l
 - No tocar empresas, informes, enlaces Power BI ni asignaciones en este incremento.
 - Mantener PR #23 en borrador hasta QA de la siguiente fase y una decision explicita de merge.
 - Registrar cada salida agregada del host en este documento y el issue #17 con fecha, valores exactos, riesgos y siguiente puerta; nunca datos personales ni secretos.
+
+## 7. PuTTY: HTTPS corporativo 443 y 8443 confirmado (solo lectura)
+
+Operador ejecutó `curl` HTTPS **sin credenciales** contra la interfaz interna VPN del servidor, revisando solo código HTTP y Content-Type, con validacion de certificado omitida para ese diagnostico (no para iniciar sesion). IP interna exacta deliberadamente omitida por tratarse de repositorio publico.
+
+| Ruta sin autenticacion | 443 (usuarios corporativo) | 8443 (administracion corporativo) |
+|---|---|---|
+| `/` | `200 text/html` | `200 text/html` |
+| `/api/ping` | `200 application/json` | `200 application/json` |
+| `/api/users?status=all` | `403 application/json` | `401 application/json` |
+| `/admin/usuarios` | `200 text/html` | `200 text/html` |
+
+Hallazgos comprobados:
+- Ambos HTTPS responden para `/` y `/api/ping`; no hay evidencia de caída de esos dos servidores en el momento del test.
+- Ninguno devolvió una lista de usuarios anónima. El portal de usuarios 443 respondió 403 y el de administración 8443 respondió 401. La diferencia puede provenir de políticas por vhost/rol o de capas de autenticación; **no se ha determinado la causa**. No asumir que 443 usa el mismo backend que 8443.
+- El 200 HTML de `/admin/usuarios` podría ser el fallback SPA de React. **No confirma** que el usuario admin logueado pueda gestionar usuarios ni que existan los 190 registros en ese entorno.
+- La prueba omitió validación del certificado TLS solo para diagnóstico de códigos HTTP, sin credenciales. No repetir con credenciales usando `-k`.
+
+## 8. Siguiente puerta: identificar backend real y su conexión MySQL, sin secretos
+
+Acción propuesta para PuTTY, **SOLO LECTURA**, sin abrir `.env` ni mostrar variables de contraseña:
+1. Revisar los dos archivos de VirtualHost de HTTPS 443 y 8443, mostrando exclusivamente los nombres de directivas Apache (`DocumentRoot`, `Alias`, `AliasMatch`, `ProxyPass`, `ProxyPassMatch`, `Include`, `SetHandler`), y contar las rutas configuradas sin imprimir valores que podrían contener secretos.
+2. Verificar que ambos VirtualHosts sigan apuntando al origen esperado (backend PHP de 8443 y frontend React admin), usando solo nombres de archivos y rutas internas autorizadas para el operador; no subir esos paths a GitHub si son privados.
+3. Ejecutar una lectura protegida que solo devuelva `DB_TARGET=PRODUCCION/OTRA/INDETERMINADA` para el backend efectivo de 8443 (comparando únicamente el nombre con `cervesur_portalbi`, sin mostrar host/usuario/password). No inferir la BD a partir del 200 de `/api/ping`.
+4. Posteriormente, con cuenta de administrador existente y certificado TLS VALIDADO, comprobar `/admin/usuarios` y GET `/api/users?status=all` con JWT sin imprimir datos personales. Resultado buscado: 190 registros (176 activos, 14 inactivos) y controles de autorización admin/no-admin.
+
+IMPORTANTE: migración y activación ya PASS (`190/176/14`, `114` migrados activos), pero credenciales de 114 siguen sin inicializar. No ejecutar APPLY previos. No tocar Flutter, QA 8088/8089, asignaciones ni enlaces Power BI.
