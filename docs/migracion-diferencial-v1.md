@@ -627,3 +627,53 @@ Resultado: 114 cuentas candidatas nuevas, inicialmente **inactivas** y sin passw
 - **Ninguna modificacion ejecutada en React 8443, MySQL, Flutter 80, Apache, Power BI ni interruptores.**
 
 **Siguiente accion sin escritura y sin contrasenas:** comprobar respuesta HTTPS del admin 8443, existencia/propietarios de archivos y script del interruptor en el paquete desplegado, y obtener salida de `estado` solo si el paquete instalado se verifica como confiable. No mostrar `.env`, JWT, cookies, contrasenas ni archivos con PII. Si listado ya visible, QA de lectura por administrador y usuario normal sin crear nuevas cuentas. Con datos actuales, **P4b/P5 sigue pendiente** de gates aunque el usuario solicito habilitar Usuarios funcionalmente.
+
+## Users-only — DRY-RUN 114/76 PASS y autorizacion para avanzar a migracion (12/11/2026)
+
+El operador ejecuto en Ubuntu:
+`plan_usuarios.py --legado /var/lib/cervesur-migration/snapshots/usuarios-legado.json --react /var/lib/cervesur-migration/snapshots/usuarios-react.json --salida /var/lib/cervesur-migration/snapshots/plan-usuarios.json`
+
+Salida:
+```text
+CERVESUR_PLAN_USUARIOS=PASS
+origen_total=190
+destino_total=76
+coincidentes_conservados=76
+sin_correo_coincidente=114
+candidatos_inactivos=114
+revision_requerida=0
+motivos_revision={}
+existentes_con_diferencia_rol_o_username=0
+destino_no_presente_en_origen=0
+aplicacion_autorizada=false
+mysql_modificado=false
+DATOS_PERSONALES_EN_CONSOLA=NO
+```
+
+**Nueva solicitud funcional:** culminar la migracion de los 114 usuarios y posteriormente habilitar la administracion de cuentas y sesiones de usuarios del portal React; empresas/reportes/asignaciones **siguen fuera del lote**.
+
+**Hallazgos de codigo:** `backend/controllers/AuthController.php` autentica con `password_verify`, `role`, `is_active=1` y `session_version>=1`; middleware revalida estado/rol/version de JWT en la BD. `backend/router/UserRouter.php` ya ofrece `GET /api/users` exclusivo admin y `/api/register` crea usuario **activo** con contraseña; la UI React tiene `/admin/usuarios` y `NewUserDialog`. No se debe usar `/api/register` para altas de migracion porque no ofrece estado inactivo ni preflight transaccional. Que exista codigo UI no prueba que esté desplegado/habilitado en produccion; validar proveedor HTTP, accesos y fase de escritura antes de activar interfaz.
+
+### Implementacion nueva en PR #23 — candidato, NO ejecutado en productivo
+
+- `ops/migracion/usuarios_schema_gate.php`: CLI `www-data`, consulta **solo metadatos** de `information_schema`, indices unicos, engine InnoDB, columnas, triggers, conteo 76/62. Reporta `CERVESUR_USUARIOS_SCHEMA=PASS` y `puerta_para_importacion=CANDIDATA|BLOQUEADA`; **PASS de consulta NO equivale a puerta candidata**. No imprime PII ni secretos.
+- `ops/migracion/usuarios_import_controlado.php`: tres operaciones separadas: `--mode=check` (solo SELECT), `--mode=backup` (lectura + respaldo integral **muy sensible** con hashes de contrasenas, privado 0600), `--mode=apply` (INSERT atomico de exactamente 114 usuarios `user` inactivos con contrasena aleatoria irrecuperable y `session_version=1`, previa validacion de backup SHA y estado/identidades de los 76 existentes). No publica ni reutiliza passwords anteriores, no eleva admins, no inserta empresas/reportes/asignaciones. Rechaza cambios de baseline, indices unicos ausentes, triggers no revisados, datos invalidos, colisiones o divergencias; en error hace ROLLBACK.
+- `tests/migracion/test_usuarios_import_guard.php`: QA sintetico, sin MySQL real ni PII, para cuentas conservadas, estado inactivo y bloqueos por duplicados. Workflow de PR valida PHP lint + QA antes de permitir comandos.
+- No usar backup sensible como sustituto de un respaldo comprobable de restauracion; protegerlo fuera de DocumentRoot, comprobar integridad, guardar copia controlada por Infra y establecer retencion. La fase de activacion necesita **un flujo seguro de inicializacion de credenciales**; no basta con cambiar `is_active=1` (el hash aleatorio es desconocido). No habilitar sesiones sin esto y QA de admin/user 403/401.
+
+### Ejecucion acotada inmediata — solo puerta de esquema
+
+```sh
+REPO=/home/usr_cervesur/cervesur_migracion_privada/repo
+git -C "$REPO" status --short
+git -C "$REPO" pull --ff-only origin feat/migracion-diferencial-dryrun-v1
+git -C "$REPO" status --short
+SRC="$REPO/ops/migracion/usuarios_schema_gate.php"
+DST=/usr/local/lib/cervesur-migration/usuarios_schema_gate.php
+sudo install -o root -g root -m 0644 "$SRC" "$DST"
+sudo cmp -s "$SRC" "$DST" && echo SCHEMA_CODE=PASS || echo SCHEMA_CODE=FAIL
+php -l "$DST"
+sudo -u www-data -- php "$DST" --loader=/var/www/cervesur/backend/lib/env.php --database=cervesur_portalbi
+```
+
+**STOP** si checkout sucio, `SCHEMA_CODE` no PASS, `php -l` falla o `puerta_para_importacion=BLOQUEADA`. Compartir solo salida de metadatos. El importador CHECK/BACKUP/APPLY no debe ejecutarse hasta revisar la puerta real de esquema, pruebas y estado de respaldo. **Produccion, UI y datos permanecen sin modificaciones tras este registro.**
