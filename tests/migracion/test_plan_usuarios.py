@@ -83,6 +83,13 @@ class UsuariosTests(unittest.TestCase):
         self.assertEqual(plan["revisiones_privadas"][0]["motivo"],
                          "COLISION_CREDENCIAL_CRUZADA")
 
+    def test_phone_null_literal_replaced_with_none(self):
+        old = [user(1, "nueva@test.example", "nueva")]
+        old[0]["phone"] = "null"
+        plan = construir(old, [])
+        self.assertEqual(plan["resumen"]["candidatos_inactivos"], 1)
+        self.assertIsNone(plan["creaciones_propuestas_privadas"][0]["phone"])
+
     def test_origen_duplicado_detiene(self):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / "usuarios-legado.json"
