@@ -65,9 +65,9 @@ class NativeMySQL8Fixture(unittest.TestCase):
                         " FOR EACH ROW SIGNAL SQLSTATE '45000' "
                         "SET MESSAGE_TEXT='immutable'")
                 native.client(sock, "CREATE TABLE " + quote + sdb + quote +
-                              ".state(id INT PRIMARY KEY, note VARCHAR(20)) ENGINE=InnoDB")
+                              "." + quote + "qa_state" + quote + "(id INT PRIMARY KEY, note VARCHAR(20)) ENGINE=InnoDB")
                 native.client(sock, "INSERT INTO " + quote + sdb +
-                              ".state VALUES (1,'fixture')")
+                              "." + quote + "qa_state" + quote + " VALUES (1,'fixture')")
 
                 def dump(db: str, tables: tuple[str, ...] | None) -> bytes:
                     cmd = ["mysqldump", "--no-defaults", "--protocol=socket",
