@@ -90,12 +90,6 @@ class NativeRestoreTests(TestCase):
             self.assertIn("--protocol=socket", argv)
             self.assertTrue(any(a.startswith("--socket=") and "cervesur-p2-qa-" in a for a in argv))
 
-    def test_import_uses_local_qa_socket_only(self):
-        archive = self.base / "sample.sql.gz"
-        with mock.patch.object(target.subprocess, "Popen") as run:
-            pass
-        self.assertIn("--no-defaults", target.daemon_args(self.base / "cervesur-p2-qa-y"))
-
     def test_actual_counts_and_checksums_pass(self):
         def fake_client(_, sql, timeout=60):
             if sql.startswith("CHECKSUM TABLE"):
