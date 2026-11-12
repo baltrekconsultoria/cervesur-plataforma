@@ -113,7 +113,7 @@ def audit(src: str) -> dict[str, str]:
                 status = helper_status(bodies.get(name_of_helper))
                 statuses[name_of_helper] = status
                 output[f"LECTURA_{name.upper()}"] = (
-                    "INDICIO_HELPER_LITERAl_SIN_SECRETO" if status == "INDICIO_LITERALES_SIN_SECRETO"
+                    "INDICIO_HELPER_LITERALES_SIN_SECRETO" if status == "INDICIO_LITERALES_SIN_SECRETO"
                     else "REVISAR_HELPER_DINAMICO"
                 )
             else:
