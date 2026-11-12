@@ -56,7 +56,7 @@ try {
     $pdo->exec("INSERT INTO $table (id,first_name,last_name,email,role,password)
       VALUES (42,'QA','User','p5r@example.invalid','user','FAKE_OLD')");
     $pdo->exec("CREATE USER '$account'@'%' IDENTIFIED BY " . $pdo->quote($accountPass));
-    $pdo->exec("GRANT SELECT (id, role, is_active) ON $table TO '$account'@'%'");
+    $pdo->exec("GRANT SELECT (id, role, is_active, session_version) ON $table TO '$account'@'%'");
     $pdo->exec("GRANT UPDATE (first_name, last_name, phone, is_active, session_version, updated_at, last_login) ON $table TO '$account'@'%'");
     $restricted = new PDO("mysql:host=p5rqa-db;dbname=$db;charset=utf8mb4", $account, $accountPass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false
