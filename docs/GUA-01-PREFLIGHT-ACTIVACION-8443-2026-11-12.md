@@ -285,3 +285,32 @@ CAMBIOS_PRODUCTIVOS=NO
 **Acumulado:** K2 archivo router y sanitizador coincidieron; A2 F-4 (dos routers) coincidió, F-5a coincidió; A1 estructura PASS; F10 guardia PASS y POST anónimo HTTP401; K1 HTTP410 para una entrada; P4a de permisos no sensibles PASS. No repetir ni desplegar estos correctivos. Quedan F-5b y F-5c sin comprobar, pruebas negativas con cuenta autorizada (roles A1/F10/A2), conciliación K1 de modo observar/retirar, JWT 10800 vs 86400, D3 restante y constancias/rollback/decisiones de continuidad Flutter. `ADMIN_WRITES_USUARIOS` / sensible siguen OFF y P4b NO-GO hasta liberar la fase.
 
 **Siguiente prueba agrupada y acotada:** inspección estructural sin escritura de rutas POST/PUT/DELETE en `ReporteRouter.php` (F5b) y `EmpresaReporteUsuarioRouter.php` (F5c). Requerir en cada operación `require_auth`, validación explicita de rol `admin` y respuesta 403 antes de controlador. No inferir PASS HTTP solo de patrones estáticos. No hacer otra auditoría general de empresa/reportes ni repetir huellas ya aprobadas.
+
+## 12/11/2026 — F-5b y F-5c: 6/6 comprobaciones de autorización estructural PASS
+
+El operador ejecutó comprobación SOLO LECTURA en los routers productivos del legado, evaluando la secuencia `require_auth(...)` → chequeo de `role == admin` → `403` → `exit` en cada ruta de escritura POST, PUT y DELETE. Salida:
+
+```text
+=== CERVESUR: CIERRE ESTRUCTURAL F5B F5C ===
+F5B_POST=PASS_ESTRUCTURAL
+F5B_PUT=PASS_ESTRUCTURAL
+F5B_DELETE=PASS_ESTRUCTURAL
+F5B_RESULTADO=PASS
+F5C_POST=PASS_ESTRUCTURAL
+F5C_PUT=PASS_ESTRUCTURAL
+F5C_DELETE=PASS_ESTRUCTURAL
+F5C_RESULTADO=PASS
+CAMBIOS_PRODUCTIVOS=NO
+```
+
+**Alcance del PASS:** seis patrones estructurales en `router/ReporteRouter.php` (F-5b) y `router/EmpresaReporteUsuarioRouter.php` (F-5c) conformes; no demuestra autorización HTTP extremo a extremo, el cierre de todas las rutas alternativas ni comportamiento en la base de datos. No repetir lectura ni reinstalar F-5b/F-5c. Queda con evidencia favorable de versión o estructura el conjunto K2 (router+sanitizador), A1 (F3 en UserRouter), A2 F4 (asignaciones, empresa-usuario), F5a (router empresas), F5b, F5c y F10 (guardia y 401 anonimo). `P4A_PRIVILEGIOS=PASS`, `K1_HTTP_410=PASS` para entrada probada.
+
+**Decisión operativa:** cerrar fase de verificaciones estáticas por archivo. Preparar **una sola revisión de liberación P4b** con evidencias existentes, y cubrir solamente huecos que cambian seguridad/continuidad:
+
+1. Autorización funcional + DBA e informe de gates K1/K2/A1/A2/A3 y D3 aceptados en entrada(s) reales; verificar comportamiento con una cuenta QA `user` y otra admin, sin operaciones de negocio salvo prueba expresamente aprobada.
+2. Diferencia **JWT_EXPIRATION=10800 (3h)** productivo frente a **86400 (24h)** de la decisión previa: resolver por cambio planeado + prueba Flutter o decisión documentada de aceptar duración actual. No forzar el resultado del verificador ni tocar secreto sin autorización.
+3. K1 tiene literales `observar` y `retirar`; confirmar cierre formal de modo efectivo en todas las entradas y conservar resultado 410, con criterio de detector D4 ajustado a la implementación, no declarando falsamente que no existe `observar`.
+4. F10 PR22 guardia instalada y POST anónimo 401; prueba 403 con `user` válido pendiente. Alta de Flutter sin JWT bloqueada por F10: aprobar continuidad de altas por 8443 ya liberado o puente DBA. Las 114 cuentas activas siguen sin inicialización segura de contraseña y el portal 443 tiene otra cuenta MySQL sin SELECT de `user`.
+5. Plan de respaldo/reversión del interruptor P4b; activar **solo** U-BASIC una vez que todas las puertas se declaren GO; sensible/P5 sigue OFF.
+
+**Estado final de este bloque:** `F5B=PASS_ESTRUCTURAL`, `F5C=PASS_ESTRUCTURAL`, `P4B=NO_GO_PENDIENTE_LIBERACION`; `GESTION_USUARIOS=OFF` y `GESTION_SENSIBLE=OFF` según último chequeo de entorno. Ninguna modificación productiva se ejecutó en esta conversación.
