@@ -120,11 +120,13 @@ def client(socket: Path, sql: str, timeout: int = 60) -> str:
 
 def initialize(qa_root: Path) -> None:
     path = qa_root / "data"
-    tmp = qa_root / "tmp"
+    if path.exists() or path.is_symlink():
+        raise NoGo("MYSQL_QA_DATADIR_NO_DEBE_EXISTIR")
+    # MySQL recommends only --datadir and --user during --initialize.
+    # The mysql-owned parent is private; mysqld creates the datadir itself.
     argv = [
         "mysqld", "--no-defaults", "--initialize-insecure", "--user=mysql",
-        "--datadir=" + str(path), "--tmpdir=" + str(tmp),
-        "--log-error=" + str(qa_root / "error.log"),
+        "--datadir=" + str(path),
     ]
     execute(argv, 180)
 
@@ -230,7 +232,7 @@ def private_tmp(mysql_uid: int, mysql_gid: int) -> Path:
     root = Path(tempfile.mkdtemp(prefix="cervesur-p2-qa-", dir=TMP_PARENT))
     os.chown(root, mysql_uid, mysql_gid)
     root.chmod(0o700)
-    for name in ("data", "tmp"):
+    for name in ("tmp",):
         sub = root / name
         sub.mkdir(mode=0o700)
         os.chown(sub, mysql_uid, mysql_gid)
