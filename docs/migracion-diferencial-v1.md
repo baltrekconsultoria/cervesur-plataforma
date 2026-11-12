@@ -382,3 +382,18 @@ Evidencia reportada por el operador:
 **Siguiente gate:** confirmar `sudo cmp -s` entre el snapshot del staging y `/var/lib/cervesur-migration/snapshots/legado.json` sin mostrar contenido, verificar que `resultado-agregado.json` no exista, y solo entonces ejecutar bajo `www-data` `compare_snapshots.py` con ambos JSON en el directorio privado y `--salida` nueva. La salida puede compartirse si contiene exclusivamente los agregados previstos. No solicitar, imprimir, copiar a GitHub ni adjuntar HMAC/snapshots.
 
 **Estado:** preparado para el dry-run semantico; aun **no existe salida de comparacion validada**. Prohibidos DML, activacion de usuarios o despliegues.
+
+### Dry-run semantico entre legado y React: EJECUTADO (12/11/2026)
+
+Operador ejecuto `compare_snapshots.py` en Ubuntu como `www-data` sobre ambos snapshots privados; `COMPARACION_PREFLIGHT=PASS`. Resultado `version=cervesur-dryrun-v1`, `modo=SOLO_DIAGNOSTICO`, `privacidad=NO_PII_NO_HASHES_NO_TOKENS_EN_REPORTE`. Comparacion `key_id` compatible, sin colisiones reportadas. **No hubo escrituras en MySQL** y `puede_aplicar_migracion=false`.
+
+**Resumen real** (solo agregados):
+- Usuarios origen 176 activos; destino 62 activos; **76 identidades coincidentes por email** (sobre totales de 190 origen/76 destino), **114 usuarios activos del origen sin correo coincidente** en destino; 0 conflictos `username` igual y correo diferente.
+- Empresas: 25/25 del origen coinciden por RUC con el destino (26 total, 1 adicional).
+- Reportes: 95 equivalencias por `reporte_id` entre 264 origen y 95 destino; **169 referencias del origen sin equivalente**; **80 de los 95 reportes coincidentes con enlace distinto**. La fuente de enlaces finales es el checklist actualizado de Power BI, no el legado ni el destino por defecto.
+- Asignaciones: **226** cadenas efectivas unicas origen, **91** destino, **0** coincidencias; **226** faltantes destino; `pendientes_con_tres_entidades_existentes_y_activas=0` y `pendientes_bloqueados_por_mapeo_o_estado=226`. Origen tiene 45 asignaciones activas invalidadas por `CADENA_INACTIVA`; destino 2 por misma razon. 0 duplicados semanticos en ambos.
+- Puertas: `colisiones_de_claves_o_ids=0` (favorable pero no autorizacion); revisiones humanas y QA de rol usuario local/403 siguen pendientes; `fase_2b_habilitada=false`, `migracion_productiva_autorizada=false`.
+
+**Lectura prudente:** los 114 usuarios activos y los 169 reportes sin match NO son inserciones a ejecutar; primero segmentar por actividad cruzada y dependencias. Ninguna de las 226 cadenas puede replicarse inmediatamente con entidades activas de destino. Diferencias de enlaces exigen reconciliar contra checklist Power BI. El resultado es **NO-GO para aplicacion automatica**.
+
+**Siguiente analisis controlado:** generar segunda matriz solo de conteos, distinguiendo actividad cruzada de usuarios/empresas/reportes y razones mutuamente excluyentes que bloquean las 226 cadenas. Ejecutar localmente sobre JSON privados ya presentes; sin exponer hashes, correos, links o IDs, sin acceso SQL ni mover los snapshots.
