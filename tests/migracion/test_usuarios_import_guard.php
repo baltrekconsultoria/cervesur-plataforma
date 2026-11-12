@@ -90,4 +90,28 @@ $bad = $plan;
 $bad['creaciones_propuestas_privadas'][1]['email'] = $snapshot['users'][0]['email'];
 expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
 
-echo "CERVESUR_IMPORT_QA=PASS\nCASOS=7\nMYSQL_MODIFICADO=NO\nSIN_PII_REAL=SI\n";
+// Un nombre de usuario original puede contener simbolos imprimibles no
+// admitidos por el formulario NUEVO; el backend admite login por username.
+$legacy = $plan;
+$legacy['creaciones_propuestas_privadas'][0]['username'] = 'ventas+sur.01';
+expectGuard(count(validatePlan($legacy, $snapshot)) === 114, 'LEGACY_PRINTABLE');
+
+// Pero caracteres de control o Unicode malformado NO deben ingresar.
+$bad = $plan;
+$bad['creaciones_propuestas_privadas'][0]['username'] = "nombre\\nsur";
+expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
+
+$bad = $plan;
+$bad['creaciones_propuestas_privadas'][0]['username'] = str_repeat('x', 51);
+expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
+
+$bad = $plan;
+$bad['creaciones_propuestas_privadas'][0]['username'] = 'nombre' . chr(0) . 'sur';
+expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
+
+// No permitir alias cruzados dentro de los 114 candidatos.
+$bad = $plan;
+$bad['creaciones_propuestas_privadas'][1]['username'] = $bad['creaciones_propuestas_privadas'][0]['email'];
+expectReject(fn() => validatePlan($bad, $snapshot), 'COLISION_O_DATOS_INVALIDOS');
+
+echo "CERVESUR_IMPORT_QA=PASS\\nCASOS=12\\nMYSQL_MODIFICADO=NO\\nSIN_PII_REAL=SI\\n";
