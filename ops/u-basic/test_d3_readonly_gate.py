@@ -21,6 +21,38 @@ class TestGate(unittest.TestCase):
             with self.assertRaises(ValueError):
                 gate.validate_local_base(url)
 
+    def test_private_vhost_and_header_injection_rejected(self):
+        self.assertEqual(
+            gate.validate_vhost("192.168.10.15", "http://127.0.0.1"),
+            "192.168.10.15",
+        )
+        self.assertIsNone(gate.validate_vhost(None, "http://127.0.0.1"))
+        for host in (
+            "8.8.8.8",
+            "192.168.10.15:80",
+            "192.168.10.15\\r\\nX-Injected: yes",
+            "untrusted.example",
+            "0.0.0.0",
+        ):
+            with self.assertRaises(ValueError):
+                gate.validate_vhost(host, "http://127.0.0.1")
+        with self.assertRaises(ValueError):
+            gate.validate_vhost("192.168.10.15", "https://127.0.0.1:8443")
+
+    def test_http_get_uses_configured_vhost(self):
+        output = io.StringIO()
+        statuses = [401, 401, 200, 403, 403, 200, 200]
+        with (
+            patch("d3_readonly_gate.request_status", side_effect=statuses) as call,
+            patch("d3_readonly_gate.sys.stdin.isatty", return_value=True),
+            patch("d3_readonly_gate.prompt_token", side_effect=["a.b.c", "d.e.f"]),
+            contextlib.redirect_stdout(output),
+        ):
+            code = gate.http_lectura("http://127.0.0.1", 999, vhost="192.168.10.15")
+        self.assertEqual(code, 0)
+        self.assertTrue(all(c.args[-1] == "192.168.10.15" for c in call.call_args_list))
+        self.assertIn("D3_HTTP_GET=PASS_7_DE_7", output.getvalue())
+
     def test_source_missing_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             output = io.StringIO()
