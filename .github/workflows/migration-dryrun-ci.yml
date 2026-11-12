@@ -26,11 +26,14 @@ jobs:
           python-version: '3.12'
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.1'
           tools: none
           coverage: none
       - name: Sintaxis PHP
-        run: php -l ops/migracion/export_snapshot.php
+        run: |
+          php -l ops/migracion/export_snapshot.php
+          php -l ops/migracion/cron_preflight.php
+          php -l ops/migracion/cron_db_preflight.php
       - name: Compilacion Python
         run: python -m py_compile ops/migracion/compare_snapshots.py tests/migracion/test_dryrun.py
       - name: Pruebas sinteticas sin datos personales
