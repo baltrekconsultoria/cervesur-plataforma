@@ -7,7 +7,7 @@ PAQ=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=lib.sh
 source "$PAQ/scripts/lib.sh"
 URL_ADMIN="https://localhost:8443"
-CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:8443:127.0.0.1")
+CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:8443:192.168.200.12")
 trap api_limpiar EXIT
 
 MODE=""
