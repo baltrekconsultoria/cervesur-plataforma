@@ -496,3 +496,17 @@ La exportacion privada del destino esta completada, pero **no se ha construido n
 **Siguiente puerta: hosting cPanel legado, usuarios exclusivamente.** Usar la misma ubicacion no publica `/home/databalt/cervesur_cron_private/` y misma ruta de PHP CLI/loader verificados en las pruebas previas, verificando que la ruta `/home/databalt/public_html/backend/lib/env.php` existe; esta ruta del loader se usa solo para consultar configuracion de BD, no para guardar ni servir resultados. Subir exclusivamente el archivo revisado `ops/migracion/export_usuarios_privado.php` (rama PR #23). Verificar que este fuera de `public_html`; exportacion bajo el mismo directorio no publico `usuarios-legado.json`. Ejecutarlo con Cron Jobs de manera **puntual**, solo si no existe archivo de salida, capturando salida agregada en log privado, y eliminar cron tras observar PASS. Campos incluidos: nombre, apellido, usuario, email, telefono, rol, estado, ID local; no password ni tokens.
 
 No volver a descargar los snapshots HMAC anteriores (no contienen nombres). **El nuevo `usuarios-legado.json` contiene PII real; no enviarlo al chat/email/GitHub ni almacenarlo en un directorio publico.** Descarga local cifrada por File Manager autenticado y subida SFTP directamente a directorio privado de Ubuntu despues de PASS. Solo despues ejecutar `plan_usuarios.py` (sin SQL), previa comprobacion de CI y permisos 0600. No ejecutar INSERT/UPDATE/DELETE ni habilitar usuarios todavia.
+
+### Incidencia cPanel Cron export users-only: salida vacia (12/11/2026)
+
+Capturas de operador muestran: tarea Cron `* * * * *` configurada en cPanel con `umask 077; test -f .../usuarios-legado.json || php -q .../export_usuarios_privado.php ... > .../usuarios-legado-resultado.txt 2>&1`. Administrador de archivos privado `/home/databalt/cervesur_cron_private/` contiene `export_usuarios_privado.php` (0644) y `usuarios-legado-resultado.txt` de **0 bytes** (0600). **No se ve** `usuarios-legado.json` en la captura. **NO consta `CERVESUR_USUARIOS_EXPORT=PASS` ni se ha transferido PII**.
+
+**Interpretacion:** el Cron esta configurado y ha generado/abierto un archivo de salida, pero 0 bytes NO permite establecer causa ni concluir que el script haya completado. Una hipotesis tecnica es uso de SAPI no-CLI: el exportador sale silenciosamente si `PHP_SAPI !== 'cli'`; tambien podria existir una ejecucion interrumpida o aun en curso. No modificar `.env` ni bajar la proteccion CLI.
+
+**Puerta inmediata:** eliminar cron de exportacion repetitivo; actualizar lista de archivos para confirmar presencia/ausencia de `usuarios-legado.json`. Si no existe, realizar una sola prueba cron **sin consultas SQL ni lectura de PII** para identificar PHP SAPI/version y codigo de salida, en archivo privado. Comando de probe idempotente:
+
+```sh
+umask 077; test -e /home/databalt/cervesur_cron_private/cron-php-probe.txt || { php -r 'echo "PHP_SAPI=",PHP_SAPI,PHP_EOL,"PHP_VERSION=",PHP_VERSION,PHP_EOL;' > /home/databalt/cervesur_cron_private/cron-php-probe.txt 2>&1; echo "PHP_EXIT=$?" >> /home/databalt/cervesur_cron_private/cron-php-probe.txt; }
+```
+
+Eliminar el cron de prueba tras generar `cron-php-probe.txt`. Compartir **solo ese archivo de diagnostico** (SAPI, version y estado) y presencia de JSON; **nunca** `usuarios-legado.json`. Si SAPI no es CLI, usar la ruta **absoluta verificada** del PHP CLI disponible en cPanel, no forzar ejecucion HTTP ni cambiar codigo para aceptar CGI.
