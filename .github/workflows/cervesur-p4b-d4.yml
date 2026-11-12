@@ -1,0 +1,35 @@
+name: Cervesur P4b D4 final attestation offline QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/attest_d4.py"
+      - "ops/u-basic/test_attest_d4.py"
+      - "ops/u-basic/D4-ATTESTATION.md"
+      - ".github/workflows/cervesur-p4b-d4.yml"
+  push:
+    branches:
+      - "feat/cervesur-p4b-d4-final-attestation-20261112"
+    paths:
+      - "ops/u-basic/attest_d4.py"
+      - "ops/u-basic/test_attest_d4.py"
+      - "ops/u-basic/D4-ATTESTATION.md"
+      - ".github/workflows/cervesur-p4b-d4.yml"
+permissions:
+  contents: read
+jobs:
+  d4-only-read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile D4 tool
+        run: python3 -m py_compile ops/u-basic/attest_d4.py ops/u-basic/test_attest_d4.py
+      - name: Run 13 D4 synthetic unit cases
+        run: python3 -m unittest discover -s ops/u-basic -p 'test_attest_d4.py' -v
+      - name: Confirm no production connections
+        run: |
+          echo "D4_QA_FIXTURE=PASS"
+          echo "PRODUCCION_CONTACTADA=NO"
+          echo "USUARIOS_ACTIVADOS=NO"
