@@ -291,6 +291,11 @@ export class HttpApiClient implements ApiClient {
   async deactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/deactivate`, {}); }
   async reactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/reactivate`, {}); }
 
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    if (this.capabilities.usersPasswordReset !== true) throw new ApiError(403, 'Restablecimiento no habilitado.');
+    await this.mutate('PUT', `/api/users/${this.pk(id, 'Usuario no válido.')}/password`, { password });
+  }
+
   async changeUserRole(id: string, role: Role): Promise<void> {
     if (role !== 'admin' && role !== 'user') throw new ApiError(400, 'Rol no válido.');
     await this.mutate('PUT', `/api/user/${this.pk(id, 'Usuario no válido.')}/role`, { role });
