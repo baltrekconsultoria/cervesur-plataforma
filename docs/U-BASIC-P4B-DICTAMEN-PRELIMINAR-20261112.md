@@ -43,6 +43,14 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aaaa. D3-08 — Diagnóstico de comodín y puerta funcional (12/11)
+
+Última ejecución PuTTY: `D3_KIT_INTEGRIDAD=PASS`; `D3_08_ORIGEN_HUELLAS=PASS_2_DE_2`; `D3_08_ORIGEN_GETALL`, `GETBYID`, `SEARCH`, `GETBYCITY` = `REVISAR_SELECT_STAR`. `D3_08_POWERBI_COLUMNS=NO_IDENTIFICADO`; `D3_08_HELPERS_EN_PROYECCION=NO_DETECTADOS`. **No se probaron respuestas HTTP ni valores SQL reales.** La ausencia de filtro y el análisis de comodín son un **riesgo posible** de selección y divulgación de `powerbi_clientsecret`, no fuga confirmada; el analizador es heurístico y puede interpretar otras expresiones como comodines.
+
+**No continuar prolongando pruebas estáticas.** Preparado el kit `d3_empresa_sandbox.py` y `d3_empresa_fixture.php` para copiar temporalmente el `EmpresaModel.php` **real SHA-pinned** a un directorio privado, ejecutarlo en PHP CLI como usuario restringido con `open_basedir` y librerías sintéticas, `PDO` falso sin DSN, sin entorno, red, MySQL ni valores reales, y verificar si el resultado de cada método contiene un marcador sintético `powerbi_clientsecret`. El fixture hace fail-closed ante SQL/llamadas incompatibles y diferencia `SIN_SECRETO_EN_FIXTURE`, `SECRETO_EN_RESPUESTA_SINTETICA` e `INCONCLUSO`. Pasó el autodiagnóstico en GitHub; **pendiente resultado sobre la fuente del VPS**.
+
+Si hay `SECRETO_EN_RESPUESTA_SINTETICA`, declarar `D3-08=NO_GO` por exposición reproducible con datos sintéticos y preparar correctivo K2; si hay 4/4 sin secreto, es únicamente PASS de modelo aislado, no cierra el controlador, HTTP real ni las demás puertas y firmas P4b. Se mantiene `writes.usuarios=false`, `users_sensitive=false` y P4b NO-GO.
+
 ## 4aaa. D3-08 — Cuatro SELECT de proyección dinámica (evidencia VPS)
 
 El operador ejecutó `d3_secret_read_triage.py` con `D3_KIT_INTEGRIDAD=PASS` y `D3_08_HUELLAS=PASS_2_DE_2`. En `getAll`, `getById`, `search` y `getByCity`: `REVISAR_PROYECCION_DINAMICA`. Además `D3_08_SANEAMIENTO_UNSET=NO_DETECTADO`, `D3_08_SANEAMIENTO_METODO=NO_DETECTADO` y el controlador está presente.
