@@ -277,7 +277,7 @@ export interface ApiClient {
   /** Cambio de rol; el servidor rechaza (409) cambiar el propio o degradar al último administrador activo, y cierra las sesiones del usuario. */
   changeUserRole(id: string, role: Role): Promise<void>;
   /** P5-R: solo cuentas estandar activas; el servidor debe volver a validar rol, actor y auditoria. */
-  resetUserPassword(id: string, password: string): Promise<void>;
+  resetUserPassword?(id: string, password: string): Promise<void>;
   /** Empresas e informes del usuario con su efectividad (solo lectura). */
   getUserAccess(id: string): Promise<UserAccess[]>;
 }
