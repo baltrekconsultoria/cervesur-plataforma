@@ -590,3 +590,40 @@ La exportacion del destino `usuarios-react.json` ya tenia PASS (76 usuarios, 62 
 3. Verificar ambos JSON 0600 legibles por `www-data`, existencia del directorio privado y **no existencia** de `/var/lib/cervesur-migration/snapshots/plan-usuarios.json`.
 4. Ejecutar **una sola vez** `sudo -u www-data -- env PYTHONDONTWRITEBYTECODE=1 python3 /usr/local/lib/cervesur-migration/plan_usuarios.py --legado /var/lib/cervesur-migration/snapshots/usuarios-legado.json --react /var/lib/cervesur-migration/snapshots/usuarios-react.json --salida /var/lib/cervesur-migration/snapshots/plan-usuarios.json`. El JSON de salida contiene PII y no puede compartirse, imprimirse o subirse. El stdout solo contiene conteos agregados y banderas `mysql_modificado=false`, `aplicacion_autorizada=false`.
 5. Revisar agregados; importador/aplicacion productiva requieren gates posteriores de backup, privilegios minimos, cuentas inactivas y credenciales iniciales de manera segura y **aprobacion explicita**. Empresas, reportes y asignaciones excluidos.
+
+### Simulacion users-only: PASS; prioridad cambiada a habilitar seccion Usuarios React (12/11/2026)
+
+Evidencia de PuTTY del operador (sin PII):
+```text
+PLAN_CODE=PASS
+PLAN_SYNTAX=PASS
+LEGADO=PASS
+REACT=PASS
+PLAN_OUTPUT=READY
+CERVESUR_PLAN_USUARIOS=PASS
+aplicacion_autorizada=false
+candidatos_inactivos=114
+coincidentes_conservados=76
+destino_no_presente_en_origen=0
+destino_total=76
+existentes_con_diferencia_rol_o_username=0
+motivos_revision={}
+mysql_modificado=false
+origen_total=190
+revision_requerida=0
+sin_correo_coincidente=114
+DATOS_PERSONALES_EN_CONSOLA=NO
+```
+
+Resultado: 114 cuentas candidatas nuevas, inicialmente **inactivas** y sin password en la propuesta; 76 cuentas destino conservadas, 0 conflictos; **aun no hay INSERT ni activacion real**.
+
+**Nueva prioridad del responsable:** habilitar la seccion de **Usuarios** de React 8443 para el administrador, aparte de la importacion eventual de 114 cuentas. NO confundir 'hacer visible listado de usuarios' con 'habilitar escrituras U-BASIC' o 'habilitar cambios sensibles P5'.
+
+**Estado comprobado en documentos de la rama `feat/cervesur-ux-09a-cierre-usuarios`:**
+- `docs/UX-09B-TABLERO-EJECUCION.md` describe listado/busqueda y consulta de acceso U04/U07 **ya disponibles en lectura**; P4b habilita **solo** alta `user`, edicion de nombre/apellido/telefono, y desactivar/reactivar con espera 24 horas. P5 rol/contraseña sigue separado, bloqueado.
+- `deploy/produccion-escritura/scripts/interruptor-usuarios.sh` posee `estado`, `encender --autorizacion ...`, `apagar`. `encender` **modifica** el `.env` de 8443 tras gates, respalda y comprueba capacidades; exige `CERVESUR_CONFIRMAR_USUARIOS=SI` y credenciales de QA. **No ejecutarlo a ciegas ni copiarlo al servidor desde rama distinta**.
+- Issue #17 rectifica operacion productiva del 10/11: C5 SQL, backup/restauracion P2, instalacion P3 con Usuarios OFF y privilegios P4a no sensibles PASS reportados; hay que comprobar vigencia solo lectura, no repetirlos.
+- `docs/UX-09B-PUERTAS-DE-SEGURIDAD.md` exige cierre K2, K1, A2, A1, A3/F-10 y seguridad D3/D4, firmas y autorizaciones para P4b. Algunos controles siguen sin cierre; NO inferir GO a partir de `CERVESUR_PLAN_USUARIOS=PASS`.
+- **Ninguna modificacion ejecutada en React 8443, MySQL, Flutter 80, Apache, Power BI ni interruptores.**
+
+**Siguiente accion sin escritura y sin contrasenas:** comprobar respuesta HTTPS del admin 8443, existencia/propietarios de archivos y script del interruptor en el paquete desplegado, y obtener salida de `estado` solo si el paquete instalado se verifica como confiable. No mostrar `.env`, JWT, cookies, contrasenas ni archivos con PII. Si listado ya visible, QA de lectura por administrador y usuario normal sin crear nuevas cuentas. Con datos actuales, **P4b/P5 sigue pendiente** de gates aunque el usuario solicito habilitar Usuarios funcionalmente.
