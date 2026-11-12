@@ -530,3 +530,17 @@ Referencias publicas de cPanel EA4 (2026):
 **Siguiente puerta puntual:** borrar crons de prueba/export anteriores; si no existe `usuarios-legado.json`, ejecutar una tarea temporal cron con `/usr/local/bin/php -r ...` y salida exclusivamente en archivo privado `cron-php-cli-probe.txt`, protegida contra repeticion. Confirmar `PHP_SAPI=cli` y `PHP_EXIT=0`, eliminar el cron de probe. Solo entonces recrear exportacion de usuarios con ruta **`/usr/local/bin/php`** (no `php`, sin `-q`) y destino existente guardado, sin imprimir PII. Eliminar cron inmediatamente despues del PASS. No sobrescribir un JSON preexistente.
 
 Estado: export users-only legado pendiente; usuario React ya exportado PASS 76/62, sin passwords ni escrituras.
+
+### Users-only legado — CLI confirmado; exportacion sigue sin PASS (12/11/2026)
+
+El operador aporto `cron-php-cli-probe.txt` y nuevas capturas de Cron Jobs / File Manager:
+```text
+PHP_SAPI=cli
+PHP_VERSION=8.1.35
+PHP_EXIT=0
+```
+Se confirma que `/usr/local/bin/php` resuelve efectivamente al CLI en el hosting; solucionado el problema anterior del comando `php` que resolvia a `php-cgi`.
+
+El Cron exportador de users-only esta configurado con `/usr/local/bin/php` (sin `-q`) y periodicidad temporal `* * * * *`. File Manager muestra `usuarios-legado-resultado.txt` de **53 bytes**, ya no 0, y **no aparece** `usuarios-legado.json`. Sin contenido del resultado NO afirmar ningun codigo de error concreto ni que la base de datos falle.
+
+**Siguiente gate:** borrar el Cron exportador repetitivo, abrir unicamente `usuarios-legado-resultado.txt` y compartir el codigo cerrado `CERVESUR_USUARIOS_EXPORT=ERROR_...` para diagnostico. No reintentar export ni modificar loader/`.env`, permisos, credenciales o SAPI antes de leer el error; no transferir datos personales. Alcance sigue exclusivo usuarios, MySQL sin DML y React users-only export PASS 76/62.
