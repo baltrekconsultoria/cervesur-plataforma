@@ -209,3 +209,24 @@ CAMBIOS_PRODUCTIVOS=NO
 **Próximo control focalizado SOLO LECTURA:** obtener SHA-256 vigente de `router/auth.php`, resultado `php -l` y presencia de marcadores `F10-20261111` o `REGISTRO_ABIERTO` (solo sí/no). No imprimir código ni variables secretas. Si existe protección alternativa, revisarla antes de parchear; si no, recuperar únicamente una copia saneada del bloque `POST /api/register` por canal privado, calcular huella original y actualizar el PR #22 con nuevo parche mínimo y nuevas pruebas aisladas. La confirmación `D4-09 FAIL` (marcador ausente) no sustituye revisión del bloque activo.
 
 **Pendencias adicionales intactas:** JWT 10800 s frente a 86400 previsto; K1 `observar` y `retirar` pese a 410 en una entrada; 9 rutas JWT fallback; K2/A1/A2/A3-F10 y D3. P4a ya PASS; Usuario/sensible siguen OFF. Procedimiento puente de altas Flutter y autorizaciones de DBA/funcional siguen necesarios antes de liberar F10. No se realizó ninguna operación en producción desde el asistente.
+
+## 12/11/2026 — CORRECCIÓN CRÍTICA: auth.php contiene marcador F-10 de PR #22
+
+Resultado real de solo lectura aportado por el operador:
+
+```text
+AUTH_SHA256=4633907aa733a3548c4c78cfdc42dac315fb8925e2eca39de4883cd127ab3366
+AUTH_BYTES=4971
+AUTH_SINTAXIS=PASS
+MARCADOR_PR22=PRESENTE
+MARCADOR_F10_LEGACY=AUSENTE
+CAMBIOS_PRODUCTIVOS=NO
+```
+
+**Reinterpretación obligatoria** del hallazgo anterior `AUTH_PHP=NO_COINCIDE`: el PR #22 exige como preimagen SHA `a4f063a5...`, de modo que un archivo **ya parchado** naturalmente NO coincidirá con esa preimagen. En `ops/f10/patch_register.py` el guardia añade exactamente **373 bytes** de código (marcador `F10-20261111`, `get_jwt_secret_or_fail`, `require_auth`, rol `admin`), que sumados a los **4598 bytes** del `auth.php` heredado documentado producen **4971 bytes**, idéntico al tamaño observado. El marcador PR22 aparece en el fichero, el lint PHP pasa y la huella H1 estaba en PASS. **Hipótesis fuerte: F-10 de PR22 YA ESTÁ INSTALADO EN PRODUCCIÓN**; falta cotejar el contenido del bloque y verificar HTTP 401 sin token. No atribuir el cambio a una acción del asistente: se observó en el servidor, no se ejecutó apply aquí.
+
+**D4-09 FAIL debe reclasificarse como `VERIFICADOR_NO_RECONOCE_MARCADOR_PR22` hasta confirmar la protección real**. D4 busca exclusivamente `REGISTRO_ABIERTO` de diseño F10 legacy anterior; PR22 instala una guardia `F10-20261111` sin ese literal. Es un posible **falso negativo del detector**, NO prueba de registro abierto. NO cambiar `.env`, ni reinstalar PR22, ni revertir el `auth.php` actual; no alterar SHA esperado del instalador. PR #22 sigue GitHub DRAFT, lo que no demuestra nada del estado efectivo del servidor.
+
+**Siguiente control sin modificar cuentas:** verificar por lectura (en mismo archivo y dentro de la ruta POST `/api/register`) una sola guardia `F10-20261111`, `get_jwt_secret_or_fail`, `require_auth`, comparación de rol `admin`, salida 403 para rol distinto; luego probar **solo petición POST sintética con JSON `{}` y SIN token**, desde la ruta HTTP conocida del backend heredado, exigiendo HTTP 401. No probar alta con datos válidos. Si la guardia o 401 fallan, detenerse y diagnosticar. En caso PASS, `F10_GUARDIA_Y_NEGATIVO=PASS`, pero queda verificar 403 para rol no admin en cuenta de QA autorizada y documentar continuidad de alta en Flutter.
+
+**P4b aún no se enciende:** revisar los otros controles K2/A1/A2/D3, política JWT real 10800 vs 86400 y K1 estático `observar`+`retirar` con 410 HTTP. P4a PASS; no repetir. La discrepancia F10 quizá ya no sea una deuda de despliegue, sino de verificación/evidencia. P5 sensible OFF.
