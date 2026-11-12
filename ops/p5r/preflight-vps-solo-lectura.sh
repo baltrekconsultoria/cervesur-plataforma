@@ -42,7 +42,7 @@ else
 fi
 if command -v apache2ctl >/dev/null 2>&1 && apache2ctl configtest >/dev/null 2>&1; then check P5R_APACHE PASS
 else check P5R_APACHE NO_GO; fi
-if curl -fsS -m 10 --cacert "$CERT" --resolve 'localhost:8443:127.0.0.1' https://localhost:8443/api/ping >/dev/null 2>&1; then check P5R_8443 PASS
+if curl -fsS -m 10 --cacert "$CERT" --resolve 'localhost:8443:192.168.200.12' https://localhost:8443/api/ping >/dev/null 2>&1; then check P5R_8443 PASS
 else check P5R_8443 NO_GO_TLS_O_HTTP; fi
 if command -v mysql >/dev/null 2>&1; then
   grants=$(mysql -N -B -e "SHOW GRANTS FOR 'cervesur_escritura_adm'@'127.0.0.1'" 2>/dev/null) || grants=""
