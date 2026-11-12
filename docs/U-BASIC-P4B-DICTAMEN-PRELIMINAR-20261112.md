@@ -43,6 +43,14 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4a. Resultado real H1 sobre VPS (12/11)
+
+**PASS acotado del middleware autenticador H1:** el ensayo con `d3_auth_no_sqlite.php` terminó `D3_AUTH_CRITICOS=PASS_9_DE_9` después de `D3_FIXTURE_ONLY=PASS`. Validó admin, usuario, inactivo, SV revocada, inexistente, firma ajena, expirado, sin cabecera y malformado. Observaciones de riesgo: `D3_RIESGO_ROL_DESDE_JWT=MITIGADO_DB`, `D3_RIESGO_TOKEN_SIN_SV=RECHAZADO` y `D3_RIESGO_TOKEN_SIN_EXP=RECHAZADO`. Este resultado mejora explícitamente los supuestos históricos documentados sobre roles obsoletos y tokens antiguos.
+
+**Límite imprescindible:** se ejecutó la función real H1 y JWT real con PDO simulado, no un flujo HTTP completo ni SQL MySQL. No se confirmó interceptación de cabeceras duplicadas, URL/override, modelos de empresa y reportes, perfiles ajenos ni rutas de alta. Un `PASS_9_DE_9` no acredita cierre D3 global.
+
+**Siguiente puerta:** `d3_source_indicators.py` del PR #32 hace señales estructurales sin secretos sobre ocho PHP reales SHA-pinned (D3-03/06/07/08). `INDICIO_OK` no sustituye prueba de no elusión; D3-05 y las pruebas dinámicas permanecen abiertos, además de las firmas P4b.
+
 ## 4b. Incidencia de herramienta y alternativa segura (12/11)
 
 La VPS reportó `PHP_CLI=8.3.6`, `PDO_SQLITE=NO` y `CLI_GETALLHEADERS=NO`. El primer script `d3_auth_synthetic.php` pasó verificación de integridad y `php -l`, pero terminó `D3_AUTH=NO_GO_PHP_EXTENSION_O_HEADER` **antes de ejecutar los nueve escenarios**. Es una limitación del harness, NO una vulnerabilidad y NO un fallo de H1. No se instalará SQLite en la VPS para resolverla.
