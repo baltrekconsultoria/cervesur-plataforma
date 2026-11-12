@@ -105,7 +105,7 @@ def construir(legado, react):
             "last_name": old["last_name"].strip(),
             "username": old["username"].strip(),
             "email": old["email"].strip(),
-            "phone": old["phone"],
+            "phone": (None if old["phone"] is None or clave(old["phone"]) in ("", "null", "none") else old["phone"].strip()),
             "role_origen": old["role"],
             "activo_origen": old["activo"],
         }
