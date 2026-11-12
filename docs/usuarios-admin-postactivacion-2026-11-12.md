@@ -171,3 +171,7 @@ Ya existe código U-BASIC de UX-09A; no duplicar. Puerta próxima: verificar kit
 El operador obtuvo `KIT_OFICIAL=PASS` (blob de `privilegios-usuarios.sh` contra GitHub `d849a014ff938e67d3a31d88da955be7fc453462`) y `PRIVILEGIOS_USUARIOS=PASS` al ejecutar el verificador **solo lectura** `--etapa no-sensibles --verificar`. Se marca `P4A_NO_SENSIBLES=PASS_REAL`, no requiere reiterar esa puerta.
 
 **No confundir con P4b:** último estado de banderas de 8443 `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Los bloqueos documentados en UX-09B sobre K2/K1/A1/A2/A3-F10 y D3/D4, firmas y ventana no quedan resueltos por la verificación de grants. Ya existe el kit U-BASIC para encender una vez se confirme su estado GO; no hacer cambios de `.env` o reinicios manuales. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## K1: ruta antigua de token devuelve 410 (12/11/2026)
+
+El operador informó `K1_HTTP=410` al consultar sin autenticación la ruta corporativa HTTP `/api/powerbi/tokens/0`. El documento del correctivo K1 asocia 410 con modo `retirar`, mientras 400 corresponde a observación/mixto para id cero y 401 a modo exigir. Registrar `K1_RUTA_RETIRADA_HTTP=PASS`, sin confundir la prueba funcional puntual con el cierre de consumidores, uniformidad de entradas y la firma formal A-L2. Quedan pendientes K2/A1/A2/A3-F10/D3/D4 y autorización P4b. La gestión U-BASIC permanece OFF y P5-R sensible OFF. Guía de detalle [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
