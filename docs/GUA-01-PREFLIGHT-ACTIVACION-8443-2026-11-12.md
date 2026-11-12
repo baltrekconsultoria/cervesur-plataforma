@@ -267,3 +267,21 @@ CAMBIOS_PRODUCTIVOS=NO
 **A1_ROUTER=MODIFICADO_VERIFICAR no es FAIL**: el comando previo comparó únicamente con la huella **base** `60b011d54265...`. Cualquier F-3/A1 instalado cambia la huella y genera ese mensaje. La documentacion `deploy/flutter-heredado/MANIFIESTO-SHA256.md` indica base A1 `[R]` textual parcial y NO publica huella de salida completa; por ello se requiere leer únicamente las guardias `GET/PUT /api/user/profile/{id}` de forma local y compararlas con el patrón de autenticacion + dueño/admin + 403, sin imprimir JWT ni archivos enteros.
 
 **Próximo chequeo, solo A1 y discriminación F-5a:** comprobar la existencia y posición de guardia `require_auth` y `user_id` propio/admin en `UserRouter.php`; reportar SHA y booleans, además de identificar si EmpresaRouter tiene K2 solo o K2+F5a. Si A1 está instalada, no re-parchar. Con ello priorizar QA negativo de perfil ajeno en cuenta de prueba autorizada. Mantener P4b OFF hasta K2/A1/A2/D3, JWT 10800 vs 86400 y autorización de seguridad. No se escribio en produccion.
+
+## 12/11/2026 — A1 F-3 y F5a confirmados por el operador
+
+Resultados del cotejo SOLO LECTURA en servidor legado:
+
+```text
+=== CERVESUR: VALIDACION A1 Y F5A ===
+F5A=VERSION_CON_K2_Y_F5A
+A1_SHA256=41610318f9bb5cd11ad7daa40cfbcf95f1742e5f14d5c4d4b59e4613a5206709
+A1_GUARDIA=PASS_ESTRUCTURAL
+CAMBIOS_PRODUCTIVOS=NO
+```
+
+**Interpretación estricta:** `router/EmpresaRouter.php` coincide exactamente con el SHA de K2 + F-5a reportado en `deploy/flutter-heredado/MANIFIESTO-SHA256.md` (`3b0e381c...`); no se necesita reinstalar F5a. El `router/UserRouter.php` de SHA completo `41610318...` contiene la estructura de F-3/A1: autenticación `require_auth` antes de denegar con 403 a un actor no administrador que solicita un perfil ajeno. Esto es **PASS estructural de protección A1 en la ruta inspeccionada**, no suite HTTP real ni cotejo de todos los verbos/alias; su cambio de SHA con respecto a la huella BASE es esperado para un parche instalado.
+
+**Acumulado:** K2 archivo router y sanitizador coincidieron; A2 F-4 (dos routers) coincidió, F-5a coincidió; A1 estructura PASS; F10 guardia PASS y POST anónimo HTTP401; K1 HTTP410 para una entrada; P4a de permisos no sensibles PASS. No repetir ni desplegar estos correctivos. Quedan F-5b y F-5c sin comprobar, pruebas negativas con cuenta autorizada (roles A1/F10/A2), conciliación K1 de modo observar/retirar, JWT 10800 vs 86400, D3 restante y constancias/rollback/decisiones de continuidad Flutter. `ADMIN_WRITES_USUARIOS` / sensible siguen OFF y P4b NO-GO hasta liberar la fase.
+
+**Siguiente prueba agrupada y acotada:** inspección estructural sin escritura de rutas POST/PUT/DELETE en `ReporteRouter.php` (F5b) y `EmpresaReporteUsuarioRouter.php` (F5c). Requerir en cada operación `require_auth`, validación explicita de rol `admin` y respuesta 403 antes de controlador. No inferir PASS HTTP solo de patrones estáticos. No hacer otra auditoría general de empresa/reportes ni repetir huellas ya aprobadas.
