@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import hashlib
+import ipaddress
 import re
 import shutil
 import ssl
@@ -112,8 +113,25 @@ def build_client(base: str, ca_cert: str | None):
     return build_opener(*handlers)
 
 
-def request_status(opener, base: str, path: str, token: str | None) -> int:
+def validate_vhost(host: str | None, base: str) -> str | None:
+    """Only a private IPv4 Host header with an HTTP loopback connection."""
+    if host is None:
+        return None
+    if urlsplit(base).scheme != "http":
+        raise ValueError("--vhost solo se admite con --base-url HTTP local")
+    try:
+        ip = ipaddress.IPv4Address(host)
+    except ipaddress.AddressValueError as exc:
+        raise ValueError("--vhost debe ser una IPv4 privada sin puerto ni caracteres extra") from exc
+    if not ip.is_private or ip.is_multicast or ip.is_unspecified:
+        raise ValueError("--vhost debe ser una IPv4 privada")
+    return str(ip)
+
+
+def request_status(opener, base: str, path: str, token: str | None, vhost: str | None = None) -> int:
     headers = {"Accept": "application/json", "Cache-Control": "no-store"}
+    if vhost:
+        headers["Host"] = vhost
     if token:
         headers["Authorization"] = "Bearer " + token
     request = Request(base + path, headers=headers, method="GET")
@@ -131,8 +149,9 @@ def prompt_token(label: str) -> str:
     return token
 
 
-def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None) -> int:
+def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None, vhost: str | None = None) -> int:
     base = validate_local_base(base_url)
+    vhost = validate_vhost(vhost, base)
     if other_id < 1 or other_id > 2147483647:
         raise ValueError("--id-ajeno debe ser un ID existente y distinto del usuario normal")
     opener = build_client(base, ca_cert)
@@ -142,7 +161,7 @@ def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None) -> in
     ]
     result = []
     for label, path, token, expected in cases:
-        observed = request_status(opener, base, path, token)
+        observed = request_status(opener, base, path, token, vhost)
         result.append(observed == expected)
         print(f"D3_GET_{label}={'PASS' if observed == expected else 'FAIL'}_HTTP_{observed}")
     if not all(result):
@@ -162,7 +181,7 @@ def http_lectura(base_url: str, other_id: int, ca_cert: str | None = None) -> in
         ("ADMIN_PROPIO", "/api/user", admin_token, 200),
     ]
     for label, path, token, expected in cases:
-        observed = request_status(opener, base, path, token)
+        observed = request_status(opener, base, path, token, vhost)
         result.append(observed == expected)
         print(f"D3_GET_{label}={'PASS' if observed == expected else 'FAIL'}_HTTP_{observed}")
     print(f"D3_HTTP_GET={'PASS_7_DE_7' if all(result) else 'NO_GO_REVISAR_ROLES'}")
@@ -180,11 +199,12 @@ def main(argv=None) -> int:
     http_parser.add_argument("--base-url", default="http://127.0.0.1")
     http_parser.add_argument("--id-ajeno", type=int, required=True)
     http_parser.add_argument("--ca-cert", default=None)
+    http_parser.add_argument("--vhost", default=None, help="IPv4 privada del ServerName de Apache, sin cambiar la IP de conexion")
     args = parser.parse_args(argv)
     try:
         if args.accion == "fuentes":
             return fuentes(Path(args.backend))
-        return http_lectura(args.base_url, args.id_ajeno, args.ca_cert)
+        return http_lectura(args.base_url, args.id_ajeno, args.ca_cert, args.vhost)
     except (ValueError, URLError, OSError, TimeoutError, ssl.SSLError, EOFError, KeyboardInterrupt) as exc:
         # No imprimir detalles de excepciones: algunas librerias incluyen URLs/cabeceras.
         print("D3=NO_GO_ENTORNO_O_CREDENCIALES")
