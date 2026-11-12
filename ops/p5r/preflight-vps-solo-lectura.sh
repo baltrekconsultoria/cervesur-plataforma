@@ -48,7 +48,7 @@ if command -v mysql >/dev/null 2>&1; then
   grants=$(mysql -N -B -e "SHOW GRANTS FOR 'cervesur_escritura_adm'@'127.0.0.1'" 2>/dev/null) || grants=""
   if [ -n "$grants" ]; then
     # Revisa SOLO UPDATE en user, no SELECT ni grants de otras tablas.
-    usergrant=$(grep -F 'user' <<< "$grants" | grep -E '\bUPDATE[[:space:]]*\(' || true)
+    usergrant=$(grep -F 'user' <<< "$grants" | sed -nE 's/.*UPDATE[[:space:]]*\(([^)]*)\).*/\1/p' || true)
     if grep -Eiq '\b(role|password)\b' <<< "$usergrant"; then check P5R_MYSQL_SIN_SENSIBLES NO_GO
     else check P5R_MYSQL_SIN_SENSIBLES PASS; fi
   else check P5R_MYSQL_SIN_SENSIBLES NO_GO_SIN_SHOW_GRANTS; fi
