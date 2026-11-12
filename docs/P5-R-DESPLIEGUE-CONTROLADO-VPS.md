@@ -11,24 +11,28 @@ El alcance es **restablecer contraseñas de usuarios estándar activos** desde R
 - Paquete incremental: GitHub Actions #43272490325 `success`, artifact `cervesur-p5r-candidato-8443`. Commit del paquete `2aefe2366579665a0e8b8e63614f1336a1d65a7a`; no sustituir por un ZIP sin manifiesto.
 - Los scripts no se conectaron a la VPS ni alteraron la base productiva durante estos ensayos.
 
-## Correctivo de conectividad confirmado — 12/11/2026
+## Diagnóstico TLS definitivo y correctivo corporativo — 12/11/2026
 
-El preflight productivo anterior confirmó todos los controles salvo HTTPS: `P5R_BASE_GIT=PASS`, `P5R_U_BASIC_ON=PASS`, `P5R_MYSQL_SIN_SENSIBLES=PASS`, `P5R_8443=NO_GO_TLS_O_HTTP`. Diagnóstico sin cambios productivos: `ss -lnt` y `apache2ctl -S` corroboraron **escucha exclusiva `192.168.200.12:8443`**, no `127.0.0.1:8443`; `curl` sin privilegios obtuvo `(77) error setting certificate file` al intentar leer un certificado bajo `/etc/apache2/...` (solo se pudo leer con `sudo openssl`). Certificado vigente Oct 2026–Oct 2027, SAN `DNS:localhost`, IP `127.0.0.1`; **no tiene SAN 192.168.200.12**.
+**Pruebas de la VPS aportadas por operador:** Apache escucha únicamente en `192.168.200.12:8443`. El VHost usa `ServerName 192.168.200.12` y `SSLCertificateFile /etc/apache2/cervesur-react-admin/tls-corp/servidor.crt`. El certificado **servido en 8443** tiene SAN `IP Address:192.168.200.12`, emisor `CN=Cervesur CA interna (IP privada)`, y vence el 01/12/2027; su huella SHA-256 es `E7:54:29:92:1C:9E:5D:B1:D5:33:8B:B5:65:BB:2B:A6:C3:B3:3A:D2:66:E3:7D:0F:A2:19:FA:2C:45:F7:C7:54`.
 
-Correctivo en PR #33: `ops/p5r/preflight-vps-solo-lectura.sh`, `instalar-codigo-p5r.sh` e `interruptor-p5r.sh` conectan a `192.168.200.12:8443` usando **URL `https://localhost:8443` y `curl --resolve localhost:8443:192.168.200.12 --cacert ...`**. Esto preserva la identidad TLS para `localhost`, sin desactivar validación ni reconfigurar Apache. Los scripts de instalación y activación usan root para leer el certificado. NO utilizar `-k`/`--insecure`; NO conceder permiso público al certificado ni a las claves.
+El otro certificado `/etc/apache2/cervesur-react-admin/tls/servidor.crt` es de PRUEBA: SAN `DNS:localhost, IP Address:127.0.0.1`, huella distinta. No está presentado por el VHost corporativo. Las sondas de localhost con `--resolve` están **superadas** y producen `curl (60)` por identidad incorrecta.
 
-Sonda auxiliar en PuTTY, **solo lectura**, antes de descargar kit nuevo:
+**Código corregido en PR #33:** `ops/p5r/preflight-vps-solo-lectura.sh`, `instalar-codigo-p5r.sh` e `interruptor-p5r.sh` usan exclusivamente `https://192.168.200.12:8443` y `curl --noproxy '*' --cacert "$P5R_CA_FILE"`. El certificado de autoridad confiable se obtiene desde `CERVESUR_P5R_CA_FILE` cuando el DBA valida cuál está disponible, o se usa por defecto `/etc/ssl/certs/ca-certificates.crt` si incluye la CA corporativa. **Nunca** usar el certificado de hoja como si fuera CA ni omitir `--cacert`, no usar `-k`.
+
+**Sonda de CA raíz — solo lectura, sin credenciales, antes de instalar:**
 
 ```bash
-sudo curl -sS --connect-timeout 5 --max-time 15 \
-  --cacert /etc/apache2/cervesur-react-admin/tls/servidor.crt \
-  --resolve localhost:8443:192.168.200.12 \
-  -o /dev/null -w 'P5R_HTTPS_HTTP=%{http_code}\nP5R_HTTPS_VERIFY=%{ssl_verify_result}\n' \
-  https://localhost:8443/api/ping
+sudo curl --noproxy '*' -sS --connect-timeout 5 --max-time 15 \
+  --cacert /etc/ssl/certs/ca-certificates.crt \
+  -o /dev/null \
+  -w 'P5R_HTTPS_HTTP=%{http_code}\nP5R_HTTPS_VERIFY=%{ssl_verify_result}\n' \
+  https://192.168.200.12:8443/api/ping
 echo "P5R_HTTPS_RC=$?"
 ```
 
-Exigir `P5R_HTTPS_HTTP=200`, `P5R_HTTPS_VERIFY=0`, `P5R_HTTPS_RC=0`; si no coinciden, mantener **NO-GO** y capturar error sin exponer tokens. La revisión del script `ops/p5r/preflight-vps-solo-lectura.sh` necesita nuevo commit y su **nuevo SHA Git blob**; prohibido descargar el archivo anterior y omitir chequeo de integridad. Regenerar el artifact desde la última cabeza aprobada; el ZIP del commit 2aefe236 usa scripts antiguos 127.0.0.1 y está **superseded**.
+Exigir HTTP 200, verify=0, RC=0. Si falla por `unable to get local issuer certificate`, identificar CA interna de Cervesur existente en ruta legible por root (sin tocar permisos, Apache ni el almacén global) y probar `--cacert /ruta/ca-interna.crt`. Solamente al confirmarla, ejecutar preflight con `CERVESUR_P5R_CA_FILE=/ruta/ca-interna.crt` en el entorno del proceso `sudo`. **No inventar ruta CA ni sustituir por certificado de hoja**.
+
+No hay autorización para cambiar certificados o Apache. Los scripts de versiones con `localhost` o `--resolve` anteriores no deben utilizarse. Regenerar el artefacto desde commit aprobado que contenga esta corrección.
 
 ## Puerta 0: VPS en solo lectura (obligatoria)
 
