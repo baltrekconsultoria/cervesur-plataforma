@@ -146,8 +146,20 @@ expectCase($s === 404, 'un informe dado de baja no se abre en el visor');
 expectCase($s === 200 && $s2 === 200 && in_array($d2['data']['modo'] ?? '', ['publico', 'privado', 'no_compatible'], true), 'reactivado, el visor responde (único camino que entrega el enlace)');
 expectCase((int)one($root, "SELECT COUNT(*) FROM audit_log WHERE entity = 'reporte' AND entity_id = ?", [$rid]) === 6, 'alta + tres ediciones + baja + reactivación auditadas (6 filas)');
 $n1 = (int)one($root, 'SELECT COUNT(*) FROM reporte');
-[$s] = api('appaw', 'POST', '/api/reportes', $t, ['nombre' => 'Sin grupo', 'descripcion' => 'x', 'enlace' => 'https://app.powerbi.com/view?r=eyJrIjoiMTIzNDU2Nzg5MDEyMyJ9']);
-expectCase(in_array($s, [400, 422], true) && (int)one($root, 'SELECT COUNT(*) FROM reporte') === $n1, 'enlace sin grupo (grupo_id es NOT NULL): rechazado, no se inventa ni se deja vacío');
+// UX-08B4: el esquema real es NOT NULL, pero el backend genera su identificador INTERNO
+// para un enlace publico sin groupId. Es un UUID de Cervesur, NO un grupo de Microsoft.
+[$s, $web] = api('appaw', 'POST', '/api/reportes', $t, ['nombre' => 'Sin grupo', 'descripcion' => 'x', 'enlace' => 'https://app.powerbi.com/view?r=eyJrIjoiMTIzNDU2Nzg5MDEyMyJ9']);
+$webId = (int)($web['data']['id'] ?? 0);
+$webRow = $webId ? one($root, 'SELECT reporte_id, grupo_id FROM reporte WHERE id = ?', [$webId]) : null;
+expectCase($s === 200 && $webId > 0 && (int)one($root, 'SELECT COUNT(*) FROM reporte') === $n1 + 1
+    && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', (string)($webRow['grupo_id'] ?? '')) === 1
+    && $webRow['grupo_id'] === $webRow['reporte_id'],
+    'UX-08B4: enlace publico creado en NOT NULL con UUID interno, auditado y sin grupo Power BI real');
+if ($webId) {
+    $root->prepare('DELETE FROM reporte WHERE id = ?')->execute([$webId]); // cleanup SOLO en DB sintetica
+}
+expectCase((int)one($root, 'SELECT COUNT(*) FROM reporte') === $n1,
+    'UX-08B4: limpieza fixture, filas historicas intactas');
 
 echo "== Accesos y asignaciones\n";
 [$s, $d] = api('appaw', 'POST', '/api/empresa-usuario', $t, ['user_id' => 3, 'empresa_id' => 2]); $eu = (int)($d['InsertedId'] ?? $d['id'] ?? 0);
