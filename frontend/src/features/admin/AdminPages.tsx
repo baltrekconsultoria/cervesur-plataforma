@@ -13,6 +13,7 @@ import { CompanyDialog } from './CompanyDialog';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { NewUserDialog } from './NewUserDialog';
 import { UserAccessDialog, UserEditDialog } from './UserDialogs';
+import { UserResetPasswordDialog } from './UserResetPasswordDialog';
 import { ReportDialog } from './ReportDialog';
 import { RevokeDialog } from './RevokeDialog';
 
@@ -116,6 +117,7 @@ export function AdminUsersPage() {
   const [viewing, setViewing] = useState<User | null>(null);
   const [toggling, setToggling] = useState<{ user: User; to: 'off' | 'on' } | null>(null);
   const [roleChange, setRoleChange] = useState<User | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<User | null>(null);
   const [notice, setNotice] = useState('');
   // UX-08B.3: los botones de edición, estado y rol solo aparecen si el SERVIDOR tiene habilitada la administración de usuarios.
   const userAdmin = useAsync(async () => (canWrite(capabilities, 'usuarios') ? api.getUserAdminEnabled().catch(() => false) : false), [api, capabilities.adminWrites, capabilities.writes]);
@@ -128,6 +130,11 @@ export function AdminUsersPage() {
       {creating && <NewUserDialog onClose={() => setCreating(false)} onCreated={username => { setCreating(false); setNotice(`Usuario «${username}» creado correctamente.`); bump(); }} />}
       {editing && <UserEditDialog user={editing} onClose={() => setEditing(null)} onStale={bump} onSaved={name => { setEditing(null); setNotice(`Usuario «${name}» actualizado correctamente.`); bump(); }} />}
       {viewing && <UserAccessDialog user={viewing} onClose={() => setViewing(null)} />}
+      {resettingPassword && <UserResetPasswordDialog
+        user={resettingPassword}
+        onClose={() => setResettingPassword(null)}
+        onSaved={() => { setNotice(`Contraseña de «${resettingPassword.displayName}» restablecida. Informe la nueva clave por un canal seguro.`); setResettingPassword(null); bump(); }}
+      />}
       {toggling && (
         <ConfirmActionDialog
           title={toggling.to === 'off' ? 'Desactivar usuario' : 'Reactivar usuario'} labelId="us-toggle-title"
@@ -172,6 +179,10 @@ export function AdminUsersPage() {
               {manage && (
                 <>
                   {' '}<Button variant="secondary" size="sm" aria-label={`Editar ${u.displayName}`} onClick={() => { setNotice(''); setEditing(u); }}>Editar</Button>
+                  {capabilities.usersPasswordReset === true && u.role === 'user' && u.active && u.id !== me?.id && !u.loginBlocked && (
+                    <>{' '}<Button variant="secondary" size="sm" aria-label={`Restablecer contraseña de ${u.displayName}`}
+                      onClick={() => { setNotice(''); setResettingPassword(u); }}>Restablecer contraseña</Button></>
+                  )}
                   {u.id !== me?.id && !u.loginBlocked && u.active && capabilities.usersSensitive !== false && <>{' '}<Button variant="secondary" size="sm" aria-label={`Cambiar rol de ${u.displayName}`} onClick={() => { setNotice(''); setRoleChange(u); }}>Cambiar rol</Button></>}
                   {u.id !== me?.id && (u.active
                     ? <>{' '}<Button variant="secondary" size="sm" aria-label={`Desactivar a ${u.displayName}`} onClick={() => { setNotice(''); setToggling({ user: u, to: 'off' }); }}>Desactivar</Button></>
