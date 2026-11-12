@@ -191,6 +191,8 @@ export interface ApiCapabilities {
   writes?: WriteCapabilities;
   /** UX-08H fase 2B: el servidor permite cambiar rol y contraseña (interruptor aparte). Sin este campo (o en `false`) la interfaz no ofrece «Cambiar rol». */
   usersSensitive?: boolean;
+  /** P5-R: solo restablecer contrasena de cuentas estandar; independiente de P5 roles. Fail-closed si falta. */
+  usersPasswordReset?: boolean;
   /** UX-08I (P4a): en el modo `admin_escritura` el servidor no permite cambiar el correo de un usuario (la cuenta de React no tiene UPDATE(email)); el formulario lo muestra solo como referencia. */
   emailReadOnly?: boolean;
   /** UX-08H fase 2B: horas que deben pasar entre desactivar y reactivar a un usuario (protege sesiones antiguas de Flutter). */
@@ -274,6 +276,8 @@ export interface ApiClient {
   reactivateUser(id: string): Promise<void>;
   /** Cambio de rol; el servidor rechaza (409) cambiar el propio o degradar al último administrador activo, y cierra las sesiones del usuario. */
   changeUserRole(id: string, role: Role): Promise<void>;
+  /** P5-R: solo cuentas estandar activas; el servidor debe volver a validar rol, actor y auditoria. */
+  resetUserPassword?(id: string, password: string): Promise<void>;
   /** Empresas e informes del usuario con su efectividad (solo lectura). */
   getUserAccess(id: string): Promise<UserAccess[]>;
 }

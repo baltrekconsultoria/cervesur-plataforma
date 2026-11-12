@@ -13,7 +13,7 @@ export type MockScenario = 'normal' | 'empty' | 'forbidden';
  * Las credenciales no se validan: basta un usuario sintético existente y una contraseña no vacía.
  */
 export class MockApi implements ApiClient {
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true, liveViewer: false };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true, usersPasswordReset: false, liveViewer: false };
   private seed: Seed = createSeed();
   private sessions = new Map<string, string>();
   /** Datos técnicos y de contacto que el modelo normalizado no lleva (solo para los formularios administrativos). */
@@ -326,6 +326,16 @@ export class MockApi implements ApiClient {
     if (user.active) throw new ApiError(409, 'El usuario ya está activo');
     user.active = true;
     this.record('user.reactivate', 'user', id, { is_active: 0 }, { is_active: 1 });
+  }
+
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    const admin = this.requireUserAdmin();
+    if (this.capabilities.usersPasswordReset !== true) throw new ApiError(403, 'Restablecimiento bloqueado.');
+    const target = this.seed.users.find(u => u.id === id);
+    if (!target || !target.active || target.role !== 'user' || target.loginBlocked || target.id === admin.id) throw new ApiError(409, 'Solo usuarios estandar activos.');
+    if (password.length < 12 || new TextEncoder().encode(password).length > 72) throw new ApiError(400, 'Contrasena invalida.');
+    for (const [token, userId] of this.sessions) if (userId === id) this.sessions.delete(token);
+    this.record('user.password', 'user', id, null, { password_changed: true, session_revocada: true });
   }
 
   async changeUserRole(id: string, role: Role): Promise<void> {

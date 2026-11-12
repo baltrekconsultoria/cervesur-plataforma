@@ -126,7 +126,9 @@ export const FASE2B_ORIGENES = [
   'privileges/UX-08I-usuarios-no-sensibles.up.sql.template',
   'privileges/UX-08I-usuarios-no-sensibles.down.sql.template',
   'privileges/UX-08I-usuarios-sensibles.up.sql.template',
-  'privileges/UX-08I-usuarios-sensibles.down.sql.template'
+  'privileges/UX-08I-usuarios-sensibles.down.sql.template',
+  'privileges/UX-09C-p5r-password-reset.up.sql.template',
+  'privileges/UX-09C-p5r-password-reset.down.sql.template'
 ];
 export const esperadosFase2b = () => FASE2B_ORIGENES.map(f => basename(f));
 
@@ -166,6 +168,12 @@ export function validarFase2b(root) {
   const sinComentarios = f => (existsSync(join(dir, f)) ? lf(readFileSync(join(dir, f), 'utf8')).split('\n').filter(l => !l.trim().startsWith('--')).join('\n') : '');
   const noSens = sinComentarios('UX-08I-usuarios-no-sensibles.up.sql.template');
   const sensText = sinComentarios('UX-08I-usuarios-sensibles.up.sql.template');
+  const resetUp = sinComentarios('UX-09C-p5r-password-reset.up.sql.template');
+  const resetDown = sinComentarios('UX-09C-p5r-password-reset.down.sql.template');
+  if (resetUp.replace(/\s+/g, ' ').trim() !== "GRANT UPDATE (password) ON `{DB}`.`user` TO '{USER}'@'{HOST}';")
+    p.push('P5-R solo puede conceder UPDATE(password) sobre user');
+  if (resetDown.replace(/\s+/g, ' ').trim() !== "REVOKE UPDATE (password) ON `{DB}`.`user` FROM '{USER}'@'{HOST}';")
+    p.push('La reversión P5-R solo puede quitar UPDATE(password)');
   if (/GRANT\s+UPDATE\s*\([^)]*\b(role|password)\b[^)]*\)/i.test(noSens)) p.push('la plantilla «no sensibles» concede UPDATE de role o password');
   // UX-08I (P4a): el alta es SOLO por la vista; la cuenta de React no conserva INSERT sobre `user` ni UPDATE(email)
   if (/GRANT\s+INSERT[^;]*ON\s+`\{DB\}`\.`user`/i.test(noSens)) p.push('la plantilla «no sensibles» concede INSERT sobre user: el alta debe ser solo por v_user_alta');

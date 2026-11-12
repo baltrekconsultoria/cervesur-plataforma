@@ -1,0 +1,49 @@
+name: Cervesur P5-R MySQL real aislado
+on:
+  push:
+    branches:
+      - 'feat/cervesur-p5r-reset-usuarios-20261112'
+    paths:
+      - 'database/privileges/UX-09C-p5r-*'
+      - 'backend/lib/admin_escritura.php'
+      - 'tests/isolated/p5r_mysql_grant_test.php'
+      - '.github/workflows/cervesur-p5r-mysql.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mysql-p5r:
+    name: MySQL 8 efimero - permisos y rollback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Ejecutar MySQL/PDO autenticos en contenedores aislados
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TEST_DB_PASS="$(openssl rand -hex 24)"
+          export P5R_QA_HOST=p5rqa-db
+          docker network create p5rqa-net >/dev/null
+          cleanup() { docker rm -f p5rqa-db >/dev/null 2>&1 || true; docker network rm p5rqa-net >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --rm --name p5rqa-db --network p5rqa-net \
+            --env MYSQL_ROOT_PASSWORD="$TEST_DB_PASS" \
+            mysql:8.0 >/dev/null
+          docker build --tag cervesur-p5r-php:isolated --file tests/isolated/Dockerfile .
+          ready=0
+          for i in $(seq 1 75); do
+            if docker exec --env MYSQL_PWD="$TEST_DB_PASS" p5rqa-db \
+                 mysql -uroot -N -e 'SELECT 1' >/dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          [ "$ready" -eq 1 ] || { echo "P5R_MYSQL=FAIL_BOOT"; exit 1; }
+          docker run --rm --network p5rqa-net \
+            --env TEST_DB_PASS --env P5R_QA_HOST --env CI=true \
+            --volume "$PWD:/work:ro" --workdir /work \
+            cervesur-p5r-php:isolated php tests/isolated/p5r_mysql_grant_test.php
+          echo "P5R_MYSQL_INTEGRATION=PASS"
+          echo "VPS_CONTACTADA=NO"
+          echo "MYSQL_PRODUCTIVO_MODIFICADO=NO"

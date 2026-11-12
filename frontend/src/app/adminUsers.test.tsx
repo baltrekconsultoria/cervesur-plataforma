@@ -19,10 +19,11 @@ class UsersMock extends MockApi {
   }
 }
 
-async function setup(enabled = true) {
+async function setup(enabled = true, resetEnabled = false) {
   const tokens = createMemoryTokenStore();
   const mock = new UsersMock(tokens);
   mock.userAdminEnabled = enabled;
+  mock.capabilities.usersPasswordReset = resetEnabled;
   render(
     <MemoryRouter initialEntries={['/login']}>
       <AppProvider services={{ tokens, client: mock, mock }}>
@@ -46,6 +47,28 @@ async function setup(enabled = true) {
   const dialog = () => screen.findByRole('dialog');
   return { user, mock, nav, rows, dialog };
 }
+
+describe('P5-R · recuperación restringida', () => {
+  it('no ofrece el botón mientras el servidor no declara la capacidad', async () => {
+    await setup();
+    expect(screen.queryByRole('button', { name: /Restablecer contraseña de/ })).toBeNull();
+  });
+
+  it('permite reset solo al usuario estándar con confirmación y nunca al admin', async () => {
+    const t = await setup(true, true);
+    const action = await screen.findByRole('button', { name: 'Restablecer contraseña de María Ríos' });
+    expect(screen.queryByRole('button', { name: 'Restablecer contraseña de Elena Torres' })).toBeNull();
+    await t.user.click(action);
+    const dialog = await t.dialog();
+    await t.user.type(within(dialog).getByLabelText('Nueva contraseña'), 'TemporalSegura2026!');
+    await t.user.type(within(dialog).getByLabelText('Confirmar contraseña'), 'TemporalSegura2026!');
+    await t.user.click(within(dialog).getByRole('button', { name: 'Confirmar restablecimiento' }));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Confirme que informará al usuario por un canal seguro');
+    await t.user.click(within(dialog).getByRole('checkbox'));
+    await t.user.click(within(dialog).getByRole('button', { name: 'Confirmar restablecimiento' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Contraseña de «María Ríos» restablecida'));
+  });
+});
 
 describe('UX-08B.3 · Usuarios', () => {
   it('sin el interruptor del servidor no hay botones de edición, estado ni rol (solo lectura de accesos)', async () => {

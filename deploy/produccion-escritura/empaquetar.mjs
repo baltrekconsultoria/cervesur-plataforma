@@ -103,7 +103,7 @@ if (FASE2B) {
   colocarFase2b(ROOT, REPO, fail);
   // El instalador de la fase 2A (A1/A2) y su reversión no forman parte del paquete 2B: lo instalado YA es la fase 2A.
   for (const f of ['actualizar.sh', 'modo-escritura.sh', 'revertir-codigo.sh', 'preflight-fase2a.sh']) rmSync(join(ROOT, 'scripts', f), { force: true });
-  notas.push('fase2b/repo/ con las 6 plantillas UX-08I (vista de alta + privilegios) y su SHA256SUMS; sin los instaladores A1/A2 de la fase 2A');
+  notas.push('fase2b/repo/ con 6 plantillas UX-08I y 2 plantillas UX-09C P5-R (vista de alta + privilegios) y su SHA256SUMS; sin los instaladores A1/A2 de la fase 2A');
 }
 for (const doc of FASE2B ? ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md', 'UX-08I-FASE-2B-AUDITORIA-GO-NO-GO.md', 'UX-08I-FASE-2B-LIBERACION.md'] : ['UX-08H1-LIBERACION-DIRECTA-PRODUCCION.md']) if (existsSync(join(REPO, 'docs', doc))) copy(join(REPO, 'docs', doc), `docs/${doc}`); else notas.push(`docs/${doc} no existe: no se incluye`);
 
@@ -139,7 +139,7 @@ for (const file of files) {
   if (/IDENTIFIED BY '(?!\{PASS\}|__)[A-Za-z0-9!]{12,}'/.test(text)) problems.push(`contraseña en un SQL: ${r}`);
 }
 if (!existsSync(join(ROOT, 'backend', 'lib', 'write_support.php'))) problems.push('falta backend/lib/write_support.php');
-for (const f of FASE2B ? ['scripts/instalar-codigo-2b.sh', 'scripts/privilegios-usuarios.sh', 'scripts/interruptor-usuarios.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/lib.sh'] : ['scripts/actualizar.sh', 'scripts/modo-escritura.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/revertir-codigo.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/preflight-fase2a.sh', 'scripts/lib.sh']) if (!existsSync(join(ROOT, f))) problems.push(`falta ${f}`);
+for (const f of FASE2B ? ['scripts/instalar-codigo-2b.sh', 'scripts/privilegios-usuarios.sh', 'scripts/interruptor-usuarios.sh', 'scripts/interruptor-p5r.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/lib.sh'] : ['scripts/actualizar.sh', 'scripts/modo-escritura.sh', 'scripts/interruptores.sh', 'scripts/apagar-escrituras.sh', 'scripts/revertir-codigo.sh', 'scripts/verificar-posdespliegue.sh', 'scripts/comprobar-otros-portales.sh', 'scripts/preflight-fase2a.sh', 'scripts/lib.sh']) if (!existsSync(join(ROOT, f))) problems.push(`falta ${f}`);
 if (problems.length) { rmSync(ROOT, { recursive: true, force: true }); if (scratch) rmSync(scratch, { recursive: true, force: true }); fail(`El paquete no cumple las garantías de liberación:\n - ${problems.join('\n - ')}`); }
 
 // 6. RELEASE.json (dentro del paquete: sin el SHA del .tar.gz, que no puede contener su propio hash) y SHA256SUMS

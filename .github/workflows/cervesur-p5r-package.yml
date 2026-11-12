@@ -1,0 +1,87 @@
+name: Cervesur P5-R release candidato VPS 8443
+on:
+  push:
+    branches:
+      - 'feat/cervesur-p5r-reset-usuarios-20261112'
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'database/privileges/UX-09C-*'
+      - 'deploy/produccion-escritura/scripts/instalar-codigo-p5r.sh'
+      - 'deploy/produccion-escritura/scripts/interruptor-p5r.sh'
+      - 'deploy/produccion-escritura/scripts/privilegios-usuarios.sh'
+      - '.github/workflows/cervesur-p5r-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-release:
+    name: Paquete incremental sin modificar produccion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Dependencias y compilacion 8443
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts
+          CERVESUR_ALLOWED_HOSTS=localhost,192.168.200.12 npm run build:admin-write
+          npm run verify:admin-write
+      - name: Verificar instalador, PHP y rollback
+        run: |
+          set -euo pipefail
+          bash -n deploy/produccion-escritura/scripts/instalar-codigo-p5r.sh
+          bash -n deploy/produccion-escritura/scripts/interruptor-p5r.sh
+          bash -n deploy/produccion-escritura/scripts/privilegios-usuarios.sh
+          for f in backend/lib/admin_escritura.php backend/lib/mode.php backend/router/AdminWriteRouter.php backend/models/UserModel.php; do
+            php -l "$f"
+          done
+          node deploy/produccion-escritura/probar-empaquetado.mjs
+      - name: Armar candidato incremental con huellas y sin secretos
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/stage/backend/lib output/stage/backend/router output/stage/backend/models \
+            output/stage/public output/stage/scripts output/stage/fase2b/repo output/stage/docs output/release
+          for f in lib/admin_escritura.php lib/mode.php router/AdminWriteRouter.php models/UserModel.php; do
+            cp -p "backend/$f" "output/stage/backend/$f"
+          done
+          cp -a frontend/dist-admin-write/. output/stage/public/
+          for f in lib.sh instalar-codigo-p5r.sh interruptor-p5r.sh privilegios-usuarios.sh; do
+            cp -p "deploy/produccion-escritura/scripts/$f" "output/stage/scripts/$f"
+          done
+          for f in database/privileges/UX-08I-* database/privileges/UX-09C-p5r-*; do
+            cp -p "$f" output/stage/fase2b/repo/
+          done
+          ( cd output/stage/fase2b/repo && sha256sum *.template > SHA256SUMS )
+          cp docs/P5-R-RESETEO-RESTRINGIDO-PILOTO.md output/stage/docs/
+          cat >output/stage/base-git-blobs.txt <<'BASE'
+          f834b59bf238838070aeb33e68fedebc34f3a30e backend/lib/admin_escritura.php
+          074fc2473b4ec79db9177815b29fa2faf4855512 backend/lib/mode.php
+          a681cda87d3e5c266b5d91bce9fd49241a1d45a8 backend/router/AdminWriteRouter.php
+          6a770161e45580ff722b30edf20594a1866c758f backend/models/UserModel.php
+          BASE
+          printf 'P5-R RC (NO APROBADO PARA PRODUCCION)\ncommit=%s\npuerto=8443\nmodo=admin-write\n' "$GITHUB_SHA" >output/stage/RELEASE.txt
+          ( cd output/stage && find backend public scripts fase2b docs base-git-blobs.txt RELEASE.txt -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
+          ( cd output/stage && sha256sum -c SHA256SUMS --quiet )
+          ! find output/stage -type f -name '.env*' -print -quit | grep -q .
+          ! find output/stage -type f \( -name '*.key' -o -name '*.pem' \) -print -quit | grep -q .
+          NAME="cervesur-p5r-rc-${GITHUB_SHA:0:12}-8443"
+          tar -czf "output/release/$NAME.tar.gz" -C output/stage .
+          ( cd output/release && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256" )
+          echo "P5R_RELEASE_ARTIFACT=$NAME"
+          echo "PRODUCCION_CONTACTADA=NO"
+          echo "DESPLIEGUE=NO"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cervesur-p5r-candidato-8443
+          path: output/release/*
+          retention-days: 10
+          if-no-files-found: error

@@ -74,16 +74,18 @@ export class HttpApiClient implements ApiClient {
     this.capabilities.adminWrites = false;
     this.capabilities.writes = undefined;
     this.capabilities.usersSensitive = false;
+    this.capabilities.usersPasswordReset = false;
     this.capabilities.reactivateAfterHours = undefined;
     try {
       const env = await this.request('GET', '/api/admin/capacidades');
-      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; reactivate_after_hours?: unknown } | undefined;
+      const payload = env.data as { writes?: Record<string, unknown>; users_sensitive?: unknown; users_password_reset?: unknown; reactivate_after_hours?: unknown } | undefined;
       const w = payload?.writes;
       if (!w || typeof w !== 'object') return;
       const writes = { empresas: w.empresas === true, reportes: w.reportes === true, accesos: w.accesos === true, usuarios: w.usuarios === true };
       this.capabilities.writes = writes;
       this.capabilities.adminWrites = writes.empresas || writes.reportes || writes.accesos || writes.usuarios;
       this.capabilities.usersSensitive = writes.usuarios && payload?.users_sensitive === true;
+      this.capabilities.usersPasswordReset = writes.usuarios && payload?.users_password_reset === true && payload?.users_sensitive !== true;
       if (typeof payload?.reactivate_after_hours === 'number' && payload.reactivate_after_hours >= 0) this.capabilities.reactivateAfterHours = payload.reactivate_after_hours;
     } catch {
       this.capabilities.adminWrites = false;
@@ -288,6 +290,11 @@ export class HttpApiClient implements ApiClient {
 
   async deactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/deactivate`, {}); }
   async reactivateUser(id: string): Promise<void> { await this.mutate('POST', `/api/users/${this.pk(id, 'Usuario no válido.')}/reactivate`, {}); }
+
+  async resetUserPassword(id: string, password: string): Promise<void> {
+    if (this.capabilities.usersPasswordReset !== true) throw new ApiError(403, 'Restablecimiento no habilitado.');
+    await this.mutate('PUT', `/api/users/${this.pk(id, 'Usuario no válido.')}/password`, { password });
+  }
 
   async changeUserRole(id: string, role: Role): Promise<void> {
     if (role !== 'admin' && role !== 'user') throw new ApiError(400, 'Rol no válido.');
