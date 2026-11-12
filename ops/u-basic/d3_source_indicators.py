@@ -97,7 +97,7 @@ def analyze(sources: dict[str, str]) -> dict[str, str]:
             r"(?=\n\s*(?:public|protected|private)\s+function|\Z)",
             company, re.DOTALL
         )
-        return bool(segment and re.search(r"withoutSecrets\s*\(", segment["body"]))
+        return bool(segment and re.search(r"withoutSecrets\s*\(|[\'\"]withoutSecrets[\'\"]", segment["body"]))
     secret_read_paths = all(method_has_secret_filter(name) for name in (
         "getAll", "getById", "search", "getByCity"
     ))
