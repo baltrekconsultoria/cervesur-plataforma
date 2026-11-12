@@ -230,3 +230,20 @@ CAMBIOS_PRODUCTIVOS=NO
 **Siguiente control sin modificar cuentas:** verificar por lectura (en mismo archivo y dentro de la ruta POST `/api/register`) una sola guardia `F10-20261111`, `get_jwt_secret_or_fail`, `require_auth`, comparación de rol `admin`, salida 403 para rol distinto; luego probar **solo petición POST sintética con JSON `{}` y SIN token**, desde la ruta HTTP conocida del backend heredado, exigiendo HTTP 401. No probar alta con datos válidos. Si la guardia o 401 fallan, detenerse y diagnosticar. En caso PASS, `F10_GUARDIA_Y_NEGATIVO=PASS`, pero queda verificar 403 para rol no admin en cuenta de QA autorizada y documentar continuidad de alta en Flutter.
 
 **P4b aún no se enciende:** revisar los otros controles K2/A1/A2/D3, política JWT real 10800 vs 86400 y K1 estático `observar`+`retirar` con 410 HTTP. P4a PASS; no repetir. La discrepancia F10 quizá ya no sea una deuda de despliegue, sino de verificación/evidencia. P5 sensible OFF.
+
+## 12/11/2026 — F10 guardia instalada y rechazo anonimo QA PASS REAL
+
+El operador ejecuto el QA focalizado de la ruta legacy usando `auth.php` con SHA-256 `4633907aa733a3548c4c78cfdc42dac315fb8925e2eca39de4883cd127ab3366`, sin alterar archivos y enviando exclusivamente POST con JSON `{}` SIN token. Salida real:
+
+```text
+=== CERVESUR: QA F10 INSTALADO ===
+F10_GUARDIA=PASS
+F10_HTTP_SIN_TOKEN=401
+F10_NEGATIVO=PASS
+```
+
+**Resultado acotado:** la guardia esta presente dentro de `POST /api/register` y contiene marcador `F10-20261111`, `get_jwt_secret_or_fail`, `require_auth`, chequeo de `role=admin` y respuesta 403 para rol no admin. La entrada HTTP del legado retorna **401** ante POST anonimo de datos invalidos. Por tanto **F10_REGISTRO_ANONIMO=PASS_REAL**; el falso negativo D4-09 del verificador esta desactualizado y busca `REGISTRO_ABIERTO`, no el marcador PR22. No alterar ni reinstalar PR22.
+
+**Limitaciones pendientes:** No se ha efectuado prueba HTTP con una cuenta QA de rol `user`/`usuario` validamente autenticada para confirmar rechazo 403. El test de cuerpo `{}` no sustituye un examen de toda la cadena de servidor ni acredita autorizacion de flujo admin. Flutter heredado no envia JWT en `RegisterCall`: su flujo anterior de alta probablemente se interrumpe, por lo que se requiere decision de continuidad/alternativa DBA mientras la alta 8443 siga OFF. No crear cuentas reales para demostrar.
+
+**Puertas acumuladas para GUA-01:** P4a permisos MySQL no sensibles PASS REAL; K1 HTTP 410 PASS en una entrada, cierre formal/consumidores pendiente; F10 anonimato PASS REAL, 403 no-admin pendiente. D4 JWT real 10800 s frente a objetivo 86400; D4 K1 ve `observar` y `retirar`; nueve literales default heredados. K2, A1, A2, D3 y autorizaciones son pendientes de verificacion de sus evidencias. **P4b permanece OFF** y P5 sensible OFF. Ningun cambio productivo realizado desde ChatGPT.
