@@ -231,3 +231,25 @@ stat:
 **Siguiente gate propuesto, aun NO ejecutado:** `sudo -l` de manera interactiva, siempre local y sin compartir contrasena; registrar solo reglas que autorizan ejecutar como `www-data` o instalar una copia privilegiada. Si existe autorizacion efectiva de Infra/operador, copiar el preflight revisado a una ubicacion NO publica bajo propiedad `root:root`, permisos directorio 0755 y PHP 0644, con checksum y `php -l` antes de ejecutar como `www-data`; no elevar el propio script a root, no ejecutar la copia modificable en HOME. El servicio `www-data` solo debe recibir la lectura temporal necesaria; no leer ni imprimir `.env`.
 
 Si `sudo -l` no autoriza el mecanismo acotado o el equipo no tiene autorizacion operacional, **NO-GO** a ejecutar como `www-data`: usar DBA para una cuenta SQL de lectura dedicada o pedir una ejecucion supervisada. No modificar permisos, propietarios, grupos, `.env`, cron productivo, flags ni acceso de usuarios. Documentar resultado antes de cualquier otra accion.
+
+### Ubuntu — sudo autenticado, autorizaciones OS confirmadas (12/11/2026)
+
+El operador ejecuto `sudo -l` autenticando localmente, sin compartir contrasena:
+
+```text
+Matching Defaults entries for usr_cervesur on presupuestos:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin,
+    use_pty
+User usr_cervesur may run the following commands on presupuestos:
+    (ALL : ALL) ALL
+```
+
+**Interpretacion:** la configuracion sudoers permite comandos como cualquier usuario/grupo tras autenticar. Esto **no implica por si mismo** autorizacion de negocio/Infra para hacer cambios productivos; se limita el paso siguiente al preflight previamente acordado y de solo lectura.
+
+**Procedimiento acotado, sin tocar `/var/www/cervesur`:**
+1. Actualizar el checkout de la rama PR #23 mediante `git pull --ff-only`; verificar que `git status --porcelain` este limpio. No copiar codigo con modificaciones locales o codigo no revisado.
+2. Instalar una copia con `sudo install` en `/usr/local/lib/cervesur-migration/ubuntu_db_preflight.php`, propiedad `root:root`, archivo `0644`, carpeta `0755`. Esta ruta esta fuera de DocumentRoot. Confirmar `sha256sum` contra el archivo del checkout despues de instalarlo y `php -l` en la copia protegida.
+3. Ejecutar **solo** `sudo -u www-data -- /usr/bin/php /usr/local/lib/cervesur-migration/ubuntu_db_preflight.php --loader=/var/www/cervesur/backend/lib/env.php`, una vez, **sin sudo root PHP**, sin exponer contenido `.env` ni habilitar cambios de MySQL.
+4. Revisar exclusivamente salida agregada. Si no resulta PASS, detener y diagnosticar causa. No instalar exportador, no mover la clave ni habilitar usuarios hasta preflight PASS y siguiente puerta aprobada.
+
+**No-GO:** no usar `sudo cat .env`, no dar mas permisos a `.env`, no copiar secretos, no cambiar ACL, no correr scripts editables bajo `www-data`.
