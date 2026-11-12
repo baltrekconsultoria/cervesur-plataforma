@@ -165,3 +165,9 @@ El código de GitHub de esta rama incluye directorio, alta y asignación pero ca
 El operador obtuvo con lectura de `lib/env.php`/codigo declarado del backend 8443: `CODIGO_FASE_2B=PRESENTE`, `MODO=PASS` (`admin_escritura`), `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. El marcador 2B no sustituye una atestación de versión completa. La gestion productiva de escritura de usuarios **NO** quedó activada. Estado de los 190 usuarios sin cambios.
 
 Ya existe código U-BASIC de UX-09A; no duplicar. Puerta próxima: verificar kit oficial y salvaguardas de P4b (K2/K1/A1/A2/A3-F10, D3/D4 y firmas de DBA/negocio) antes de ejecutar interruptor. Los controles de passwords P5-R permanecen separados y NO-GO. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## P4a confirmado en el servidor con kit oficial (12/11/2026)
+
+El operador obtuvo `KIT_OFICIAL=PASS` (blob de `privilegios-usuarios.sh` contra GitHub `d849a014ff938e67d3a31d88da955be7fc453462`) y `PRIVILEGIOS_USUARIOS=PASS` al ejecutar el verificador **solo lectura** `--etapa no-sensibles --verificar`. Se marca `P4A_NO_SENSIBLES=PASS_REAL`, no requiere reiterar esa puerta.
+
+**No confundir con P4b:** último estado de banderas de 8443 `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Los bloqueos documentados en UX-09B sobre K2/K1/A1/A2/A3-F10 y D3/D4, firmas y ventana no quedan resueltos por la verificación de grants. Ya existe el kit U-BASIC para encender una vez se confirme su estado GO; no hacer cambios de `.env` o reinicios manuales. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
