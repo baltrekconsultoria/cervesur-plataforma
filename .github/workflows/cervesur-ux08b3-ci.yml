@@ -1,0 +1,64 @@
+name: Cervesur UX-08B3 reportes sin grupo QA
+on:
+  push:
+    branches:
+      - 'feat/cervesur-ux08b3-reportes-grupo-opcional-20261112'
+  pull_request:
+    branches:
+      - 'feat/cervesur-p5r-reset-usuarios-20261112'
+permissions:
+  contents: read
+jobs:
+  preflight-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verificar shell y migracion limitada a una columna
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ops/reportes/preflight-ux08b3-solo-lectura.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          up=Path('database/migrations/UX-08B3-reporte-grupo-nullable.up.sql').read_text()
+          sql=' '.join(x.strip() for x in up.splitlines() if x.strip() and not x.lstrip().startswith('--')).strip()
+          assert sql == 'ALTER TABLE reporte MODIFY grupo_id VARCHAR(50) NULL;', sql
+          assert Path('tests/isolated/http_report_nogroup_test.php').is_file()
+          preflight=Path('ops/reportes/preflight-ux08b3-solo-lectura.sh').read_text()
+          for forbidden in ['--force', '--insecure', 'DROP TABLE', 'ALTER TABLE reporte MODIFY', 'TRUNCATE TABLE']:
+              assert forbidden not in preflight, forbidden
+          print('UX08B3_STATIC=PASS')
+          PY
+      - name: Migracion SQL y rollback sobre MySQL 8 desechable
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="ux08b3-db-qa"
+          PASS="$(openssl rand -hex 18)"
+          docker run --detach --name "$NAME" --env MYSQL_ROOT_PASSWORD="$PASS" mysql:8.0 >/dev/null
+          trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
+          db() { docker exec --env MYSQL_PWD="$PASS" "$NAME" mysql --user=root --batch --skip-column-names "$@"; }
+          for attempt in $(seq 1 40); do
+            if db -e 'SELECT 1' >/dev/null 2>&1; then break; fi
+            [ "$attempt" != 40 ] || { echo "MYSQL8_START=FAIL"; exit 1; }
+            sleep 2
+          done
+          db -e "CREATE DATABASE test_ux08b3 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+          db test_ux08b3 -e "CREATE TABLE reporte (id INT PRIMARY KEY AUTO_INCREMENT, grupo_id VARCHAR(50) NOT NULL, enlace VARCHAR(500) NOT NULL, KEY grupo_idx (grupo_id)) ENGINE=InnoDB; INSERT INTO reporte(grupo_id,enlace) VALUES ('grupo-original','https://example.invalid/original');"
+          docker exec --env MYSQL_PWD="$PASS" -i "$NAME" mysql --user=root test_ux08b3 < database/migrations/UX-08B3-reporte-grupo-nullable.up.sql
+          [ "$(db -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='test_ux08b3' AND TABLE_NAME='reporte' AND COLUMN_NAME='grupo_id'")" = YES ]
+          db test_ux08b3 -e "INSERT INTO reporte(grupo_id,enlace) VALUES (NULL,'https://example.invalid/publico')"
+          [ "$(db test_ux08b3 -e "SELECT COUNT(*) FROM reporte WHERE grupo_id IS NULL")" = 1 ]
+          [ "$(db test_ux08b3 -e "SELECT grupo_id FROM reporte WHERE id=1")" = grupo-original ]
+          if docker exec --env MYSQL_PWD="$PASS" -i "$NAME" mysql --user=root test_ux08b3 < database/migrations/UX-08B3-reporte-grupo-nullable.down.sql >/dev/null 2>&1; then
+            echo "UX08B3_ROLLBACK_PROTEGIDO=FAIL"
+            exit 1
+          fi
+          db test_ux08b3 -e "DELETE FROM reporte WHERE grupo_id IS NULL"
+          docker exec --env MYSQL_PWD="$PASS" -i "$NAME" mysql --user=root test_ux08b3 < database/migrations/UX-08B3-reporte-grupo-nullable.down.sql >/dev/null
+          [ "$(db -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='test_ux08b3' AND TABLE_NAME='reporte' AND COLUMN_NAME='grupo_id'")" = NO ]
+          echo "UX08B3_MYSQL8=PASS"
+          echo "PRODUCCION_CONTACTADA=NO"
