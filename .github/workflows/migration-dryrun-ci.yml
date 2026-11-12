@@ -36,6 +36,7 @@ jobs:
           php -l ops/migracion/cron_db_preflight.php
           php -l ops/migracion/cron_hmac_bootstrap.php
           php -l ops/migracion/ubuntu_db_preflight.php
+          php -l ops/migracion/export_usuarios_privado.php
       - name: Regression - Ubuntu .env denied without leaked warnings
         shell: bash
         run: |
@@ -56,6 +57,6 @@ jobs:
             exit 1
           fi
       - name: Compilacion Python
-        run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py
+        run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py ops/migracion/plan_usuarios.py tests/migracion/test_plan_usuarios.py
       - name: Pruebas sinteticas sin datos personales
         run: python -m unittest discover -s tests/migracion -v
