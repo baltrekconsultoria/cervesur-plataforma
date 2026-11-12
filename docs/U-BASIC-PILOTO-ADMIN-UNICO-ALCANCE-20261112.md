@@ -42,6 +42,24 @@ Se localizó el kit operativo exacto en `/home/usr_cervesur/ux08i-rc1c-candidato
 
 **Pendientes críticos reducidos:** comprobar con lectura local (sin publicar user_ids) que `usuarios_piloto` contiene exactamente **un** registro activo para el admin designado; autorización explícita y trazable de responsable funcional/DBA para excepción de alcance y responsabilidad de respaldo/rollback; cuenta QA y operación de auditoría posterior. La sentencia permitida `estado_ejecutar($pdoEstado,'lista_blanca_listar',[])` está disponible en PHP **CLI** del backend, ya que `db_usuarios.php` usa `estado_sentencias(PHP_SAPI === 'cli')`. No imprimir filas, IDs, contraseñas, secretos ni SQL. El script `interruptor-usuarios.sh encender` sigue prohibido sin esos checks y autorización real.
 
+## 3c. Verificación real del administrador único (12/11/2026)
+
+El operador ejecutó contra el backend de 8443, sin modificar producción:
+
+```text
+PHP_LINT_ADMIN_ESCRITURA=PASS
+ADMIN_MODO=PASS
+ADMIN_ALLOWLIST_ACTIVOS=1
+ADMIN_UNICO=PASS
+PILOTO_ACCESO=RESTRINGIDO_A_UNA_CUENTA
+CAMBIOS_PRODUCTIVOS=NO
+U_BASIC_ACTIVADO=NO
+```
+
+El listado de la base de estado confirmó **una sola fila activa**, pero **no se verificó en la salida su identidad, la titularidad o la inexistencia de otra vía de login**. Condición operativa: el custodio corrobora en privado que es el administrador designado y que el ingreso está limitado a VPN/red interna. El backend `admin_escritura` revalida la lista blanca en cada solicitud, pero `ADMIN_WRITES_USUARIOS=1` habilitará la capacidad a todos los administradores admitidos por la lista, no a un usuario específico del flag.
+
+**GO técnico PREPARADO** para activación acotada: P3 instalado, P4a no sensibles PASS, un admin en allowlist, K1/D4/H1 y K2 aislado PASS históricos, rollback nativo del interruptor. **GO operativo PENDIENTE**: identidad admin designada y autorización comprobable del DBA y responsable funcional para la excepción temporal a UX-09B v2. Si ambos confirman y se conserva respaldo vigente, el operador puede ejecutar `interruptor-usuarios.sh encender --autorizacion "responsables/fecha/alcance"`, con las dos credenciales de verificación 8443 cargadas de forma no visible en el entorno, sin pegarlas en el chat, y el script debe revalidar HTTP403, P4a y capabilities, respaldando .env con reversión automática si falla. Después verificar `writes.usuarios=true`, `users_sensitive=false`, que solo hay un admin, y realizar una acción ficticia autorizada con un único registro en auditoría. El PR #32 sigue DRAFT.
+
 ## 4. Condiciones imprescindibles antes de encender (breve preflight)
 
 1. Confirmación nominativa del **responsable funcional y DBA** de que autorizan *esta excepción acotada*, la cuenta única autorizada, el alcance y el plan de retorno. No escribir `CERVESUR_CONFIRMAR_USUARIOS=SI` sin esa autorización real.
