@@ -202,7 +202,7 @@ if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) !== __FILE__) return;
 
 $options = [];
 foreach (array_slice($argv, 1) as $arg) {
-    if (!preg_match('/^--([a-z-]+)=(.+)$/D', $arg, $m) || isset($options[$m[1]])) stopUsers('ARGUMENTOS');
+    if (!preg_match('/^--([a-z0-9-]+)=(.+)$/D', $arg, $m) || isset($options[$m[1]])) stopUsers('ARGUMENTOS');
     $options[$m[1]] = $m[2];
 }
 $mode = $options['mode'] ?? '';
