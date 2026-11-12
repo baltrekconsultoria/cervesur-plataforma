@@ -192,6 +192,9 @@ function readBackup(string $path, string $checksum, array $rows): void {
         && $saved['rows'] === $rows, 'BACKUP_NO_COINCIDE_CON_DB');
 }
 
+// Permite cargar las funciones puras desde el QA sintetico sin conectar a BD.
+if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) !== __FILE__) return;
+
 $options = [];
 foreach (array_slice($argv, 1) as $arg) {
     if (!preg_match('/^--([a-z-]+)=(.+)$/D', $arg, $m) || isset($options[$m[1]])) stopUsers('ARGUMENTOS');
