@@ -30,6 +30,7 @@ assertP5R('reset ON no permite alias de password', (app_mode_write_gate('PUT', '
 assertP5R('reset ON no permite POST password', (app_mode_write_gate('POST', '/api/users/42/password')['status'] ?? 0) === 403);
 assertP5R('reset ON no permite UPDATE role', !p5r_sql('UPDATE user SET role = :role, session_version = session_version + 1 WHERE id = :id'));
 assertP5R('reset ON permite UPDATE solo password', p5r_sql('UPDATE user SET password = :p, session_version = session_version + 1, updated_at = NOW() WHERE id = :id'));
+assertP5R('P5-R bloquea omitir session_version', !p5r_sql('UPDATE user SET password = :p WHERE id = :id'));
 assertP5R('reset ON bloquea UPDATE role combinado', !p5r_sql('UPDATE user SET password = :p, role = :role WHERE id = :id'));
 envP5R(false, true);
 assertP5R('U-BASIC OFF bloquea reset', (app_mode_write_gate('PUT', '/api/users/42/password')['status'] ?? 0) === 403);
