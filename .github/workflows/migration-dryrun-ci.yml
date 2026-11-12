@@ -56,6 +56,6 @@ jobs:
             exit 1
           fi
       - name: Compilacion Python
-        run: python -m py_compile ops/migracion/compare_snapshots.py tests/migracion/test_dryrun.py
+        run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py
       - name: Pruebas sinteticas sin datos personales
         run: python -m unittest discover -s tests/migracion -v
