@@ -192,3 +192,20 @@ FAIL       D4-09  F-10 NO instalado en router/auth.php: POST /api/register sigue
 - `D4-09` no detectará necesariamente este esquema de guardia admin (busca el literal `REGISTRO_ABIERTO`); después de un eventual parche, verificar F-10 mediante QA HTTP negativa y revisión de la guardia instalada, no falsificar el resultado D4. La interpretación de D4-09 deberá adaptarse a la evidencia del correctivo elegido, sin declarar PASS estático si falla por semántica diferente.
 
 **Próxima decisión operacional:** para acortar el camino, utilizar **PR #22 como candidato** y realizar `preflight` de compatibilidad con huellas reales del router y H1 (sin aplicar). Antes de `apply`, definir continuidad para el alta de Flutter, verificar respaldos y contar con autorización DBA/funcional; antes de `P4b` cerrar además K2/A1/A2/D3/D4 y la política JWT. En ningún caso `K1_HTTP=410` o CI PASS abren automáticamente U-BASIC.
+
+## 12/11/2026 — Bloqueo de compatibilidad de PR #22 F-10: auth.php NO_COINCIDE
+
+El operador ejecutó la comprobación de SHA-256 de la versión real de `/var/www/cervesur/backend/router/auth.php` y del middleware H1, contrastadas contra el PR #22 (head `d76e46395b2c40c464d5c4d140906c5c1eb08a2a`). Salida reportada:
+
+```text
+=== CERVESUR: COMPATIBILIDAD F10 PR22 ===
+AUTH_PHP=NO_COINCIDE
+MIDDLEWARE_H1=PASS
+CAMBIOS_PRODUCTIVOS=NO
+```
+
+**Veredicto inmediato: PR #22 no es aplicable tal cual**, su instalador `ops/f10/f10-install-controlled.sh` exige `auth.php` SHA `a4f063a53db42d738b4b6ee9b69cdad946bb99ba496f7aebd8027a67c86621f2` y `auth_middleware.php` H1 SHA `c717dcb962eb6c01aed798bac48dfe126736ab918f3131ee509af380b5e1b298`. Solo el segundo coincide. No ejecutar `apply`, no reemplazar el router por versión de `main`, no cambiar el `EXPECTED` del instalador para superar la puerta: la diferencia puede ser una modificación legítima de producción o una ruta ya protegida por implementación diferente.
+
+**Próximo control focalizado SOLO LECTURA:** obtener SHA-256 vigente de `router/auth.php`, resultado `php -l` y presencia de marcadores `F10-20261111` o `REGISTRO_ABIERTO` (solo sí/no). No imprimir código ni variables secretas. Si existe protección alternativa, revisarla antes de parchear; si no, recuperar únicamente una copia saneada del bloque `POST /api/register` por canal privado, calcular huella original y actualizar el PR #22 con nuevo parche mínimo y nuevas pruebas aisladas. La confirmación `D4-09 FAIL` (marcador ausente) no sustituye revisión del bloque activo.
+
+**Pendencias adicionales intactas:** JWT 10800 s frente a 86400 previsto; K1 `observar` y `retirar` pese a 410 en una entrada; 9 rutas JWT fallback; K2/A1/A2/A3-F10 y D3. P4a ya PASS; Usuario/sensible siguen OFF. Procedimiento puente de altas Flutter y autorizaciones de DBA/funcional siguen necesarios antes de liberar F10. No se realizó ninguna operación en producción desde el asistente.
