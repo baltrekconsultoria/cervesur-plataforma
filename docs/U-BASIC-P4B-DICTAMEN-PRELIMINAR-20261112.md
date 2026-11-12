@@ -43,6 +43,14 @@ No se ha demostrado que todos los ocho vectores D3 estén cerrados, ni constan e
 - **Rollback y operación:** mantener backup privado P2; antes de ventana revalidar acceso, `interruptor-usuarios.sh estado`, `privilegios-usuarios.sh --etapa no-sensibles --verificar`, capacidad `users_sensitive=false` y plan de reversión a `apagar`.
 - **P5 separado:** roles y restablecimiento de contraseña NO se habilitan en P4b. Las cuentas migradas activas no equivalen a contraseñas inicializadas ni login listo.
 
+## 4aaa. D3-08 — Cuatro SELECT de proyección dinámica (evidencia VPS)
+
+El operador ejecutó `d3_secret_read_triage.py` con `D3_KIT_INTEGRIDAD=PASS` y `D3_08_HUELLAS=PASS_2_DE_2`. En `getAll`, `getById`, `search` y `getByCity`: `REVISAR_PROYECCION_DINAMICA`. Además `D3_08_SANEAMIENTO_UNSET=NO_DETECTADO`, `D3_08_SANEAMIENTO_METODO=NO_DETECTADO` y el controlador está presente.
+
+**Significado:** el análisis estático no pudo determinar columnas finales del SQL. Esto **no es PASS ni vulnerabilidad demostrada**. Las ramas GitHub actuales pueden tener helpers de proyección diferentes y **no comparten SHA con el archivo de VPS**. No asumir que lo observado en GitHub protege a producción.
+
+**Acción sin riesgos productivos:** `ops/u-basic/d3_projection_origin.py` identifica el origen del fragmento de proyección SQL dinámica usando solo los archivos reales SHA-pinned, sin ejecutar PHP ni mostrar SQL o secretos. Sus resultados seguirán siendo `INDICIO_*` o `REVISAR_*`. Después hace falta una prueba en copia fiel aislada con secreto sintético para confirmar no exposición y cerrar K2 y D3-08. P4b se conserva NO-GO.
+
 ## 4aa. Resultados estructurales adicionales y hallazgo D3-08 (12/11)
 
 El operador ejecutó `d3_source_indicators.py` con `D3_KIT_INTEGRIDAD=PASS` y `D3_FUENTES_SHA=PASS_8_DE_8`. D3-03 (método, URI y override) y D3-07 (imports, Stats y wiki) entregaron tres `INDICIO_OK` cada uno; D3-06 allowlist del perfil `INDICIO_OK`, pero `D3_06_EMAIL_EDITABLE=SI_REVISAR_POLITICA`. Es evidencia estática, no cierre de acceso ajeno/role 403 real.
