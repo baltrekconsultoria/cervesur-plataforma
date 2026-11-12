@@ -41,8 +41,7 @@ class NativeMySQL8Fixture(unittest.TestCase):
                     f = qa / "init-diagnostic.log"
                     if f.is_file():
                         for line in f.read_text(errors="replace").splitlines()[-12:]:
-                            if "ERROR" in line or "MY-" in line:
-                                print("MYSQL_FIXTURE_INIT_DIAGNOSTICO=" + line[-260:])
+                            print("MYSQL_FIXTURE_INIT_DIAGNOSTICO=" + line[-260:])
                     else:
                         print("MYSQL_FIXTURE_INIT_LOG=NO_CREAT")
                     raise
