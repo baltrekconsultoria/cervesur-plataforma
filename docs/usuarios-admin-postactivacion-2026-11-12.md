@@ -1,0 +1,227 @@
+# Cervesur - Gestión de usuarios tras migración y activación (12/11/2026)
+
+## Evidencia confirmada en producción
+
+El operador ejecutó migración de 114 cuentas, auditoría postimportación y activación de 114 cuentas nuevas.
+Salida de PuTTY:
+- CERVESUR_ACTIVACION_USUARIOS=PASS, MODO=APPLY.
+- NUEVOS_ACTIVADOS=114; ANTIGUOS_MODIFICADOS=0; TOTAL=190; ACTIVOS=176; INACTIVOS=14.
+- SESIONES_NUEVAS_CREADAS=0; CREDENCIALES_INICIALIZADAS=NO.
+- Segunda auditoría read-only: MODO=POSTFLIGHT PASS, MIGRADOS_ACTIVOS=114, ANTIGUOS_INTACTOS=76, MYSQL_MODIFICADO=NO.
+
+No repetir APPLY de importación ni activación.
+
+Backups sensibles creados fuera del DocumentRoot:
+- /var/lib/cervesur-migration/snapshots/usuarios-react-backup-preimport-20261112.json : 76 originales.
+- /var/lib/cervesur-migration/snapshots/usuarios-preactivacion-190-20261112.json : 190 antes de activación.
+
+Nunca enviar PII ni hashes a GitHub, chats, capturas o correo.
+
+## Diagnóstico de la administración en el código
+
+- frontend/src/app/App.tsx define /admin/usuarios protegido por rol admin.
+- frontend/src/features/admin/AdminPages.tsx presenta lista y filtros por rol, estado y búsqueda, con paginación visual.
+- frontend/src/api/http/httpApi.ts consume GET /api/users?status=all, con per_page=100 y todas las páginas.
+- backend/router/UserRouter.php exige JWT de admin para GET /api/users, filtrado por estado.
+- backend/controllers/AuthController.php y backend/lib/auth_middleware.php requieren contraseña válida, is_active=1, rol conocido y session_version vigente.
+- NewUserDialog.tsx solo ofrece alta de usuario activo y contraseña inicial. Faltan edición de cuentas, cambio de estado y restablecimiento seguro.
+- Los 114 usuarios activados siguen con hashes de contraseñas aleatorias desconocidas creados por el importador. No pueden iniciar sesión hasta inicializar contraseñas individuales.
+
+## Estado de entornos: comprobar el servidor antes de usar datos reales
+
+Según docs/ENTORNO-COMPATIBILIDAD-8089.md y docs/DESPLIEGUE-REACT-PRUEBA.md:
+- Flutter productivo, puerto 80, usa cervesur_portalbi.
+- React de pruebas 8088 y React de compatibilidad 8089 usan BD sintéticas aisladas.
+- La documentación puede estar desactualizada: verificar realmente vhosts, archivos, proveedor y endpoint sin leer secretos antes de cambios.
+- Nunca apuntar una instalación React de QA a la BD productiva ni sustituir Flutter sin release controlado.
+
+## Puerta inmediata: inventario Ubuntu de solo lectura
+
+Se comprobarán únicamente presencia de index.html, HTTP code de /api/ping y de /api/users anónimo en puertos 80, 8088, 8089.
+Códigos 200 de ping demuestran salud de endpoint local, NO que consulta datos reales; 401 de /api/users anónimo protege directorio. 200 de /api/users anónimo requiere STOP y revisión.
+No extraer .env, tokens, usuarios, hashes o nombres personales a salida de terminal.
+
+## Fases necesarias para gestión de usuarios
+
+1. Determinar destino React real para producción, no mezclar QA con cervesur_portalbi, confirmar HTTPS/VPN y aislamiento de sesión.
+2. Login admin existente y listado operativo completo: 190 usuarios, 176 activos, 14 inactivos; 100+90 en paginación y 401/403 de seguridad. No divulgar listados a chat.
+3. Recuperación/inicialización individual de contraseñas con token aleatorio de un uso, hash, caducidad corta, límite de intentos, canal de entrega privado y auditoría; ningún password compartido o expuesto. Evaluar envío seguro antes de activar.
+4. Administración editable: perfil, desactivar/reactivar con confirmación, no desactivar último admin, incremento session_version para revocar sesiones, auditoría. No tocar roles o asignaciones sin autorización específica.
+5. Pruebas con una cuenta controlada, revisión de rollback y despliegue segregado; no usar las 114 cuentas de clientes para pruebas.
+
+La importación y activación productivas están terminadas; habilitación React/credenciales NO realizada todavía.
+
+## PuTTY: inventario de portales realizado el 12/11/2026
+
+- FRONT_PRESENT para Flutter /var/www/cervesur/frontend/index.html.
+- FRONT_PRESENT para React QA /var/www/cervesur-react-prueba/public/index.html (8088).
+- FRONT_PRESENT para React compatibilidad /var/www/cervesur-react-compat/public/index.html (8089).
+- API_PING_PORT_80 = 404 text/html (no demuestra que Flutter este caido).
+- API_PING_PORT_8088 y API_PING_PORT_8089 = 200 application/json.
+- API_USERS_ANON_PORT_8088 y API_USERS_ANON_PORT_8089 = 401 application/json.
+
+Interpretacion: las dos API QA responden y protegen /api/users ante solicitudes anonimas. No se ha demostrado que React vea 190 usuarios productivos. Según documentación, React 8088 y 8089 son entornos aislados con bases sintéticas.
+
+### Proxima puerta: vhosts y rutas de API, solo lectura
+
+Verificar Apache vhosts asociados a 80/443/8088/8089/8443, puertos en escucha y codigo HTTP anonimo de /api/users en puerto 80. No imprimir cuerpos HTTP ni archivos .env. Un 200 JSON en /api/users anonimo requiere STOP. Las solicitudes a 127.0.0.1 pueden seleccionar el vhost por defecto, no el vhost corporativo; interpretar con cautela.
+
+No alterar la configuracion Apache ni redirigir los React QA a MySQL productivo. El objetivo posterior es un portal administrativo productivo separado y seguro, con listado real de 190 usuarios, 176 activos y 14 inactivos, mas invitaciones de credenciales individuales; sus 114 cuentas nuevas siguen sin contrasenas utilizables.
+
+## Continuidad: inventario completo de vhosts y puertos
+
+Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md) para la consolidacion de: POSTFLIGHT 190/176/14, verificacion de API 80/8088/8089, VirtualHosts habilitados para 80/443/8443 y 8088-8094, puertos realmente en LISTEN, distincion entre entorno QA y portales corporativos, y siguiente puerta para verificar HTTPS 443/8443 sin credenciales.
+
+Nota de seguridad: el repositorio es publico, por lo que el inventario de GitHub documenta el binding como interfaz interna/VPN sin publicar la IP corporativa concreta. No compartir configuraciones privadas, .env ni PII de usuarios.
+
+## Gate HTTPS corporativo 443/8443 (ejecutado 12/11, solo lectura)
+
+El operador confirmó `GET /`, `/api/ping` y `/admin/usuarios` por HTTPS con 200 (HTML, JSON, HTML respectivamente) tanto en puerto 443 como 8443. `GET /api/users?status=all` sin credenciales devolvió **403 JSON en 443** y **401 JSON en 8443**. Ninguno entregó listado anónimo. Esta evidencia no demuestra todavía que la vista React 8443 se conecte a la BD productiva, ni que el 200 HTML de `/admin/usuarios` sea gestión funcional (podría ser fallback SPA). No usar credenciales con validación de certificado deshabilitada.
+
+Para resultados, interpretación, hallazgos de vhosts y proxima verificacion segura de la BD real, consultar el documento canónico [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Puerta de configuracion productiva (12/11/2026)
+
+PuTTY: al cargar con `www-data` el `lib/env.php` de los backends DECLARADOS de ambos vhosts corporativos se recibio `PORTAL=admin DB_TARGET=PRODUCCION` y `PORTAL=usuarios DB_TARGET=PRODUCCION`. Esta clasificacion comprueba `DB_NAME=cervesur_portalbi` en ambos loaders, **no** conexion PDO ni identidad de servidor MySQL. Datos de usuarios siguen 190/176/14 por verificacion original de importacion/activacion.
+
+Proxima puerta: PDO SOLO LECTURA desde backend admin declarado, comparar conteos 190/176/14 con DB original de referencia y, si viable, identidad de servidor MySQL. Correlacionar luego mapeo Apache efectivo y funcionamiento de la interfaz admin con TLS validado; NO desplegar ni inicializar passwords antes.
+
+Detalles e historial de VirtualHosts y seguridad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## PDO real, portales 8443/443 (12/11/2026)
+
+PuTTY admin 8443: SELECT agregado mediante backend PHP declarado de admin con `DB_COUNTS=PASS`, `TOTAL=190`, `ACTIVOS=176`, `INACTIVOS=14`. Confirma conteos concordantes con la migración y activación productiva para esa conexión PDO. Todavía falta correlacionar Apache efectivo, TLS validado y acceso admin autenticado.
+
+PuTTY usuarios 443: consulta equivalente devolvió `DB_READ=ERROR` sin fase de fallo. `DB_NAME=PRODUCCION` del loader por sí solo NO garantiza conexión. Siguiente diagnóstico en etapas del loader PHP del portal 443, sin mostrar errores completos ni secretos, NO cambiar privilegios ni configuración.
+
+Para ver resultados y puertas pendientes consultar [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Diagnóstico de SELECT en backend 443 (12/11/2026)
+
+Nuevo resultado PuTTY: `USUARIOS_DB_STAGE=ERROR_SELECT`. Loader, CONFIG, PDO_CONNECT, READ_ONLY y BEGIN fueron superados, pero falló el SELECT agregado de tabla `user` por causa todavía no clasificada. **No** diagnosticarlo automáticamente como falta de GRANT. Backend admin 8443 conserva evidencia de lectura PASS con 190/176/14. Próxima prueba 443 clasifica código de error MySQL sin revelar excepción ni datos personales. Ver detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Diagnóstico concluyente SELECT usuarios 443 (12/11/2026)
+
+PuTTY: `DIAGNOSTICO=ERROR_TABLA_USER_PERMISO_SELECT`. El backend declarado de usuarios corporativos 443 superó LOADER, CONNECT, READ_ONLY y SELECT 1/DATABASE, pero MySQL rechazó `SELECT COUNT(*) FROM user` mediante código 1142/1143. El backend administrativo 8443 sí consultó totales 190/176/14 con PASS. No se han concedido privilegios ni modificado Apache.
+
+Antes de cambiar permisos se verificará identidad e instancia de servicio y alcance de GRANT mínimo; no confundir la restricción HTTP 403 del directorio de usuarios sin JWT con un error SQL. Puede afectar inicio de sesión del portal 443 si necesita acceder a la tabla `user`; no hay aún QA funcional del login. Registro completo [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Identidades de MySQL (12/11/2026): misma instancia, cuentas distintas
+
+El operador confirmó internamente con `@@server_uuid` y `CURRENT_USER()` de ambas conexiones PDO: `MISMA_INSTANCIA=SI`, `MISMA_CUENTA_MYSQL=NO`. No se expusieron valores. 8443 sigue con lectura de `user` PASS 190/176/14. La identidad SQL de 443 recibe código 1142/1143 por `SELECT FROM user`. La causa inmediata de la lectura fallida de 443 es la insuficiencia de permisos SELECT para su usuario de servicio sobre `user`, no otra instancia. El portal 443 podría no poder autenticar usuarios mientras persista ese error, pues el AuthController del repositorio necesita SELECT a `user`; hay que verificar código efectivamente desplegado antes de generalizar.
+
+Próximos pasos independientes: (a) QA funcional de `/admin/usuarios` en 8443 con navegador, dominio/certificado TLS válidos y administrador existente, sin imprimir PII/JWT; (b) auditoría sin cambios de GRANT y rol del usuario MySQL 443, definir permisos mínimos en código y SQL, respaldar grants y corregir solo con aprobación. No conceder globales, no usar credenciales de admin en 443 ni reutilizar APPLY. Ver detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## QA React admin real en 8443 completado para directorio (12/11/2026)
+
+El usuario confirmó visualmente desde el portal ADMIN corporativo que `Estado=Activos` muestra `176 de 190 usuarios` y reportó `14` inactivos. La captura evidencia también módulos de Empresas, Reportes, Informes por empresa, Accesos y asignaciones, Historial y Mi perfil. `DIRECTORIO_ADMIN_QA=PASS` para visibilidad de usuarios y conteos 190/176/14; no extrapolar a operaciones de escritura, roles, restablecimiento de contraseñas ni sesión en portal usuarios 443.
+
+La captura original contiene nombres y correos; NO se almacena en este repositorio público. El backend PHP declarado de 443 sigue con SQL `PERMISO_SELECT` sobre `user`; resolver antes de habilitar login/onboarding de los 114 migrados. No repetir importacion/activacion.
+
+Continuidad completa en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Próximo gate: QA lectura de empresas/reportes/vinculos y revisión de privilegios mínimos del portal 443.
+
+## QA visual del catalogo y vinculos administrativos (12/11/2026)
+
+El operador mostro tres pantallas de 8443 sin modificar datos. `Empresas` muestra 6 activas de 26; `Reportes` 82 activos de 95; `Accesos y asignaciones` 91 vigentes de 103. Se observaron botones de alta/edicion/desactivacion/retiro, pero su funcionamiento **NO** se probo. Capturas con PII no publicadas. El agregado de `informes activos` por las 6 empresas visibles suma 84 frente a 82 reportes activos únicos mostrados en el catálogo; diferencias de criterio o duplicidad de relaciones aún no verificadas.
+
+Continuidad detallada y puestas de control en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md). Proximo QA en lectura: `Informes por empresa`, conciliación de informes únicos vs relaciones, y comparar con checklist de dashboards optimizados, antes de editar enlaces y asignaciones. Portal usuarios 443 sigue limitado por falta SELECT a `user`; 114 migrados sin contraseña utilizable. No conceder permisos ni hacer acciones masivas todavía.
+
+## QA vinculos empresa-reporte conciliado y desactivacion real de empresa de pruebas (12/11/2026)
+
+Cinco empresas activas mostraron contadores `(asociados, disponibles)` de `(8,74)`, `(55,27)`, `(3,79)`, `(5,77)`, `(13,69)`, sobre el catálogo común de 82 reportes activos. El total de asociaciones es 84. En una empresa se vieron exactamente dos reportes `Compartido con 1 más`, lo que explica 84 relaciones vs 82 reportes únicos; ver detalles en el documento de hallazgos.
+
+El OPERADOR desactivó desde el portal 8443 la empresa ficticia Test SAC (0 reportes, 0 usuarios en la vista previa); la UI mostró confirmación correcta y `Mostrando 5 de 26 empresas` activas. Se verificó visualmente el efecto de la baja lógica, pero aún no se ha consultado el `Historial` para validar auditoría. Cambio efectuado por el operador, no por GPT. No crear más empresas ni borrar otras.
+
+Estado al cierre: 190 usuarios/176 activos/14 inactivos; 26 empresas/5 activas/21 inactivas; 95 reportes/82 activos; 103 asignaciones/91 vigentes; 84 vínculos activos empresa-informe. Los 114 nuevos usuarios siguen sin contraseñas inicializadas y el portal 443 tiene una denegación SQL `SELECT` de su cuenta de servicio, pendiente de corrección de privilegio mínimo. Siguiente fase: audit trail de desactivación, luego matriz de conciliación de todos los dashboards optimizados con reportes existentes y URL Power BI, sin escrituras hasta aprobación específica.
+
+Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## QA Historial: evidencia de accesos; empresa Test SAC aun pendiente (12/11/2026)
+
+El operador mostró `Administración > Historial` pero con `Ver=Accesos y asignaciones`: aparecieron 2 registros históricos del mismo acceso interno, uno concedido y otro retirado el 05/11/2026. La vista confirma la presencia de movimientos de accesos, pero NO la desactivación de Test SAC. Siguiente paso: seleccionar `Ver=Empresas` y confirmar el evento de desactivación y sus metadatos sin exponer el nombre del autor en GitHub público. La baja lógica sí está visualmente confirmada en el listado de Empresas (5 de 26 activas).
+
+Detalles de continuidad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Cierre QA visual de Historial Empresas/Reportes (12/11/2026)
+
+Con filtro `Empresas` la captura mostró dos eventos, incluido `Empresa desactivada`, registro `#28`, fecha/hora `2026-11-12 10:40:38.761`, detalle activo -> inactivo y responsable presente. El evento coincide temporalmente con la baja lógica de Test SAC del operador (5 de 26 empresas activas), pero la pantalla NO muestra el nombre de empresa: queda pendiente cotejar por SELECT privado ID de Test SAC contra `#28` si se necesita trazabilidad nominal absoluta.
+
+Con filtro `Reportes` la captura mostró `Reporte editado` el `2026-11-05 04:49:22.684`, registro `#133`, descripción cambiada y responsable. Se confirma que se registran tales operaciones, no aún que se audite cualquier actualización de URL Power BI. Se preservan solamente métricas y registros; las capturas, teléfonos y nombres del responsable NO se suben al repositorio público.
+
+`QA_HISTORIAL_EMPRESAS=PASS_VISUAL_EVENTO`, `QA_HISTORIAL_REPORTES=PASS_VISUAL_EVENTO`. Proceder al inventario y conciliación de reportes existentes contra dashboards optimizados antes de modificar URLs/asignaciones. Detalle en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Cambio de prioridad aprobado en conversacion (12/11/2026): ADMINISTRACION DE USUARIOS
+
+El operador cuestionó la extensión de auditorías de catalogos y pidió pasar directamente a la **activación de la gestión administrativa de usuarios**. Se decide poner en pausa las nuevas rondas de inventario/conciliacion de reportes y empresas para enfocarse en usuarios. Las auditorías previas ya cumplen su propósito de verificar datos y acceso.
+
+Nuevo issue de ejecución: [#24 — GUA-01/GUA-02: gestión administrativa de usuarios y credenciales](https://github.com/baltrekconsultoria/cervesur-plataforma/issues/24), separado del PR #23 de migracion. Prioridad: (1) descubrir release/capacidades **solo de usuarios** en 8443, (2) desarrollar edición y baja/reactivación de usuarios con auditoría, (3) mecanismo de inicialización/reset individual de contraseñas para 114 cuentas; (4) corregir en línea independiente la denegación SELECT de cuenta SQL del portal usuarios 443 antes de habilitar login.
+
+El código de GitHub de esta rama incluye directorio, alta y asignación pero carece de interfaz completa de editar/activar/desactivar/restablecer usuarios; el despliegue real 8443 puede diferir de esa rama, así que no sobreescribir features existentes. Implementar en rama/PR aislados, QA primero con una cuenta de prueba, sin cambios en producción sin autorización explícita.
+
+190 usuarios (176 activos, 14 inactivos) y 114 migrados sin contraseñas inicializadas son la linea base. No repetir APPLY de migracion o activacion. Catalogos, empresas y Power BI quedan fuera del incremento administrativo, como backlog de conciliacion independiente.
+
+## GUA-01 PRE-FLIGHT REAL 8443 — BANDERAS AUN APAGADAS (12/11/2026)
+
+El operador obtuvo con lectura de `lib/env.php`/codigo declarado del backend 8443: `CODIGO_FASE_2B=PRESENTE`, `MODO=PASS` (`admin_escritura`), `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. El marcador 2B no sustituye una atestación de versión completa. La gestion productiva de escritura de usuarios **NO** quedó activada. Estado de los 190 usuarios sin cambios.
+
+Ya existe código U-BASIC de UX-09A; no duplicar. Puerta próxima: verificar kit oficial y salvaguardas de P4b (K2/K1/A1/A2/A3-F10, D3/D4 y firmas de DBA/negocio) antes de ejecutar interruptor. Los controles de passwords P5-R permanecen separados y NO-GO. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## P4a confirmado en el servidor con kit oficial (12/11/2026)
+
+El operador obtuvo `KIT_OFICIAL=PASS` (blob de `privilegios-usuarios.sh` contra GitHub `d849a014ff938e67d3a31d88da955be7fc453462`) y `PRIVILEGIOS_USUARIOS=PASS` al ejecutar el verificador **solo lectura** `--etapa no-sensibles --verificar`. Se marca `P4A_NO_SENSIBLES=PASS_REAL`, no requiere reiterar esa puerta.
+
+**No confundir con P4b:** último estado de banderas de 8443 `GESTION_USUARIOS=OFF`, `GESTION_SENSIBLE=OFF`. Los bloqueos documentados en UX-09B sobre K2/K1/A1/A2/A3-F10 y D3/D4, firmas y ventana no quedan resueltos por la verificación de grants. Ya existe el kit U-BASIC para encender una vez se confirme su estado GO; no hacer cambios de `.env` o reinicios manuales. Detalles en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## K1: ruta antigua de token devuelve 410 (12/11/2026)
+
+El operador informó `K1_HTTP=410` al consultar sin autenticación la ruta corporativa HTTP `/api/powerbi/tokens/0`. El documento del correctivo K1 asocia 410 con modo `retirar`, mientras 400 corresponde a observación/mixto para id cero y 401 a modo exigir. Registrar `K1_RUTA_RETIRADA_HTTP=PASS`, sin confundir la prueba funcional puntual con el cierre de consumidores, uniformidad de entradas y la firma formal A-L2. Quedan pendientes K2/A1/A2/A3-F10/D3/D4 y autorización P4b. La gestión U-BASIC permanece OFF y P5-R sensible OFF. Guía de detalle [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## D4 real (12/11/2026): NO-GO operativo para abrir P4b
+
+El operador ejecutó atestación oficial de seguridad D4: `KIT_D4=PASS`, **6 PASS, 3 FAIL, 2 PENDIENTE**, `D4_EXIT_CODE=1`. `D4-07=FAIL` por expiración JWT distinta de 86400; `D4-08=FAIL` por modo K1 no acreditado por análisis estático (aunque el endpoint HTTP probó `410`); `D4-09=FAIL` por cierre F-10 no acreditado en router heredado. `D4-06b` alerta de literales de fallback aún presentes; `D4-08b` siempre remite a prueba HTTP externa que ya produjo 410 en una entrada. **U-BASIC permanece OFF** y P5 sigue OFF. Se requiere corregir/cotejar seguridad y autorización antes de activar; **no hacer cambios a mano en `.env` ni contraseñas**.
+
+Fuentes y próxima lectura mínima en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md). No repetir QA de catálogos.
+
+## D4: motivos exactos del NO-GO para P4b (12/11/2026)
+
+Con kit D4 oficial, el operador recuperó que `D4-07=FAIL` porque JWT_EXPIRATION actual **10800 s** (3 horas) difiere del objetivo **86400 s** (24 horas); `D4-08=FAIL` porque análisis estático encuentra valores `observar` y `retirar`, a pesar del 410 HTTP puntual ya observado; `D4-09=FAIL` porque F-10 no está instalado en router/auth.php del backend heredado y el registro público debe tratarse como riesgo abierto hasta cierre; `D4-06b=PENDIENTE` por 9 literales JWT fallback y D4-08b=PENDIENTE es recordatorio de comprobación externa (410 obtenido). No se corrigió ni se activó nada.
+
+**Orden de desbloqueo recomendado:** preparar F-10 junto a lote4 con procedimiento temporal de altas firmado/ensayado (cerrar registro directo sin puente afecta altas desde Flutter), completar K2/A1/A2/D3; resolver política TTL con decisión formal y fallback K1, completar D4 y autorizaciones. P4a ya PASS. Mantener Usuarios/sensible OFF y sin cambios de contraseña. Detalle y referencias en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## F-10 parece ya aplicado: corrección del diagnóstico (12/11/2026)
+
+Nuevo PuTTY: `AUTH_SHA256=4633907aa733a3548c4c78cfdc42dac315fb8925e2eca39de4883cd127ab3366`, `AUTH_BYTES=4971`, `AUTH_SINTAXIS=PASS`, `MARCADOR_PR22=PRESENTE`, `MARCADOR_F10_LEGACY=AUSENTE`, sin cambios productivos. El parche de PR #22 agrega **373 bytes** a `auth.php` original de **4598 bytes**, total **4971**, exactamente el tamaño actual. La discrepancia `AUTH_PHP=NO_COINCIDE` frente al **SHA de preimagen** de PR22 es esperable si ya fue parchado. **Probablemente F10 ya esté instalado** y `D4-09 FAIL` sea falso negativo por buscar `REGISTRO_ABIERTO` en vez del nuevo marcador `F10-20261111`.
+
+**NO reinstalar PR22, NO revertir ni editar auth.php**, ni cambiar SHA del instalador. Próximo QA focalizado: atestar guardia dentro del bloque de ruta POST `/api/register` y petición negativa con JSON `{}` SIN Authorization que debe retornar 401 sin crear cuentas. Hasta ese QA no declarar F10 completo. Permanecen K2/A1/A2/D3, duración JWT 10800 vs 86400, K1 con doble declaración y decisión funcional/operativa del alta Flutter; P4b aún OFF. Detalle en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — F10 QA anónimo completado (guardia PASS, HTTP 401 PASS)
+
+PuTTY del operador: `F10_GUARDIA=PASS` con SHA previo `auth.php=4633907aa733a3548c4c78cfdc42dac315fb8925e2eca39de4883cd127ab3366`, `F10_HTTP_SIN_TOKEN=401` con POST JSON `{}` y sin Authorization y `F10_NEGATIVO=PASS`. Esto **acredita protección frente a alta anónima por la ruta ensayada**, sin escritura real de usuarios. Actualizar la lectura de D4-09: el chequeo legado de `REGISTRO_ABIERTO` no reconoce la implementación PR22 `F10-20261111`, así que su FAIL era incongruente con el comportamiento observado. No reinstalar PR22, no cambiar `auth.php`, no volver a ensayar caso anónimo.
+
+Pendiente solo para cierre pleno F10: QA con token de usuario `user`/`usuario` controlado y cuerpo inválido para observar 403, más decisión sobre continuidad de alta desde Flutter sin JWT. P4a PASS, K1 410, pero P4b aún OFF hasta K2/A1/A2/D3, definición JWT 10800 vs 86400 y autorizaciones. Detalle en [GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — Huellas correctivas K2 y parte A2 alineadas; A1 modificada
+
+Salida PuTTY de solo lectura: `K2_ROUTER=COINCIDE`, `K2_SANITIZADOR=COINCIDE`, `A2_ASIGNACIONES=COINCIDE`, `A2_EMPRESA_USUARIO=COINCIDE`, `A1_ROUTER=MODIFICADO_VERIFICAR`. Los componentes K2 y F-4 de A2 coinciden con sus huellas de referencia, pero el comando de K2 acepta dos variantes (`K2` y `K2+F5a`), y A2 completo incluye F-5a/b/c adicionales. El estado A1 MODIFICADO solo significa distinto de la **huella base** de UserRouter: un parche F-3 correctamente instalado tambien daria MODIFICADO. No inferir fallo ni reinstalar A1.
+
+Proxima comprobacion focalizada en A1: huella actual y guardia perfil ajeno de `GET/PUT /api/user/profile/{id}` sin imprimir código sensible; identificar variante K2 vs K2+F5a en el mismo paso. QA runtime con cuenta normal/administrativa controlada y autorización sigue necesario. P4b U-BASIC OFF y sensible OFF; no reiniciar ni cambiar .env. Documentado en [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — A1 F3 estructura PASS y F5a instalado (sin cambios productivos)
+
+El operador reporto `F5A=VERSION_CON_K2_Y_F5A`, `A1_SHA256=41610318f9bb5cd11ad7daa40cfbcf95f1742e5f14d5c4d4b59e4613a5206709`, `A1_GUARDIA=PASS_ESTRUCTURAL`, `CAMBIOS_PRODUCTIVOS=NO`. El router Empresa coincide con la variante K2+F5a del manifiesto; no reinstalar. El router A1 ya tiene guardia propio/admin/403 después de `require_auth`, pendiente QA HTTP con cuenta de prueba. K2 2/2 huellas; F-4 A2 2/2 huellas; F10 anonimo HTTP401; K1 HTTP410; P4a PASS.
+
+Proximo bloque acotado: identificar F5b/F5c POST/PUT/DELETE con guardias admin antes de cambiar reportes/asignaciones, sin DML. Despues QA focalizado y cierre politica JWT 10800 vs 86400, fallback K1, D3 y firmas. U-BASIC OFF, P5 sensible OFF. Ref: [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md).
+
+## 12/11/2026 — F5b y F5c autorizaciones POST/PUT/DELETE 6/6 PASS estructural
+
+Operador confirma en legado: `F5B_POST/PUT/DELETE=PASS_ESTRUCTURAL`, `F5C_POST/PUT/DELETE=PASS_ESTRUCTURAL`, ambos `RESULTADO=PASS`, `CAMBIOS_PRODUCTIVOS=NO`. Estos seis PASS son de estructura/orden de guardias `require_auth → role admin → 403 → exit` sobre el archivo efectivo, **no** de ejecucion HTTP real, roles de token o cobertura de alias. No reinstalar ni seguir auditando archivos ya verificados.
+
+Estado agregado: K2 PASS huellas, A1 PASS estructural, F4/F5a PASS huellas, F5b/c PASS estructural, F10 POST anónimo 401, K1 HTTP 410 y P4a grants PASS. Siguiente hito ya no es inspeccion por archivos: **GO/NO-GO integral de P4b** con QA negativo admin/user, formalización de K1/K2/A1/A2/A3/D3, diferencia JWT 10800 vs 86400, continuidad altas Flutter, autorizaciones y rollback. Hasta cierre formal, `ADMIN_WRITES_USUARIOS` y `ADMIN_WRITES_USUARIOS_SENSIBLE` OFF (último chequeo). 114 cuentas migradas no tienen credenciales inicializadas, portal 443 SELECT denegado, trabajos posteriores separados.
+
+Detallado en [GUA-01](GUA-01-PREFLIGHT-ACTIVACION-8443-2026-11-12.md), commit c60176f1dbefa3a5bc106be95bc06d8433c86ce6.
+
+## 12/11/2026 — K1/JWT aplicado en legado con backup verificable; U-BASIC aun OFF
+
+Paquete PR #25 (`c2f01a7942f12427a9267d8325c432554a2c7214`) descargado con `KIT_INTEGRIDAD=PASS`, preflight F10/H1 PASS, respaldo `BACKUP_VERIFICADO=SI`, `APLICADO=SI` y preflight posterior `JWT_ACTUAL_SEG=86400`, `K1_FALLBACK_ACTUAL=retirar`, ambos `CAMBIO=NO`, `K1_HTTP=410`, sin reinicio Apache. Ruta de respaldo root-only: `/home/usr_cervesur/cervesur-p4b-policy-20261112T113010Z-1975881`. Nunca incluir contenido de `.env` en reportes ni GitHub. Evidencia limitada a estado de archivos + HTTP 410 de una entrada, falta QA de emision JWT 24h real con login controlado.
+
+**No se activo U-BASIC ni sensitive/P5.** F10 ya bloquea anonimato, A1/K2/A2 cuentan con evidencia de codigo; subsisten pruebas funcionales de perfiles/roles, cierre D3 y aprobaciones, y continuidad de altas Flutter; portal 443 usuario MySQL sin SELECT sigue otro bloqueo. Se require backup MySQL separado antes de cualquier alta/edicion/desactivacion de cuentas. Detalles GUA-01.

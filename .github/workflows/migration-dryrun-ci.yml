@@ -1,0 +1,86 @@
+name: Migracion diferencial CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ops/migracion/**'
+      - 'tests/migracion/**'
+      - 'docs/migracion-diferencial-v1.md'
+      - '.github/workflows/migration-dryrun-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migracion-solo-lectura:
+    name: PHP lint y Python synthetic dry-run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: none
+          coverage: none
+      - name: Sintaxis PHP
+        run: |
+          php -l ops/migracion/export_snapshot.php
+          php -l ops/migracion/cron_preflight.php
+          php -l ops/migracion/cron_db_preflight.php
+          php -l ops/migracion/cron_hmac_bootstrap.php
+          php -l ops/migracion/ubuntu_db_preflight.php
+          php -l ops/migracion/export_usuarios_privado.php
+          php -l ops/migracion/usuarios_schema_gate.php
+          php -l ops/migracion/usuarios_import_controlado.php
+          php -l tests/migracion/test_usuarios_import_guard.php
+          php -l ops/migracion/usuarios_postflight.php
+          php -l tests/migracion/test_usuarios_postflight.php
+          php -l ops/migracion/activar_usuarios_migrados.php
+          php -l tests/migracion/test_activar_usuarios_migrados.php
+      - name: Regression - Ubuntu .env denied without leaked warnings
+        shell: bash
+        run: |
+          testdir="$(mktemp -d)"
+          trap 'chmod u+r "$testdir/backend/.env" 2>/dev/null || true; rm -rf "$testdir"' EXIT
+          mkdir -p "$testdir/backend/lib"
+          printf '%s\n' '<?php // Synthetic loader only' > "$testdir/backend/lib/env.php"
+          printf '%s\n' 'DB_NAME=synthetic_test_only' > "$testdir/backend/.env"
+          chmod 000 "$testdir/backend/.env"
+          set +e
+          output="$(php ops/migracion/ubuntu_db_preflight.php "--loader=$testdir/backend/lib/env.php" 2>&1)"
+          result=$?
+          set -e
+          test "$result" -eq 2
+          printf '%s\n' "$output" | grep -qx 'CERVESUR_UBUNTU_DB_PREFLIGHT=ENV_PERMISSION_DENIED'
+          if printf '%s\n' "$output" | grep -Eqi 'Warning|Fatal error|DB_HOST|DB_PASS'; then
+            echo 'FAIL: diagnostic leaked warnings or environment values' >&2
+            exit 1
+          fi
+      - name: Regresion de la puerta SQL sin DB externa
+        shell: bash
+        run: |
+          set +e
+          result="$(php ops/migracion/usuarios_schema_gate.php --database=base_incorrecta --loader=/dev/null 2>&1)"
+          status=$?
+          set -e
+          test "$status" -eq 2
+          test "$result" = 'CERVESUR_USUARIOS_SCHEMA=ERROR_BASE_INCORRECTA'
+      - name: QA PHP offline de importacion controlada
+        run: php tests/migracion/test_usuarios_import_guard.php
+      - name: Regresion CLI --backup-sha256 sin acceso a DB
+        run: bash tests/migracion/test_usuarios_import_args.sh
+      - name: QA postflight PHP offline de 190 usuarios
+        run: php tests/migracion/test_usuarios_postflight.php
+      - name: QA aislado activacion 114 usuarios sin DB
+        run: php tests/migracion/test_activar_usuarios_migrados.php
+      - name: Compilacion Python
+        run: python -m py_compile ops/migracion/compare_snapshots.py ops/migracion/diagnostico_brechas.py tests/migracion/test_dryrun.py tests/migracion/test_brechas.py ops/migracion/plan_usuarios.py tests/migracion/test_plan_usuarios.py ops/migracion/diagnostico_validacion_usuarios.py tests/migracion/test_diagnostico_validacion_usuarios.py
+      - name: Pruebas sinteticas sin datos personales
+        run: python -m unittest discover -s tests/migracion -v

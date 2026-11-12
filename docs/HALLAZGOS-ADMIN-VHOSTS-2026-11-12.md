@@ -1,0 +1,342 @@
+# Cervesur - Hallazgos consolidados de despliegue y administracion (2026-11-12)
+
+> Registro de continuidad para posteriores chats y revisiones de GitHub. Fuente: salidas de PuTTY aportadas por el operador, salvo lo rotulado como inferencia de nombres de vhost. Todas las pruebas descritas fueron de solo lectura.
+> SEGURIDAD: el repositorio es PUBLICO. Se omite la IP interna concreta de la interfaz VPN y no se incluyen tokens, contrasenas, usuarios, hashes o datos de clientes.
+
+## 1. Datos de usuarios cerrados y verificados
+
+- Importacion transaccional users-only: 114 cuentas nuevas, 76 preexistentes intactas, total 190; postflight PHP independiente PASS.
+- Activacion transaccional limitada a 114 nuevos: APPLY=PASS, 0 antiguos modificados, TOTAL=190, ACTIVOS=176, INACTIVOS=14.
+- Postflight de activacion en MySQL PASS: MIGRADOS_ACTIVOS=114, ANTIGUOS_INTACTOS=76, MYSQL_MODIFICADO=NO.
+- Contraseñas de los 114 importados NO inicializadas: hashes aleatorios de credenciales desconocidas. Los usuarios activos no pueden iniciar sesión hasta proceso individual seguro; no se generaron sesiones durante activación.
+- Respaldos de 76 antes de importar y de 190 antes de activar en snapshots protegidos 0600 fuera de DocumentRoot. No compartir ni publicar copias.
+- No repetir modos APPLY de los scripts de importacion/activacion. No se migraron empresas, informes ni asignaciones.
+
+## 2. Primer inventario en host, PHP/React
+
+- Se observaron index.html en Flutter del arbol /var/www/cervesur/frontend y en los document roots de dos React de prueba.
+- HTTP GET /api/ping a localhost puerto 80: 404 text/html; no diagnostica por si solo fallo de Flutter.
+- GET /api/ping a 127.0.0.1:8088 y :8089: 200 application/json.
+- GET /api/users?status=all SIN JWT en 8088 y 8089: 401 application/json en ambos; directorio protegido frente a solicitud anonima.
+- GET /api/users?status=all SIN JWT a 127.0.0.1:80: 404 text/html. No prueba que la ruta corporativa sea inaccesible (puede responder VirtualHost por defecto).
+
+## 3. Apache: VirtualHosts mostrados con apache2ctl -S
+
+| Puerto | VirtualHost habilitado (basename) | Bind segun apache2ctl | TCP LISTEN mostrado por ss -lnt | Interpretacion |
+|---|---|---|---|---|
+| 80 | 000-default.conf, cervesur.conf | *:80, default mas nombre corporativo | SI | La URL 127.0.0.1 puede responder al vhost default; no confundir con produccion corporativa |
+| 443 | cervesur-react-usuarios-corp.conf | interfaz interna corporativa | SI | Candidato portal React de usuarios corporativos; nombres no certifican API/BD |
+| 8443 | cervesur-react-admin-corp.conf | interfaz interna corporativa | SI | Candidato portal React administrativo corporativo; debe verificarse |
+| 8088 | cervesur-react-prueba.conf | 127.0.0.1 | SI | React prueba, API 200, users anonimo 401 |
+| 8089 | cervesur-react-compat.conf | 127.0.0.1 | SI | React compatibilidad, API 200, users anonimo 401 |
+| 8090 | cervesur-react-ro.conf | 127.0.0.1 | NO | Vhost configurado pero puerto no visible como LISTEN |
+| 8091 | cervesur-react-piloto.conf | 127.0.0.1 | NO | Vhost configurado pero puerto no visible como LISTEN |
+| 8092 | cervesur-react-usuarios.conf | 127.0.0.1 | NO | Vhost configurado pero puerto no visible como LISTEN |
+| 8093 | cervesur-react-admin.conf | 127.0.0.1 | NO | Vhost configurado pero puerto no visible como LISTEN |
+| 8094 | cervesur-react-admin-qa.conf | 127.0.0.1 | NO | Vhost configurado pero puerto no visible como LISTEN |
+
+Las rutas de vhost provienen de /etc/apache2/sites-enabled/; el hecho de que Apache registre un VirtualHost no demuestra que haya un socket escuchando. El listado ss -lnt mostro escucha solo en 80, 443, 8443, 8088 y 8089. Puertos 8090-8094 no deben anunciarse como operativos.
+
+El resultado no demuestra acceso desde fuera de la VPN, que los puertos tengan login funcional, que el React de 443/8443 este actualizado ni que apunten a cervesur_portalbi. Son verificaciones pendientes.
+
+## 4. Lo que ya existe en el codigo fuente
+
+- frontend/src/app/App.tsx: ruta /admin/usuarios protegida por rol admin.
+- frontend/src/features/admin/AdminPages.tsx: listado, filtros, busqueda, paginacion visual; alta de usuario activo con contraseña nueva.
+- frontend/src/api/http/httpApi.ts: GET /api/users?status=all, lectura paginada per_page=100 y consolidacion con asociaciones empresa-usuario.
+- backend/router/UserRouter.php: directorio administrativo protegido con JWT y rol admin.
+- backend/controllers/AuthController.php + lib/auth_middleware.php: password_verify, is_active=1, role valido, session_version vigente.
+- Funcionalidad no demostrada en produccion: conexion React corporativo a MySQL productivo; edicion y desactivacion/reactivacion de usuarios desde UI; inicializacion/reinicio individual de password y auditoria.
+
+## 5. Proxima puerta aprobada: verificar 443 / 8443 sin credenciales (SOLO LECTURA)
+
+1. Realizar curl HTTPS sin autenticacion contra IP interna del servidor (no ponerla en GitHub), mostrar solo HTTP status y Content-Type para /api/ping, /api/users?status=all y /admin/usuarios de 443/8443.
+2. En diagnostico sin login se puede usar --insecure si el certificado de prueba no valida para IP, exclusivamente para recoger codigos; NO introducir credenciales con --insecure ni inferir que el certificado es confiable.
+3. Si /api/users?status=all responde 200 application/json sin JWT en algun vhost, STOP y auditoria. 401 JSON esperado para API protegida; 404/301/302/200 HTML pueden ser vhost distinto o fallback React y requieren identificar destino.
+4. Leer solamente metadatos de Apache, DocumentRoot/backend y la BD configurada mediante verificadores que oculten valores sensibles. No mostrar .env ni JWT.
+5. Unicamente despues de comprobar configuracion, activar administracion React corporativa para 190 usuarios y diseñar establecimiento individual de contraseñas (token de un uso, hash, expiracion, rate limit, auditoria, revocacion de sesiones), evitando un password comun.
+
+## 6. Restricciones operativas
+
+- No editar vhosts, DNS, certificados, servicios ni puertos en el diagnostico.
+- No sustituir Flutter ni conectar instancias QA 8088/8089 a la DB productiva.
+- No tocar empresas, informes, enlaces Power BI ni asignaciones en este incremento.
+- Mantener PR #23 en borrador hasta QA de la siguiente fase y una decision explicita de merge.
+- Registrar cada salida agregada del host en este documento y el issue #17 con fecha, valores exactos, riesgos y siguiente puerta; nunca datos personales ni secretos.
+
+## 7. PuTTY: HTTPS corporativo 443 y 8443 confirmado (solo lectura)
+
+Operador ejecutó `curl` HTTPS **sin credenciales** contra la interfaz interna VPN del servidor, revisando solo código HTTP y Content-Type, con validacion de certificado omitida para ese diagnostico (no para iniciar sesion). IP interna exacta deliberadamente omitida por tratarse de repositorio publico.
+
+| Ruta sin autenticacion | 443 (usuarios corporativo) | 8443 (administracion corporativo) |
+|---|---|---|
+| `/` | `200 text/html` | `200 text/html` |
+| `/api/ping` | `200 application/json` | `200 application/json` |
+| `/api/users?status=all` | `403 application/json` | `401 application/json` |
+| `/admin/usuarios` | `200 text/html` | `200 text/html` |
+
+Hallazgos comprobados:
+- Ambos HTTPS responden para `/` y `/api/ping`; no hay evidencia de caída de esos dos servidores en el momento del test.
+- Ninguno devolvió una lista de usuarios anónima. El portal de usuarios 443 respondió 403 y el de administración 8443 respondió 401. La diferencia puede provenir de políticas por vhost/rol o de capas de autenticación; **no se ha determinado la causa**. No asumir que 443 usa el mismo backend que 8443.
+- El 200 HTML de `/admin/usuarios` podría ser el fallback SPA de React. **No confirma** que el usuario admin logueado pueda gestionar usuarios ni que existan los 190 registros en ese entorno.
+- La prueba omitió validación del certificado TLS solo para diagnóstico de códigos HTTP, sin credenciales. No repetir con credenciales usando `-k`.
+
+## 8. Siguiente puerta: identificar backend real y su conexión MySQL, sin secretos
+
+Acción propuesta para PuTTY, **SOLO LECTURA**, sin abrir `.env` ni mostrar variables de contraseña:
+1. Revisar los dos archivos de VirtualHost de HTTPS 443 y 8443, mostrando exclusivamente los nombres de directivas Apache (`DocumentRoot`, `Alias`, `AliasMatch`, `ProxyPass`, `ProxyPassMatch`, `Include`, `SetHandler`), y contar las rutas configuradas sin imprimir valores que podrían contener secretos.
+2. Verificar que ambos VirtualHosts sigan apuntando al origen esperado (backend PHP de 8443 y frontend React admin), usando solo nombres de archivos y rutas internas autorizadas para el operador; no subir esos paths a GitHub si son privados.
+3. Ejecutar una lectura protegida que solo devuelva `DB_TARGET=PRODUCCION/OTRA/INDETERMINADA` para el backend efectivo de 8443 (comparando únicamente el nombre con `cervesur_portalbi`, sin mostrar host/usuario/password). No inferir la BD a partir del 200 de `/api/ping`.
+4. Posteriormente, con cuenta de administrador existente y certificado TLS VALIDADO, comprobar `/admin/usuarios` y GET `/api/users?status=all` con JWT sin imprimir datos personales. Resultado buscado: 190 registros (176 activos, 14 inactivos) y controles de autorización admin/no-admin.
+
+IMPORTANTE: migración y activación ya PASS (`190/176/14`, `114` migrados activos), pero credenciales de 114 siguen sin inicializar. No ejecutar APPLY previos. No tocar Flutter, QA 8088/8089, asignaciones ni enlaces Power BI.
+
+## 9. Apache HTTPS: nombres de Define e Include (PuTTY, solo lectura)
+
+El operador ejecuto un lector de directivas de dos vhosts. El resultado extraido fue:
+
+| Portal | Define FRONT | Define BACKEND | Define SESSIONS | Include |
+|---|---|---|---|---|
+| Corporativo admin 8443 | `CERVESUR_USUARIOS_FRONT` | `CERVESUR_USUARIOS_BACKEND` | `CERVESUR_USUARIOS_SESSIONS` | `/etc/apache2/cervesur-react-admin/react-usuarios-common.conf` |
+| Corporativo usuarios 443 | `CERVESUR_USUARIOS_FRONT` | `CERVESUR_USUARIOS_BACKEND` | `CERVESUR_USUARIOS_SESSIONS` | `/etc/apache2/cervesur-react-usuarios/react-usuarios-common.conf` |
+
+**Importante:** estos son solo los nombres de las variables (`$2` en las sentencias `Define`), porque el filtro del operador no devolvio sus valores (`$3`) ni el contenido de los archivos `Include`. Coincidir en nombres NO prueba que frontend/backend/sesiones apunten al mismo directorio ni que la base de datos sea igual. Cada portal tiene un `Include` distinto. Tampoco se ha demostrado si las definiciones Apache son efectivamente locales o si existe riesgo de colision al reutilizar nombres globales; requiere analizar directivas efectivas antes de cambiar Apache.
+
+### Puerta siguiente (solo lectura, sin valores sensibles)
+
+1. Comparar **solo igualdad/diferencia** de los valores literales de `Define CERVESUR_USUARIOS_FRONT`, `CERVESUR_USUARIOS_BACKEND`, `CERVESUR_USUARIOS_SESSIONS` en los dos vhosts, sin mostrar los valores ni rutas privadas.
+2. Comprobar por nombre de variable si el backend de 8443 tiene loader `lib/env.php` y si `www-data` puede leerlo, sin imprimir el archivo.
+3. Inspeccionar filtradas las directivas `Alias`, `AliasMatch`, `ProxyPass*`, `DocumentRoot`, `Include` de los archivos comunes (ocultando valores), para comprobar si ambos vhosts montan realmente la API.
+4. Solo con el backend efectivo confirmado, ejecutar el loader `env.php` en modo lectura y reportar exclusivamente `DB_TARGET=PRODUCCION/OTRA/INDETERMINADA`, nunca `DB_PASS`, `DB_USER`, valores de `.env` ni acceso de usuarios.
+
+Estado: **sin cambios en Apache ni MySQL**, usuarios productivos 190 total / 176 activos / 14 inactivos, 114 activados aun sin credenciales inicializadas. PR #23 sigue borrador.
+
+## 10. PuTTY: comparacion de valores literales de Define y loaders en 443/8443
+
+Salida validada del operador (sin emitir valores privados):
+
+```text
+FRONT=DIFERENTES
+BACKEND=DIFERENTES
+SESSIONS=DIFERENTES
+ADMIN_BACKEND_LOADER=FOUND
+ADMIN_BACKEND_LOADER_READABLE=YES
+ARCHIVO=cervesur-react-admin
+DIRECTIVE=AliasMatch
+DIRECTIVE=DocumentRoot
+ARCHIVO=cervesur-react-usuarios
+DIRECTIVE=AliasMatch
+DIRECTIVE=DocumentRoot
+```
+
+**Alcance confirmado:** los valores LITERALES de los tres Define en cada archivo de VirtualHost difieren; el backend señalado por el Define de 8443 contiene `lib/env.php` legible por `www-data`; cada archivo Include presenta `AliasMatch` y `DocumentRoot` (solo se imprimieron los nombres de directivas). Sigue sin probarse que las rutas EFECTIVAS del Apache vhost sean distintas por la semántica GLOBAL de `Define` y el orden de parseo; no se debe asumir aislamiento efectivo de procesos, DB ni cookies hasta verificar.
+
+**Siguiente comprobación segura:** con `www-data`, localizar el Define BACKEND del archivo 8443, exigir que sea ruta absoluta y que exista `lib/env.php`, cargarlo en PHP CLI sin imprimir contenido ni variables privadas, borrando primero DB_NAME/DB_HOST/DB_USER/DB_PASS heredados del entorno; mostrar unicamente la clasificación `ADMIN_DB_TARGET=PRODUCCION/OTRA/INDETERMINADA` segun `getenv('DB_NAME') === 'cervesur_portalbi'`. Repetir para 443 si conviene comparar. No consultar ni copiar emails, hashes, tokens o contraseñas; no modificar Apache ni bases.
+
+**Precaución:** este test determina el DB_NAME del loader en la RUTA DECLARADA de 8443, pero por los Define globales NO basta para demostrar que Apache haya montado efectivamente esa misma ruta. Correlacionar luego AliasMatch, vhost y respuesta HTTP con autenticacion controlada/TLS validado. Solo tras confirmacion de DB real habilitar funciones para los 190 usuarios y el onboarding individual.
+
+Estado productivo inalterado: 190 usuarios, 176 activos, 14 inactivos; 114 migrados activos pero sin credenciales inicializadas.
+
+## 11. PuTTY: DB_NAME en cargadores PHP de ambos portales (12/11/2026)
+
+El operador ejecuto bajo `www-data`, sin mostrar `.env` ni credenciales, una comprobacion del cargador `lib/env.php` ubicado mediante el Define BACKEND de cada VirtualHost corporativo.
+
+```text
+PORTAL=admin
+DB_TARGET=PRODUCCION
+PORTAL=usuarios
+DB_TARGET=PRODUCCION
+```
+
+Interpretacion precisa: ambos cargadores **declarados** asignan `DB_NAME=cervesur_portalbi`. Esto confirma el nombre configurado para el backend admin 8443 y el de usuarios 443. **No demuestra todavía que Apache este sirviendo esos mismos backends efectivamente** ni que `DB_HOST` apunte al mismo servidor/instancia MySQL donde se auditaron los 190 usuarios (bases distintas pueden compartir el mismo nombre). Tampoco certifica funcionalidad del login administrativo. La comprobacion no abrio una conexion PDO: solo cargo el entorno PHP y comparo `DB_NAME`.
+
+Hallazgos previamente validados: Front/Backend/Sessions literales DIFERENTES entre ambos vhosts; loader PHP admin encontrado y legible por `www-data`; Includes distintos con AliasMatch/DocumentRoot; HTTPS 443/8443 salud 200 en / y /api/ping; `/api/users` anonimo 403/401; MySQL migracion 190 usuarios, 176 activos, 14 inactivos, 114 activados sin contrasena inicializada.
+
+### Proxima puerta: confirmar la instancia y los conteos de DB de 8443, solo SELECT
+
+Con ruta BACKEND de admin declarada y `www-data`, usar su `lib/env.php` para abrir PDO en modo lectura, validar `SELECT DATABASE() = cervesur_portalbi`, contar filas en `user` y estados activos/inactivos, devolver solo totales 190/176/14 y `DB_CONTEOS=PASS` cuando coincide. Si se requiere demostrar que ambos portales apuntan a la misma instancia, comparar internamente `@@server_uuid` (o identificador verificado equivalente) y la base de datos, mostrando unicamente `MYSQL_MISMA_INSTANCIA=SI/NO/INDETERMINADA`, sin imprimir servidor/IP/secreto. Un conteo coincidente no prueba por si solo que las bases sean identicas; la verificacion de identificador de servidor fortalece evidencia. No ejecutar DML ni exponer perfiles/hash.
+
+Finalmente correlacionar con los Aliases efectivos y un login admin por navegador de confianza y certificado TLS validado. Sin certificar esas puertas, NO realizar deploy/merge ni proclamar habilitada administracion React sobre los 190 usuarios.
+
+Esta fase no modifica Apache, Flutter, produccion ni cuentas.
+
+## 12. PuTTY: consulta PDO agregada admin PASS; usuarios ERROR (12/11/2026)
+
+Se intentó con PHP CLI bajo `www-data` ejecutar `lib/env.php`, conectar PDO y hacer una transacción READ ONLY con SELECT agregado de la tabla `user` de cada BACKEND **declarado** por su Define en los vhosts corporativos. No hubo escrituras.
+
+Salida aportada:
+
+```text
+=== CERVESUR: VALIDACION MYSQL REAL ===
+PORTAL=admin
+TOTAL=190
+ACTIVOS=176
+INACTIVOS=14
+DB_COUNTS=PASS
+PORTAL=usuarios
+DB_READ=ERROR
+```
+
+**Conclusión precisa:** el backend DECLARADO de admin 8443 pudo conectarse por PDO a una base `cervesur_portalbi` cuyos conteos coinciden con el POSTFLIGHT independiente de la migración y activación de 114 usuarios (190/176/14). Esto es evidencia fuerte a favor de conexión del backend admin declarado con los datos productivos; aún falta verificar la asignación EFECTIVA de Apache y probar UI autenticada.
+
+En contraste, el backend DECLARADO de usuarios 443 declaró `DB_NAME=cervesur_portalbi` al cargar `env.php`, pero la consulta agregada devolvió `DB_READ=ERROR` sin categoría interna. NO se sabe todavía si el fallo es permiso de lectura del loader, variables incompletas, conexión MySQL, transacción READ ONLY o SELECT sin permisos. **No asumir** problema de red, caída del portal, ausencia de registros o necesidad de cambiar permisos. `/api/ping` respondió 200 para el portal 443, pero no demuestra conectividad PDO. La prueba tuvo salida genérica intencionada para evitar filtrar secretos.
+
+**Siguiente puerta de diagnóstico (solo 443, SOLO LECTURA):** repetir una prueba PHP CLI segregada por etapas (`LOADER`, `CONFIG`, `PDO_CONNECT`, `READ_ONLY`, `SELECT`, `COUNTS`), sin imprimir excepción, DSN, DB_HOST, DB_USER, DB_PASS, .env, usuarios, hashes ni PII. Al fallar, devolver únicamente la etapa `ERROR_STAGE=...`. Si conecta pero cuentas difieren, mostrar solo agregados y `COUNTS=STOP`. No modificar `GRANT`, `.env`, Apache, frontend ni DB.
+
+**Siguiente incremento tras aislar 443:** validar rutas Apache efectivas y autorización TLS/JWT del portal admin 8443; luego gestión de usuarios e inicialización individual de las 114 contraseñas, con aprobación de cambios por separado. PR #23 continúa en borrador.
+
+## 13. PuTTY 443: diagnóstico por etapas = ERROR_SELECT (12/11/2026)
+
+El operador ejecutó un nuevo diagnóstico CLI bajo `www-data` para el backend PHP declarado en HTTPS 443. La salida literal fue:
+
+```text
+=== CERVESUR: DIAGNOSTICO MYSQL USUARIOS 443 ===
+USUARIOS_DB_STAGE=ERROR_SELECT
+```
+
+**Interpretación demostrada por el código de esa prueba:** etapas LOADER, CONFIG, PDO_CONNECT, READ_ONLY y BEGIN se superaron; la excepción se produjo al ejecutar `SELECT COUNT(*), SUM(is_active=1), SUM(is_active=0) FROM user`. No se muestra la excepción ni SQLSTATE. **No permite concluir por sí solo** permiso SELECT insuficiente: puede ser falta de tabla, columna, vista inválida, permisos SQL, diferente instancia MySQL con el mismo DB_NAME u otro problema de SQL.
+
+El backend ADMIN 8443 permanece PASS (190 total/176 activos/14 inactivos) en la lectura PDO previa. No hay evidencia de que las cuentas hayan cambiado. No realizar GRANT, cambios Apache, .env ni DDL/DML antes del diagnóstico.
+
+**Siguiente comprobación, 443 SOLO LECTURA:** usar el mismo loader/backend bajo `www-data`, ejecutar SELECT 1, SELECT DATABASE(), SELECT COUNT(*) FROM `user`, SELECT COUNT(*) FROM `user` WHERE is_active=1, por separado y terminar en primer fallo; imprimir exclusivamente etapa y clasificacion del código numérico de MySQL: 1142/1143=>PERMISO_SELECT, 1146=>TABLA_NO_EXISTE, 1054=>COLUMNA_NO_EXISTE, 1044=>PERMISO_BASE, 1356=>VISTA_INVALIDA, otros=>NO_CLASIFICADO. Nunca mostrar mensaje de excepción, DB_HOST/USER/PASS, emails, hashes, documentos ni direcciones internas. En ausencia de fallo, mostrar solo conteos agregados y validar 190/176/14. Este diagnóstico no necesita reiniciar Apache ni afectar 8443.
+
+**Después:** si causa confirmada es privilegio SQL, verificar los GRANT efectivos de la cuenta de servicio (sin imprimir cuenta/host) y diseñar el mínimo SELECT necesario en una ventana autorizada; si instancia o tabla diferente, corregir topología y no permisos a ciegas. Mantener seguridad y QA funcional de 8443 como ruta independiente.
+
+## 14. PuTTY 443: ERROR_TABLA_USER_PERMISO_SELECT (12/11/2026)
+
+Salida literal del diagnóstico de consulta por etapas:
+
+```text
+=== CERVESUR: CAUSA SELECT PORTAL 443 ===
+DIAGNOSTICO=ERROR_TABLA_USER_PERMISO_SELECT
+```
+
+**Hallazgo confirmado:** el backend DECLARADO del portal corporativo de usuarios (443) carga la configuración y conecta a MySQL, pero MySQL deniega `SELECT COUNT(*) FROM user` con código 1142/1143, clasificado `PERMISO_SELECT` por el script. El primer fallo fue al consultar tabla `user`. Esta es una denegación de privilegios SQL para la cuenta de servicio de 443, no un error de conectividad de PDO. El portal de admin 8443 sigue en PASS para SELECT agregado (190 total/176 activos/14 inactivos). No se ejecutó ninguna modificación.
+
+**No confundir** el `403 application/json` en la API `/api/users?status=all` del portal 443 sin credenciales con la denegación SQL: el 403 HTTP puede ser una restricción deliberada a administradores y no demuestra que MySQL funcione. Una cuenta de servicio sin SELECT de `user` podría además afectar rutas de login/perfil que necesitan leer `user`; requiere prueba funcional específica con TLS validado y sin revelar credenciales.
+
+**Pendiente antes de cualquier GRANT:** verificar si 443 utiliza la misma instancia real MySQL que 8443 (por ejemplo comparar internamente `@@server_uuid` sin imprimirlo), si ambos usan distintas identidades de servicio (`CURRENT_USER()` comparado internamente, no impreso), y comprobar permisos efectivos de cuenta de 443 con `SHOW GRANTS FOR CURRENT_USER()` en memoria, clasificando sin mostrar usuario/host ni grants. No conceder privilegios globales `*.*`, no reutilizar credenciales de admin y no asumir que SELECT a tabla user debe habilitarse sin revisar qué consultas demanda el portal.
+
+**Ruta propuesta:** auditoría solo lectura de permisos/identidad y prueba funcional de login del portal 443. Si se confirma que el aplicativo necesita consultar `user` para autenticación, proponer privilegio SQL mínimo restringido a tabla/columnas requeridas, tras autorización de cambio y respaldo de GRANT; QA de 401/403, permisos, acceso limitado a empresas e informes y rollback. En paralelo, admin 8443 puede continuar con la verificación de ruta Apache efectiva y UI de 190 usuarios sin cambiar DB.
+
+### Revisión de código de autenticación (misma jornada, sin cambios)
+
+Se contrastó el diagnóstico con `backend/controllers/AuthController.php` de la rama de trabajo: el método `login()` hace `SELECT * FROM user WHERE (email = :email OR username = :username) LIMIT 1`, valida contraseña/estado/rol/versión de sesión, y después hace `UPDATE user SET last_login = NOW() WHERE id = :user_id`. El middleware `backend/lib/auth_middleware.php` vuelve a leer `session_version`, `is_active` y `role` de la tabla user al verificar JWT. Por tanto, si el portal 443 usa este mismo código y este mismo usuario MySQL, el permiso SELECT denegado puede bloquear también el login y la verificación de sesiones, aunque `/api/ping` responda 200. No se ha demostrado todavía que código desplegado = código de la rama.
+
+El mínimo de permisos no puede decidirse solo a partir del COUNT fallido: examinar todas las consultas necesarias a `user`, incluidos SELECT para autenticación y UPDATE limitado de `last_login`; evaluar alternativas de consultas con columnas explícitas en lugar de ampliar a toda la tabla. Antes de un GRANT, auditar identidad e instancia MySQL y política de seguridad de portales; pedir aprobación separada para privilegios productivos.
+
+## 15. Identidad de MySQL verificada entre 443 y 8443 (12/11/2026)
+
+Último resultado del operador, a partir de lectura PDO desde los backends declarados por Apache, mostrando **solo comparaciones internas** de `@@server_uuid` y `CURRENT_USER()` (sus valores no se mostraron):
+
+```text
+=== CERVESUR: IDENTIDADES MYSQL ===
+MISMA_INSTANCIA=SI
+MISMA_CUENTA_MYSQL=NO
+```
+
+**Hallazgo confirmado:** las dos conexiones PDO efectuadas en CLI consultaron el mismo identificador de instancia MySQL, pero utilizaron **identidades de cuenta MySQL distintas**. La cuenta declarada del portal admin 8443 pudo hacer SELECT agregado sobre `user` (190/176/14 PASS), mientras la del portal usuarios 443 recibió código MySQL 1142/1143 `PERMISO_SELECT` sobre `user`.
+
+**Conclusión:** no hace falta cambiar de instancia ni repetir la migración; el foco es revisar la configuración y los privilegios mínimos de la identidad SQL utilizada por el backend declarado de 443. No puede atribuirse automáticamente a una equivocación de infraestructura o a una política intencionada sin revisión. Recordatorio: las pruebas PHP CLI aún no verifican las rutas efectivamente servidas por Apache; la UI funcional HTTPS sigue pendiente.
+
+**Siguiente puerta SIN ESCRITURA:** bajo `www-data` y el `lib/env.php` del backend declarado 443, abrir PDO, consultar `CURRENT_USER()` y `SHOW GRANTS FOR CURRENT_USER()` solo **en memoria**, sin imprimir textos de GRANT o identidades; clasificar si hay SELECT/UPDATE efectivos para `cervesur_portalbi.user` y comprobar con `SELECT ... FROM user LIMIT 0` de columnas de login, que no extrae filas. Evitar concluir permisos efectivos de roles solo por grants directos. No ejecutar GRANT, REVOKE, ALTER USER, UPDATE ni cambiar `.env`.
+
+**Precisión de mínimo privilegio:** el AuthController del código de GitHub hace `SELECT * FROM user` y luego `UPDATE user SET last_login=NOW()`; un ajuste estrictamente de columnas requiere además revisar todos los SELECT a user y eventualmente modificar el código para no usar `SELECT *`, ensayar en QA y autorizar el despliegue. Un GRANT sobre toda la tabla concede lectura de hashes y demás columnas y debe evaluarse explícitamente, nunca aplicarlo de manera automática.
+
+Postura de seguridad: el repositorio GitHub es público; no publicar identificadores reales `CURRENT_USER()`, `@@server_uuid`, rutas `.env`, nombres de cuentas SQL, secretos ni GRANT completos. Mantener 443 y 8443 independientes; no sustituir cuentas ni ampliar a `*.*`.
+
+## 16. QA visual del portal administrativo HTTPS 8443 (12/11/2026) — DIRECTORIO PASS
+
+El operador accedió al portal corporativo administrativo y compartió una captura de `/admin/usuarios`. La captura mostraba el encabezado `ADMINISTRACIÓN · Datos reales de Cervesur`, menú lateral con `Usuarios`, `Empresas`, `Reportes`, `Informes por empresa`, `Accesos y asignaciones`, `Historial` y `Mi perfil`, y filtros de búsqueda, rol y estado. Con Estado=`Activos` se lee literalmente `Mostrando 176 de 190 usuarios`. El operador confirmó además que el filtro de inactivos muestra 14.
+
+| Control | Evidencia | Resultado |
+|---|---|---|
+| Admin React visible en navegador | Ruta `Administración > Usuarios`, página operativa con datos reales | PASS visual |
+| Activos | Captura: `Mostrando 176 de 190 usuarios`, Estado=`Activos` | PASS visual |
+| Inactivos | Confirmación explícita del operador: 14 | PASS manual declarado |
+| Total | 190 en interfaz y conteos de PDO admin | PASS |
+| Coherencia | 176 + 14 = 190, igual a postflight de migración | PASS |
+
+**No se subió la captura al repositorio público** porque contiene nombres y correos de usuarios. Esta nota conserva exclusivamente métricas y estructura funcional sin PII.
+
+**Nuevos matices:** el portal ADMIN corporativo muestra una interfaz más completa que el módulo React genérico revisado previamente en `frontend/src/features/admin/AdminPages.tsx`. La captura demuestra que el portal instalado tiene navegación para empresas/reportes/asignaciones/historial, pero no prueba aún que todas las escrituras estén habilitadas ni que su código coincida con la rama. No asumir funcionalidad de editar, alta, baja, reset o import masivo sin pruebas de capacidades. La captura muestra `0` informes en filas visibles; no inferir que todos los 190 tengan 0 o que no existan informes generales.
+
+**Pendientes de habilitación real:** 114 migrados activos continúan sin contraseña individual inicializada. El backend declarado del portal de USUARIOS 443 conserva error SQL `PERMISO_SELECT` sobre `user`, pese a compartir servidor con ADMIN; resolver con privilegio mínimo tras auditar GRANTS y código desplegado. Hasta resolver 443, no distribuir accesos ni ejecutar onboarding masivo.
+
+**Siguiente paso aconsejado:** QA de SOLO LECTURA en `Empresas`, `Reportes`, `Informes por empresa`, `Accesos y asignaciones` (contar entidades/relaciones sin copiar nombres, enlaces o PII). Paralelamente auditar grants de cuenta del portal 443 para identificar permiso SQL mínimo `SELECT` al autenticar y quizá `UPDATE last_login`. No modificar MySQL, Apache, frontend ni producción sin aprobación de cambio.
+
+## 17. QA visual complementario: Empresas, Reportes y Accesos (12/11/2026)
+
+El operador aportó tres capturas de su sesion ADMIN 8443 de las pantallas `Empresas`, `Reportes` y `Accesos y asignaciones`. Pruebas **visuales de lectura**, sin ejecutar botones de crear, editar, desactivar ni retirar. Las capturas incluyen nombres y correos, por lo que NO se subieron al repositorio PUBLICO. Solo se preservan métricas agregadas despersonalizadas.
+
+| Vista | Filtro seleccionado | Texto de interfaz observado | Interpretacion |
+| --- | --- | --- | --- |
+| Empresas | Activas | `Mostrando 6 de 26 empresas` | 6 activas; total 26; no se verificaron individualmente las 20 restantes |
+| Reportes | Activos | `Mostrando 82 de 95 reportes` | 82 activos sobre 95 registros; 13 no incluidos en filtro |
+| Accesos y asignaciones | Vigentes | `Mostrando 91 de 103 asignaciones` | 91 relaciones vigentes sobre 103 registros; 12 no incluidas en filtro |
+
+**Observación de empresas:** las 6 filas activas visibles muestran los siguientes pares agregados `(informes activos, usuarios)`, en orden de pantalla: `(8,8), (55,34), (3,3), (0,0), (5,3), (13,14)`. Se omiten identificadores fiscales/nombres de empresa en la matriz de continuidad pública. Hay una entidad marcada activa sin informes ni usuarios. No darla de baja sin autorización y validación de alcance.
+
+**Hallazgo de conciliación:** la suma de los contadores `informes activos` por empresa es **84**, mientras que la vista global `Reportes` muestra **82 reportes activos**. Este desfase de 2 NO demuestra error: podría deberse a informes compartidos entre empresas, reglas distintas de conteo o vínculos históricos. Se requiere consultar por `Informes por empresa` y/o hacer agregados SQL de solo lectura para distinguir reportes únicos vs relaciones empresa-informe. No corregir datos basándose solo en la suma.
+
+**Observación de reportes:** la interfaz muestra para cada fila un nombre/descripcion, empresa, número de usuarios con acceso, estado y controles `Ver`, `Editar`, `Desactivar`. Hay al menos una fila visible con `0` usuarios con acceso. No extrapolar esta condición a todos los reportes, ni suponer que los enlaces Power BI de los 95 registros están actualizados o funcionan. La etiqueta empresa en el listado puede representar una relación o un campo de visualización; contrastar con `Informes por empresa`.
+
+**Observación de asignaciones:** tabla con usuario, informe, empresa, estado y opción `Retirar`, más botones `Nueva asignación`, `Ver historial`. 91 vigentes y 103 totales; no se verificaron los 12 excluidos del filtro ni el funcionamiento de escritura/auditoría. No publicar los nombres de usuarios/correos de las capturas.
+
+**Estado de avance y próximos controles:**
+1. `QA_LECTURA_ADMIN_EMPRESAS=PASS_VISUAL` (6/26), `QA_LECTURA_ADMIN_REPORTES=PASS_VISUAL` (82/95), `QA_LECTURA_ADMIN_ASIGNACIONES=PASS_VISUAL` (91/103).
+2. Abrir `Informes por empresa` en lectura e identificar el contador total y activo. Validar si 84 relaciones entre empresa e informe explican 82 reportes únicos; no asumirlo sin consulta.
+3. Contrastar el inventario completo de dashboards Power BI ya actualizados con los 95 reportes existentes en la plataforma para detectar faltantes, duplicados y enlaces a actualizar; la relación no se puede inferir de las capturas.
+4. Levantar matriz final `empresa -> informe -> usuario -> URL Power BI`, separando vínculos actuales de nuevas asignaciones, antes de cualquier carga masiva.
+5. Mantener como bloqueos para usuarios finales el privilegio SQL SELECT denegado en backend declarado 443 y la inicialización individual segura de credenciales de 114 cuentas activadas. Resolver con QA y autorización previa.
+
+Las etiquetas y botones de la UI por sí solos no prueban que los permisos administrativos de escritura estén activados o que cada acción se audite: solo se ha evaluado lectura.
+
+## 18. QA Informes por empresa y baja lógica de empresa ficticia (12/11/2026)
+
+El operador aportó capturas del portal administrativo 8443 `Informes por empresa` para 5 empresas corporativas en modo visual/lectura. Capturas NO anexadas a GitHub por motivos de confidencialidad operativa.
+
+| Empresa | Informes asociados | Informes disponibles | Total de informes únicos considerado por selector |
+|---|---:|---:|---:|
+| Alprosa | 8 | 74 | 82 |
+| Creditex | 55 | 27 | 82 |
+| Proagro | 3 | 79 | 82 |
+| Texgroup | 5 | 77 | 82 |
+| Transaltisa | 13 | 69 | 82 |
+| **Suma de vínculos** | **84** | — | **82 informes activos únicos en catálogo** |
+
+**Conciliación de 84 vs 82 aclarada visualmente**: en la lista de Texgroup hay dos entradas con la insignia `Compartido con 1 más` (informes de catálogo `DASHBOARD_PRESUPUESTAL_CERVESUR_023` y `DASHBOARD_PRESUPUESTAL_CERVESUR_010`). El menú de informes disponibles indica relaciones previas con otras empresas. Dos informes compartidos, cada uno con una segunda relación, explican que 82 informes activos únicos generen 84 asociaciones empresa-informe. Esta evidencia concilia los indicadores y **no requiere corregir reportes por la diferencia de conteos**. La conciliación es visual; un agregado SQL de solo lectura podría verificar las dos relaciones en caso de exigencia formal.
+
+**Cambio real realizado por el OPERADOR (no por el asistente)**: desactivó desde 8443 la empresa ficticia `Test SAC` tras observar en el listado anterior `0 informes activos` y `0 usuarios`. La captura posterior muestra el mensaje `Empresa «Test SAC» desactivada correctamente` y filtro `Activas`: `Mostrando 5 de 26 empresas` (antes 6/26). Se trata aparentemente de baja lógica porque el sistema anuncia bajas reversibles y el total sigue 26. Esto es confirmación visual de operación de desactivación ejecutada por usuario; **todavía no se verificó historial/audit_log de esa acción**.
+
+**Estado posterior esperado por vistas**: 26 empresas totales, 5 activas, 21 inactivas; 82 reportes activos de 95 totales; 84 vínculos activos empresa-informe entre las 5 empresas; 91 asignaciones vigentes de 103 totales; 190 usuarios (176 activos, 14 inactivos). De los informes disponibles en cada empresa, nunca inferir URLs Power BI válidas ni estado de publicación.
+
+**Hallazgo de UX**: algunas tarjetas en las dos columnas del selector de informes disponibles presentan nombres muy largos visualmente solapados/desbordados en las capturas. Es un defecto de presentación potencial para backlog, no un indicio de corrupción de datos; verificar en responsive antes de intervención.
+
+**Próximos controles**: 1) En `Historial`, confirmar la desactivación de Test SAC y su autor/fecha (sin publicar datos personales). 2) Construir conciliación del inventario completo de dashboards Power BI optimizados vs 95 registros de reportes (82 activos), distinguiendo nombres, empresa, URL, usuarios y relaciones actuales. 3) NO crear, vincular, desvincular ni sobreescribir enlaces a ciegas. 4) Resolver permisos SELECT de backend 443 y después onboarding individual de 114 usuarios sin contraseñas conocidas; no repetir migración ni aplicar GRANT no autorizado.
+
+## 19. QA Historial: filtro Accesos, auditoria de empresa aun NO verificada (12/11/2026)
+
+El operador aporto captura del portal 8443 `Administración > Historial`. El selector `Ver` estaba configurado como **`Accesos y asignaciones`**, no `Empresas`. Con ese filtro se mostraron **2 operaciones** sobre un mismo registro de asignacion (ID interno `#114`) en fecha **2026-11-05**, una de acceso concedido y otra de acceso retirado (cambio estado activo -> inactivo). No se publica el nombre del autor presente en la captura por ser repositorio publico.
+
+**Conclusion precisa:** la pagina de Historial funciona y hay dos movimientos de accesos visibles para ese filtro. **NO permite confirmar** la anotacion de desactivacion de la empresa ficticia Test SAC, efectuada visualmente por el operador el 12/11/2026. No afirmar `AUDIT_EMPRESA=PASS` sin cambiar el filtro a `Empresas` y observar el evento correspondiente.
+
+**Proxima accion sin escrituras:** en `Historial > Ver`, seleccionar `Empresas` y revisar que exista el evento de desactivacion de Test SAC, con fecha/operacion/registro/responsable. De la captura resultante almacenar en el repo publico solo tipo de evento, fecha (sin informacion privada), estado de QA y, si procede, ID de registro no sensible; NO subir capturas con PII. Si no aparece, clasificar `AUDIT_EMPRESA=PENDIENTE` y revisar log de forma protegida antes de cerrar el gate.
+
+Los conteos ya observados siguen siendo 5 de 26 empresas activas y 190 usuarios (176 activos/14 inactivos). Sin cambios por parte del asistente.
+
+## 20. QA Historial de empresas y reportes: registros visibles (12/11/2026)
+
+El operador proporcionó capturas adicionales del portal admin 8443 con los filtros de Historial `Ver=Empresas` y `Ver=Reportes`. No se publican capturas porque muestran nombres de responsables y datos de contacto que son privados.
+
+| Filtro | Fecha/hora presentada | Operación | Registro interno | Detalle |
+|---|---|---|---|---|
+| Empresas | `2026-11-12 10:40:38.761` | Empresa desactivada | `#28` | Estado activo -> inactivo |
+| Empresas | `2026-11-05 04:39:35.086` | Empresa editada | `#27` | Un teléfono fue modificado; **valor omitido** |
+| Reportes | `2026-11-05 04:49:22.684` | Reporte editado | `#133` | Se actualizó descripción; textos omitidos por prudencia |
+
+En `Historial > Ver=Empresas` se observaron 2 operaciones; en `Historial > Ver=Reportes` se observó 1 operación. Las tres filas tienen columna de responsable poblada y orden cronológico coherente. Resultado de QA: `AUDIT_EMPRESA_EVENTO_DESACTIVACION=PASS_VISUAL`; `AUDIT_REPORTE_EVENTO_EDICION=PASS_VISUAL`. Estas capturas verifican que **tales eventos aparecen en el historial**, no que todas las variantes de cambios de cualquier entidad queden auditadas; en particular el cambio de URL Power BI todavía no fue probado.
+
+**Vinculación de Test SAC**: el evento de desactivación de empresa `#28` ocurre en el momento de la baja lógica que el operador acababa de realizar sobre Test SAC, cuya UI mostró 5 de 26 empresas activas. Esto es evidencia contextual fuerte, pero la tabla de historial no presenta el nombre de empresa. Para trazabilidad inequívoca se debe comprobar por lectura protegida que el ID de Test SAC sea 28, sin publicar datos privados ni reactivar/desactivar.
+
+**Estado y siguiente fase:** cerrar el QA de auditoría a nivel de operación, dejando pendiente solo cotejo de ID `#28` si se exige trazabilidad nominativa. Avanzar a conciliación de inventario Power BI actualizado frente al catálogo legado de 95 reportes (82 activos) y 84 relaciones empresa-informe, usando fuente original de checklist y exportación de registros sin URLs/PII a GitHub público. No sustituir enlaces ni crear asignaciones antes de aprobar matriz de cambios. Continuar gestionando en paralelo bloqueo SELECT SQL del backend usuarios 443 y credenciales individuales pendientes para 114 cuentas.
