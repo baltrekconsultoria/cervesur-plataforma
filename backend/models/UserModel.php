@@ -542,7 +542,7 @@ class UserModel {
                     throw new WriteConflict('state', 'No puede cambiar su propia contraseña desde el panel de administración');
                 }
                 // P5-R: nunca permitir restablecer la clave de un administrador, ni de un usuario inactivo.
-                if (!admin_write_capability_on('usuarios_sensible')
+                if ((!function_exists('admin_write_capability_on') || !admin_write_capability_on('usuarios_sensible'))
                     && (normalize_role($row['role'] ?? null) !== 'user' || (int)($row['is_active'] ?? 0) !== 1)) {
                     throw new WriteConflict('state', 'P5-R solo permite usuarios estandar activos');
                 }
