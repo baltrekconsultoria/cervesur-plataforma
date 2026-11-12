@@ -79,3 +79,11 @@ Nota de seguridad: el repositorio es publico, por lo que el inventario de GitHub
 El operador confirmó `GET /`, `/api/ping` y `/admin/usuarios` por HTTPS con 200 (HTML, JSON, HTML respectivamente) tanto en puerto 443 como 8443. `GET /api/users?status=all` sin credenciales devolvió **403 JSON en 443** y **401 JSON en 8443**. Ninguno entregó listado anónimo. Esta evidencia no demuestra todavía que la vista React 8443 se conecte a la BD productiva, ni que el 200 HTML de `/admin/usuarios` sea gestión funcional (podría ser fallback SPA). No usar credenciales con validación de certificado deshabilitada.
 
 Para resultados, interpretación, hallazgos de vhosts y proxima verificacion segura de la BD real, consultar el documento canónico [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
+
+## Puerta de configuracion productiva (12/11/2026)
+
+PuTTY: al cargar con `www-data` el `lib/env.php` de los backends DECLARADOS de ambos vhosts corporativos se recibio `PORTAL=admin DB_TARGET=PRODUCCION` y `PORTAL=usuarios DB_TARGET=PRODUCCION`. Esta clasificacion comprueba `DB_NAME=cervesur_portalbi` en ambos loaders, **no** conexion PDO ni identidad de servidor MySQL. Datos de usuarios siguen 190/176/14 por verificacion original de importacion/activacion.
+
+Proxima puerta: PDO SOLO LECTURA desde backend admin declarado, comparar conteos 190/176/14 con DB original de referencia y, si viable, identidad de servidor MySQL. Correlacionar luego mapeo Apache efectivo y funcionamiento de la interfaz admin con TLS validado; NO desplegar ni inicializar passwords antes.
+
+Detalles e historial de VirtualHosts y seguridad en [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md).
