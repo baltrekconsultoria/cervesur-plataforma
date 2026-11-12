@@ -91,6 +91,8 @@ def construir(legado, react):
             motivo = "DATOS_OBLIGATORIOS_AUSENTES"
         elif username in dest_username:
             motivo = "USERNAME_OCUPADO"
+        elif username in dest_email or email in dest_username:
+            motivo = "COLISION_CREDENCIAL_CRUZADA"
         elif clave(old["role"]) not in ("admin", "user", "usuario"):
             motivo = "ROL_DESCONOCIDO"
         elif clave(old["role"]) == "admin":
