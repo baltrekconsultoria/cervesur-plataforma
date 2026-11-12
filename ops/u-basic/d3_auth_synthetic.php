@@ -141,7 +141,7 @@ try {
 
 echo 'D3_AUTH_CRITICOS=' . ($failed === 0 ? 'PASS' : 'NO_GO') . '_' . ($checked - $failed) . '_DE_' . $checked . "\n";
 echo "D3_CIERRE_GLOBAL=PENDIENTE_OTROS_VECTORES_Y_FIRMAS\n";
-echo "DATOS_REALES_LEIDOS=NO\n";
+echo "DATOS_PERSONALES_LEIDOS=NO\n";
 echo "MYSQL_PRODUCTIVO_MODIFICADO=NO\n";
 echo "U_BASIC_ACTIVADO=NO\n";
 exit($failed === 0 ? 0 : 2);
