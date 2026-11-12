@@ -1,0 +1,58 @@
+name: Cervesur P2 native isolated MySQL restore QA
+on:
+  pull_request:
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-p2-native-restore.yml"
+  push:
+    branches:
+      - "feat/cervesur-p2-restore-native-no-docker-20261112"
+    paths:
+      - "ops/u-basic/**"
+      - ".github/workflows/cervesur-p2-native-restore.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-unit:
+    name: Native QA security and cleanup unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Python source
+        run: python3 -m py_compile ops/u-basic/restore_native.py ops/u-basic/test_restore_native.py ops/u-basic/test_restore_native_mysql8_integration.py
+      - name: Run offline unit tests
+        run: python3 -m unittest discover -s ops/u-basic -p "test_restore_native.py" -v
+      - name: Mark no production access
+        run: |
+          echo "QA_NATIVO_UNIT=PASS"
+          echo "MYSQL_PRODUCTIVO_CONTACTADO=NO"
+
+  native-integration:
+    name: Real second mysqld + synthetic restore, no Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install MySQL 8 on disposable GitHub runner
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
+          sudo systemctl stop mysql || true
+      - name: Compile native code
+        run: python3 -m py_compile ops/u-basic/restore_native.py ops/u-basic/test_restore_native_mysql8_integration.py
+      - name: Restore synthetic 7-table snapshot into independent mysqld
+        run: |
+          sudo env CERVESUR_NATIVE_INTEGRATION=1 python3 -m unittest discover \
+            -s ops/u-basic -p "test_restore_native_mysql8_integration.py" -v
+      - name: Confirm runner-only scope
+        run: |
+          echo "QA_NATIVO_MYSQL8=PASS"
+          echo "PROD_DB_CONTACTADA=NO"
+          echo "U_BASIC_ACTIVADO=NO"
