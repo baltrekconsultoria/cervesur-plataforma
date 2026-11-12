@@ -13,7 +13,7 @@ export type MockScenario = 'normal' | 'empty' | 'forbidden';
  * Las credenciales no se validan: basta un usuario sintético existente y una contraseña no vacía.
  */
 export class MockApi implements ApiClient {
-  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true, liveViewer: false };
+  readonly capabilities: ApiCapabilities = { adminDirectory: true, reportCompany: true, reportGroups: true, profileEdit: true, adminWrites: true, usersPasswordReset: false, liveViewer: false };
   private seed: Seed = createSeed();
   private sessions = new Map<string, string>();
   /** Datos técnicos y de contacto que el modelo normalizado no lleva (solo para los formularios administrativos). */
