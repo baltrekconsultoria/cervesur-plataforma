@@ -264,3 +264,30 @@ El operador accedió al portal corporativo administrativo y compartió una captu
 **Pendientes de habilitación real:** 114 migrados activos continúan sin contraseña individual inicializada. El backend declarado del portal de USUARIOS 443 conserva error SQL `PERMISO_SELECT` sobre `user`, pese a compartir servidor con ADMIN; resolver con privilegio mínimo tras auditar GRANTS y código desplegado. Hasta resolver 443, no distribuir accesos ni ejecutar onboarding masivo.
 
 **Siguiente paso aconsejado:** QA de SOLO LECTURA en `Empresas`, `Reportes`, `Informes por empresa`, `Accesos y asignaciones` (contar entidades/relaciones sin copiar nombres, enlaces o PII). Paralelamente auditar grants de cuenta del portal 443 para identificar permiso SQL mínimo `SELECT` al autenticar y quizá `UPDATE last_login`. No modificar MySQL, Apache, frontend ni producción sin aprobación de cambio.
+
+## 17. QA visual complementario: Empresas, Reportes y Accesos (12/11/2026)
+
+El operador aportó tres capturas de su sesion ADMIN 8443 de las pantallas `Empresas`, `Reportes` y `Accesos y asignaciones`. Pruebas **visuales de lectura**, sin ejecutar botones de crear, editar, desactivar ni retirar. Las capturas incluyen nombres y correos, por lo que NO se subieron al repositorio PUBLICO. Solo se preservan métricas agregadas despersonalizadas.
+
+| Vista | Filtro seleccionado | Texto de interfaz observado | Interpretacion |
+| --- | --- | --- | --- |
+| Empresas | Activas | `Mostrando 6 de 26 empresas` | 6 activas; total 26; no se verificaron individualmente las 20 restantes |
+| Reportes | Activos | `Mostrando 82 de 95 reportes` | 82 activos sobre 95 registros; 13 no incluidos en filtro |
+| Accesos y asignaciones | Vigentes | `Mostrando 91 de 103 asignaciones` | 91 relaciones vigentes sobre 103 registros; 12 no incluidas en filtro |
+
+**Observación de empresas:** las 6 filas activas visibles muestran los siguientes pares agregados `(informes activos, usuarios)`, en orden de pantalla: `(8,8), (55,34), (3,3), (0,0), (5,3), (13,14)`. Se omiten identificadores fiscales/nombres de empresa en la matriz de continuidad pública. Hay una entidad marcada activa sin informes ni usuarios. No darla de baja sin autorización y validación de alcance.
+
+**Hallazgo de conciliación:** la suma de los contadores `informes activos` por empresa es **84**, mientras que la vista global `Reportes` muestra **82 reportes activos**. Este desfase de 2 NO demuestra error: podría deberse a informes compartidos entre empresas, reglas distintas de conteo o vínculos históricos. Se requiere consultar por `Informes por empresa` y/o hacer agregados SQL de solo lectura para distinguir reportes únicos vs relaciones empresa-informe. No corregir datos basándose solo en la suma.
+
+**Observación de reportes:** la interfaz muestra para cada fila un nombre/descripcion, empresa, número de usuarios con acceso, estado y controles `Ver`, `Editar`, `Desactivar`. Hay al menos una fila visible con `0` usuarios con acceso. No extrapolar esta condición a todos los reportes, ni suponer que los enlaces Power BI de los 95 registros están actualizados o funcionan. La etiqueta empresa en el listado puede representar una relación o un campo de visualización; contrastar con `Informes por empresa`.
+
+**Observación de asignaciones:** tabla con usuario, informe, empresa, estado y opción `Retirar`, más botones `Nueva asignación`, `Ver historial`. 91 vigentes y 103 totales; no se verificaron los 12 excluidos del filtro ni el funcionamiento de escritura/auditoría. No publicar los nombres de usuarios/correos de las capturas.
+
+**Estado de avance y próximos controles:**
+1. `QA_LECTURA_ADMIN_EMPRESAS=PASS_VISUAL` (6/26), `QA_LECTURA_ADMIN_REPORTES=PASS_VISUAL` (82/95), `QA_LECTURA_ADMIN_ASIGNACIONES=PASS_VISUAL` (91/103).
+2. Abrir `Informes por empresa` en lectura e identificar el contador total y activo. Validar si 84 relaciones entre empresa e informe explican 82 reportes únicos; no asumirlo sin consulta.
+3. Contrastar el inventario completo de dashboards Power BI ya actualizados con los 95 reportes existentes en la plataforma para detectar faltantes, duplicados y enlaces a actualizar; la relación no se puede inferir de las capturas.
+4. Levantar matriz final `empresa -> informe -> usuario -> URL Power BI`, separando vínculos actuales de nuevas asignaciones, antes de cualquier carga masiva.
+5. Mantener como bloqueos para usuarios finales el privilegio SQL SELECT denegado en backend declarado 443 y la inicialización individual segura de credenciales de 114 cuentas activadas. Resolver con QA y autorización previa.
+
+Las etiquetas y botones de la UI por sí solos no prueban que los permisos administrativos de escritura estén activados o que cada acción se audite: solo se ha evaluado lectura.
