@@ -24,7 +24,9 @@ jobs:
           php -l backend/models/UserModel.php
           php -l backend/router/AdminWriteRouter.php
           php -l tests/p5r_unit.php
+          php -l tests/p5r_model_unit.php
           php tests/p5r_unit.php
+          php tests/p5r_model_unit.php
           php tests/admin_write_unit.php
           php tests/mode_unit.php
       - name: Check deployment script syntax and JS module syntax
