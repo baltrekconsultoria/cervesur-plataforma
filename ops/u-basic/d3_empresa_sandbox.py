@@ -93,11 +93,15 @@ def trial(model: bytes, php_script: Path) -> tuple[int, list[str]]:
         if os.geteuid() == 0:
             nobody = pwd.getpwnam("nobody")
             child_uid, child_gid = nobody.pw_uid, nobody.pw_gid
+            # Mantener TODO el arbol privado al usuario aislado. No usar
+            # 755/644: la copia puede contener texto confidencial.
             for dirpath, dirs, files in os.walk(root):
-                os.chmod(dirpath, 0o755)
+                os.chown(dirpath, child_uid, child_gid)
+                os.chmod(dirpath, 0o700)
                 for name in files:
-                    os.chmod(Path(dirpath) / name, 0o644)
-            os.chmod(root, 0o755)
+                    file = Path(dirpath) / name
+                    os.chown(file, child_uid, child_gid)
+                    os.chmod(file, 0o600)
         forbidden = (
             "exec,shell_exec,system,passthru,proc_open,popen,pcntl_exec,"
             "fsockopen,pfsockopen,stream_socket_client,stream_socket_server,"
