@@ -6,8 +6,11 @@ set -uo pipefail
 PAQ=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=lib.sh
 source "$PAQ/scripts/lib.sh"
-URL_ADMIN="https://localhost:8443"
-CURL_TLS=(--cacert "$CERT_FILE" --resolve "localhost:8443:192.168.200.12")
+# El VHost 8443 presenta certificado corporativo con SAN IP 192.168.200.12.
+# La confianza proviene de la CA interna instalada o de CERVESUR_P5R_CA_FILE.
+P5R_CA_FILE="${CERVESUR_P5R_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}"
+URL_ADMIN="https://192.168.200.12:8443"
+CURL_TLS=(--noproxy '*' --cacert "$P5R_CA_FILE")
 trap api_limpiar EXIT
 
 MODE=""
@@ -66,6 +69,7 @@ preflight() {
   echo "=== P5R INCREMENTAL: PREFLIGHT ==="
   validate_package || { echo "P5R_PAQUETE=FAIL"; return 1; }
   echo "P5R_PAQUETE=PASS"
+  [ -r "$P5R_CA_FILE" ] || { echo "P5R_CA=NO_GO_CERTIFICADO_RAIZ"; return 1; }
   flags_ok || { echo "P5R_U_BASIC=NO_GO_ENV"; return 1; }
   echo "P5R_U_BASIC=PASS_ON"
   [ -d "$DIR_PUBLIC" ] && [ -d "$DIR_BACKEND" ] && [ -f "$ENV_FILE" ] || return 1
