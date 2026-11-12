@@ -67,3 +67,9 @@ Interpretacion: las dos API QA responden y protegen /api/users ante solicitudes 
 Verificar Apache vhosts asociados a 80/443/8088/8089/8443, puertos en escucha y codigo HTTP anonimo de /api/users en puerto 80. No imprimir cuerpos HTTP ni archivos .env. Un 200 JSON en /api/users anonimo requiere STOP. Las solicitudes a 127.0.0.1 pueden seleccionar el vhost por defecto, no el vhost corporativo; interpretar con cautela.
 
 No alterar la configuracion Apache ni redirigir los React QA a MySQL productivo. El objetivo posterior es un portal administrativo productivo separado y seguro, con listado real de 190 usuarios, 176 activos y 14 inactivos, mas invitaciones de credenciales individuales; sus 114 cuentas nuevas siguen sin contrasenas utilizables.
+
+## Continuidad: inventario completo de vhosts y puertos
+
+Ver [HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md](HALLAZGOS-ADMIN-VHOSTS-2026-11-12.md) para la consolidacion de: POSTFLIGHT 190/176/14, verificacion de API 80/8088/8089, VirtualHosts habilitados para 80/443/8443 y 8088-8094, puertos realmente en LISTEN, distincion entre entorno QA y portales corporativos, y siguiente puerta para verificar HTTPS 443/8443 sin credenciales.
+
+Nota de seguridad: el repositorio es publico, por lo que el inventario de GitHub documenta el binding como interfaz interna/VPN sin publicar la IP corporativa concreta. No compartir configuraciones privadas, .env ni PII de usuarios.
