@@ -1,3 +1,46 @@
+# ACTUALIZACIÓN V0.2 — 23/11/2026 (vigente para revisión)
+
+**Esta sección sustituye la estrategia de 65 lotes y concurrencia fija de tres descrita en la versión histórica que aparece más abajo.** La versión 0.1 se conserva exclusivamente para trazabilidad; no activar sus ventanas.
+
+## Reconciliación de ubicaciones
+
+- Matriz histórica del 11/11: 169 informes de referencia, no 169 GUID de modelos confirmados. Cuenta 1: 71; Cuenta 2: 98.
+- La ruta operativa por registro se compone de cuenta, workspace, carpeta exacta (Raíz / BOTON_UNICO_CENTROS / BOTON_UNICO_CUENTAS) y nombre del informe/modelo.
+- La cuenta 1 contiene 61 registros en el workspace principal (40 raíz, 16 cuentas, 5 centros) y 10 registros en workspace piloto (raíz). **Verificar si los diez siguen en su ubicación productiva real.**
+- La cuenta 2 contiene 98 en su workspace principal (60 raíz, 20 cuentas, 18 centros).
+- Captura de 23/11: algunos modelos CENTROS_ figuran directamente en la Raíz del workspace; por tanto, no presuponer que estén todos en carpetas.
+- Los IDs exactos de modelos semánticos no constan en la matriz fuente: confirmar antes de programar.
+
+## Lotes de uno a cinco y política de capacidad
+
+- Objetivo semanal: cubrir cada modelo conciliado al menos una vez por semana; ejecución en franjas nocturnas 21:00–05:00 (lunes-jueves), y de viernes 21:00 a lunes 05:00 de forma continua.
+- Máximo **1–5** simultáneos, calibrado por carga. Los modelos multiempresa de 3–4 horas quedan individuales hasta QA.
+- Parámetros PROVISIONALES: G1/CREDITEX 90 min y 3 simultáneos; G2/TEXGROUP 45 min y 4; G3/CREDITEX+TEXGROUP 180 min y 1; G4/5 empresas 180 min y 1; G5/4 empresas 240 min y 1; G6/PROAGRO 30 min y 5; G7/TRANSALTISA 20 min y 5; G8/ALPROSA 45 min y 4.
+- **G6=30 minutos es un escenario, NO un dato histórico validado.** G2, G5 y G8 tampoco tienen mediciones fiables. El máximo de cinco no se ha probado; el ensayo manual exitoso del 20/11 fue de cuatro modelos simultáneos después de uno individual.
+- Agrupar por misma cuenta + workspace para simplificar la navegación. Carpetas mixtas dentro del mismo workspace se enumeran modelo por modelo en el Excel privado.
+- Nueva simulación **53 lotes**: G1=16, G2=4, G3=7, G4=3, G5=1, G6=12, G7=6, G8=4. **4.640 minutos (77h20m)**, reserva **640 minutos (10h40m; 12,1%)** sobre las 88 h semanales; cuatro noches de 430 min y fin de semana de 2.920 min. No representa un horario real ya habilitado.
+- La duración estimada de un lote paralelo usa MAX(minutos individuales) + reserva 5 o 10 min. Es una hipótesis de ausencia de contención de Oracle; validar con medición real, especialmente con cuatro o cinco conexiones.
+
+## Excel operativo (entrega privada, no adjuntar al GitHub público)
+
+- Inicio: cobertura, capacidad y riesgos.
+- Rutas_169: cuenta/correo, workspace, carpeta, nombre, enlace al workspace y QA por registro; distingue ubicaciones documentales históricas de las observadas.
+- Lotes_53: de 1 a 5, fecha/hora Lima simulada, cuenta/workspace/carpeta(s), nombres, tiempo máximo, reserva y alerta de exceso de ventana.
+- Parametros: tiempos estimados y capacidad máxima editables. Introducir duración real por registro en Rutas_169; sus fórmulas ajustan capacidad, **pero modificar máximo simultáneo exige rehacer agrupación**.
+- Ventanas / Piloto / Guia: capacidad temporal, evidencia de errores ORA-03113/ORA-12170 y proceso de revisión.
+
+## Puertas antes de activar
+
+1. Conciliar las 169 ubicaciones con Power BI Service; verificar los 10 registros del workspace piloto y los cinco horarios previamente activos.
+2. Completar mediciones reales por empresa/modelo (incluidos G6), comprobar incidentes nocturnos y capacidad de 5 concurrentes.
+3. Recalcular capacidad reservando mínimo 10% de contingencia y sin sobrecupo en ninguna ventana.
+4. Habilitar de forma progresiva solo tras validación técnica de Oracle y aprobación de programación; registrar tiempos y frescura después de cada lote.
+
+**Seguridad:** no subir la matriz original al repositorio público: contiene columnas de contraseñas y otras referencias de acceso. Evitar credenciales, IDs individualizados y enlaces de acceso en la documentación pública.
+
+---
+
+## HISTÓRICO V0.1 — SUPERADO POR EL PLAN ADAPTATIVO DE ARRIBA
 # Cervesur — Plan de actualización Power BI (169 informes)
 
 **Estado:** borrador de planificación; sin cambios en Power BI, Oracle EBS, gateway ni producción.  
